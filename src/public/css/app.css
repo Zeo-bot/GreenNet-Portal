@@ -1,0 +1,264 @@
+:root {
+    --green: #16a34a;
+    --green-dark: #15803d;
+    --green-light: #dcfce7;
+    --white: #ffffff;
+    --bg: #f4f7f5;
+    --text: #1f2937;
+    --muted: #6b7280;
+    --danger: #ef4444;
+    --border: #e5e7eb;
+    --shadow: 0 12px 35px rgba(0, 0, 0, 0.08);
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    direction: rtl;
+    font-family: Tahoma, Arial, sans-serif;
+    background:
+        radial-gradient(circle at top right, rgba(22, 163, 74, 0.18), transparent 35%),
+        linear-gradient(135deg, #f0fdf4, #ffffff);
+    color: var(--text);
+    min-height: 100vh;
+}
+
+.page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.app-card {
+    width: 100%;
+    max-width: 430px;
+    background: var(--white);
+    border-radius: 28px;
+    padding: 26px;
+    box-shadow: var(--shadow);
+    border: 1px solid rgba(22, 163, 74, 0.08);
+}
+
+.brand {
+    text-align: center;
+    margin-bottom: 22px;
+}
+
+.brand-mark {
+    width: 70px;
+    height: 70px;
+    margin: 0 auto 12px;
+    border-radius: 22px;
+    background: var(--green-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--green);
+    font-size: 34px;
+    font-weight: bold;
+}
+
+.brand h1 {
+    margin: 0;
+    color: var(--green);
+    font-size: 34px;
+}
+
+.brand p {
+    margin: 8px 0 0;
+    color: var(--muted);
+    font-size: 14px;
+}
+
+.notice {
+    background: var(--green-light);
+    color: var(--green-dark);
+    border-radius: 16px;
+    padding: 14px;
+    line-height: 1.7;
+    margin-bottom: 18px;
+    font-size: 14px;
+}
+
+.form-group {
+    margin-bottom: 14px;
+}
+
+label {
+    display: block;
+    margin-bottom: 7px;
+    font-size: 14px;
+    color: var(--text);
+    font-weight: bold;
+}
+
+input,
+.input-select,
+.input-textarea {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 15px;
+    padding: 15px;
+    font-size: 16px;
+    outline: none;
+    background: #fafafa;
+    color: var(--text);
+    font-family: Tahoma, Arial, sans-serif;
+}
+
+input:focus,
+.input-select:focus,
+.input-textarea:focus {
+    border-color: var(--green);
+    background: var(--white);
+}
+
+.input-textarea {
+    min-height: 120px;
+    resize: vertical;
+    line-height: 1.7;
+}
+
+.btn {
+    width: 100%;
+    border: none;
+    border-radius: 15px;
+    padding: 15px;
+    font-size: 16px;
+    text-decoration: none;
+    display: block;
+    text-align: center;
+    cursor: pointer;
+    margin-top: 12px;
+    font-weight: bold;
+}
+
+.btn-primary {
+    background: var(--green);
+    color: var(--white);
+}
+
+.btn-primary:hover {
+    background: var(--green-dark);
+}
+
+.btn-outline {
+    background: var(--white);
+    border: 1px solid var(--green);
+    color: var(--green);
+}
+
+.btn-danger {
+    background: var(--danger);
+    color: var(--white);
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 15px;
+}
+
+.stat {
+    background: #f9fafb;
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 14px;
+}
+
+.stat .label {
+    color: var(--muted);
+    font-size: 13px;
+    margin-bottom: 8px;
+}
+
+.stat .value {
+    color: var(--text);
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--green-light);
+    color: var(--green-dark);
+    border-radius: 999px;
+    padding: 8px 14px;
+    font-size: 14px;
+    margin-top: 10px;
+}
+
+.dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--green);
+}
+
+.progress-wrap {
+    margin: 18px 0;
+}
+
+.progress-info {
+    display: flex;
+    justify-content: space-between;
+    color: var(--muted);
+    font-size: 13px;
+    margin-bottom: 8px;
+}
+
+.progress {
+    height: 12px;
+    background: #e5e7eb;
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.progress-bar {
+    height: 100%;
+    width: 26%;
+    background: linear-gradient(90deg, var(--green), var(--green-dark));
+    border-radius: 999px;
+}
+
+.footer {
+    text-align: center;
+    color: var(--muted);
+    font-size: 12px;
+    margin-top: 20px;
+}
+
+.links {
+    margin-top: 18px;
+}
+
+.links a {
+    display: block;
+    color: var(--green);
+    text-decoration: none;
+    margin-top: 10px;
+    font-weight: bold;
+}
+
+@media (max-width: 420px) {
+    .app-card {
+        padding: 22px;
+        border-radius: 24px;
+    }
+
+    .brand h1 {
+        font-size: 30px;
+    }
+
+    .grid {
+        grid-template-columns: 1fr;
+    }
+}

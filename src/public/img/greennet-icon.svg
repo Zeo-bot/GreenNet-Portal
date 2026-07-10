@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="GreenNet">
+  <rect width="512" height="512" rx="112" fill="#16a34a"></rect>
+  <circle cx="256" cy="256" r="164" fill="#ffffff" opacity="0.16"></circle>
+  <circle cx="256" cy="256" r="118" fill="#ffffff" opacity="0.18"></circle>
+  <path d="M256 144c-70.7 0-128 57.3-128 128 0 21.4 5.3 41.7 14.7 59.5 4.9 9.3 17.4 10.7 24.2 2.6l35.1-41.7c-3.8-10-5.2-20.9-3.6-32.1 4-28.2 26.7-51 54.9-55.1 41.2-6.1 76.7 25.7 76.7 65.8 0 7.4-1.2 14.5-3.5 21.1l35.5 42.1c6.8 8.1 19.3 6.6 24.2-2.7 9.4-17.8 14.7-38 14.7-59.4C401 201.3 343.7 144 256 144z" fill="#ffffff"></path>
+  <path d="M256 236c-19.9 0-36 16.1-36 36 0 10.1 4.2 19.2 10.9 25.8l-49.1 92.5c-5.1 9.6 1.9 21.2 12.7 21.2h123c10.9 0 17.8-11.6 12.7-21.2l-49.1-92.5c6.7-6.6 10.9-15.7 10.9-25.8 0-19.9-16.1-36-36-36z" fill="#ffffff"></path>
+  <text x="256" y="96" text-anchor="middle" font-family="Arial, sans-serif" font-size="48" font-weight="700" fill="#ffffff">G</text>
+</svg>

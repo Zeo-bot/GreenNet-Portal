@@ -1,0 +1,39 @@
+{
+  "name": "GreenNet Portal",
+  "short_name": "GreenNet",
+  "description": "تطبيق المشتركين الخاص بشبكة GreenNet",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "dir": "rtl",
+  "lang": "ar",
+  "theme_color": "#16a34a",
+  "background_color": "#ffffff",
+  "categories": ["utilities", "productivity"],
+  "icons": [
+    {
+      "src": "/img/greennet-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "الاستهلاك",
+      "short_name": "الاستهلاك",
+      "url": "/my/usage"
+    },
+    {
+      "name": "طلب تجديد",
+      "short_name": "تجديد",
+      "url": "/my/renew"
+    },
+    {
+      "name": "الدعم",
+      "short_name": "الدعم",
+      "url": "/support"
+    }
+  ]
+}
