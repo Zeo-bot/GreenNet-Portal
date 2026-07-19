@@ -44,6 +44,11 @@ use GreenNet\Controllers\AdminMikroTikDryRunController;
 use GreenNet\Controllers\AdminUserManagerPackagesController;
 use GreenNet\Controllers\AdminPackagePushController;
 use GreenNet\Controllers\AdminPackageAssignController;
+use GreenNet\Controllers\AdminUserManagerUserCreateController;
+use GreenNet\Controllers\AdminUserManagerPasswordController;
+use GreenNet\Controllers\AdminUserManagerUserDeleteController;
+use GreenNet\Controllers\AdminUserDisconnectController;
+use GreenNet\Controllers\AdminUserManagerControlController;
 
 $router->get('/', [HomeController::class, 'index']);
 
@@ -104,6 +109,7 @@ $router->get('/admin/customers', [AdminController::class, 'customers']);
 $router->get('/admin/customers/table', [AdminCustomerTableController::class, 'index']);
 $router->post('/admin/customers/store', [AdminController::class, 'storeCustomer']);
 $router->post('/admin/customers/import-mikrotik', [AdminCustomerImportController::class, 'fromMikroTik']);
+$router->post('/admin/customers', [AdminController::class, 'storeCustomer']);
 
 $router->get('/admin/customers/sync', [AdminCustomerSyncController::class, 'index']);
 $router->post('/admin/customers/sync/import-selected', [AdminCustomerSyncController::class, 'importSelected']);
@@ -202,3 +208,16 @@ $router->post('/admin/package-push/execute', [AdminPackagePushController::class,
 $router->get('/admin/package-assign', [AdminPackageAssignController::class, 'index']);
 $router->post('/admin/package-assign/preview', [AdminPackageAssignController::class, 'preview']);
 $router->post('/admin/package-assign/execute', [AdminPackageAssignController::class, 'execute']);
+$router->get('/admin/user-manager-user-create', [AdminUserManagerUserCreateController::class, 'index']);
+$router->post('/admin/user-manager-user-create/preview', [AdminUserManagerUserCreateController::class, 'preview']);
+$router->post('/admin/user-manager-user-create/execute', [AdminUserManagerUserCreateController::class, 'execute']);
+$router->get('/admin/user-manager-password', [AdminUserManagerPasswordController::class, 'index']);
+$router->post('/admin/user-manager-password/preview', [AdminUserManagerPasswordController::class, 'preview']);
+$router->post('/admin/user-manager-password/execute', [AdminUserManagerPasswordController::class, 'execute']);
+$router->get('/admin/user-manager-user-delete', [AdminUserManagerUserDeleteController::class, 'index']);
+$router->post('/admin/user-manager-user-delete/preview', [AdminUserManagerUserDeleteController::class, 'preview']);
+$router->post('/admin/user-manager-user-delete/execute', [AdminUserManagerUserDeleteController::class, 'execute']);
+$router->get('/admin/user-disconnect', [AdminUserDisconnectController::class, 'index']);
+$router->post('/admin/user-disconnect/preview', [AdminUserDisconnectController::class, 'preview']);
+$router->post('/admin/user-disconnect/execute', [AdminUserDisconnectController::class, 'execute']);
+$router->get('/admin/user-manager-control', [AdminUserManagerControlController::class, 'index']);
