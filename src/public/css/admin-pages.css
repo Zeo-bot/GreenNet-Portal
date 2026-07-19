@@ -1,0 +1,668 @@
+/* =========================================================
+   GreenNet Admin Pages Final Polish
+   Includes Legacy Form/Page Fix
+   ========================================================= */
+
+.gn-admin-content {
+    animation: gnPageIn 180ms ease both;
+}
+
+@keyframes gnPageIn {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* =========================================================
+   PAGE HEADER
+   ========================================================= */
+
+.admin-page-header,
+.gn-page-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
+    flex-wrap: wrap;
+    margin-bottom: 22px;
+}
+
+.admin-page-title,
+.gn-page-title {
+    margin: 0;
+    color: var(--gn-text);
+    font-size: 30px;
+    font-weight: 950;
+    letter-spacing: -0.05em;
+}
+
+.admin-page-description,
+.gn-page-description {
+    margin: 8px 0 0;
+    color: var(--gn-muted);
+    line-height: 1.7;
+    max-width: 860px;
+}
+
+.admin-header-actions,
+.gn-page-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+/* =========================================================
+   GENERIC CARDS
+   ========================================================= */
+
+.admin-section-card,
+.gn-section-card,
+.admin-card,
+.card {
+    background: var(--gn-surface);
+    border: 1px solid var(--gn-border);
+    border-radius: var(--gn-radius-xl);
+    box-shadow: var(--gn-shadow-sm);
+    padding: 18px;
+    margin-bottom: 18px;
+}
+
+.admin-section-card h2,
+.gn-section-card h2,
+.admin-card h2,
+.card h2 {
+    margin-top: 0;
+    color: var(--gn-text);
+    font-weight: 950;
+    letter-spacing: -0.03em;
+}
+
+.admin-section-card p,
+.gn-section-card p,
+.admin-card p,
+.card p {
+    color: var(--gn-text-soft);
+    line-height: 1.7;
+}
+
+/* =========================================================
+   LEGACY PAGE FIX
+   ========================================================= */
+
+.gn-legacy-page {
+    display: grid;
+    gap: 18px;
+}
+
+.gn-legacy-hero {
+    position: relative;
+    overflow: hidden;
+    padding: 26px;
+    border-radius: var(--gn-radius-xl);
+    background:
+        radial-gradient(circle at 0% 0%, rgba(32, 201, 120, 0.14), transparent 28%),
+        linear-gradient(180deg, var(--gn-surface), var(--gn-surface-2));
+    border: 1px solid var(--gn-border);
+    box-shadow: var(--gn-shadow-sm);
+    margin-bottom: 18px;
+}
+
+.gn-legacy-hero h1,
+.gn-legacy-hero h2 {
+    margin: 0;
+    color: var(--gn-text);
+    font-size: 30px;
+    font-weight: 950;
+    letter-spacing: -0.05em;
+}
+
+.gn-legacy-hero p {
+    margin: 10px 0 0;
+    color: var(--gn-text-soft);
+    line-height: 1.8;
+    max-width: 900px;
+}
+
+.gn-legacy-card {
+    background: var(--gn-surface);
+    border: 1px solid var(--gn-border);
+    border-radius: var(--gn-radius-xl);
+    box-shadow: var(--gn-shadow-sm);
+    padding: 22px;
+    margin-bottom: 18px;
+}
+
+.gn-legacy-card-title {
+    margin: 0 0 14px;
+    color: var(--gn-text);
+    font-size: 21px;
+    font-weight: 950;
+    letter-spacing: -0.03em;
+}
+
+.gn-legacy-card-subtitle {
+    margin: -8px 0 18px;
+    color: var(--gn-muted);
+    line-height: 1.7;
+}
+
+/* Hide ugly single-letter logo leftovers in old views */
+.gn-legacy-page > .gn-admin-content-logo,
+.gn-legacy-page > .legacy-logo,
+.gn-legacy-page > .old-logo {
+    display: none !important;
+}
+
+/* Direct old H1/H2 treatment */
+.gn-admin-content > h1,
+.gn-admin-content > h2 {
+    color: var(--gn-text);
+    font-weight: 950;
+    letter-spacing: -0.04em;
+}
+
+.gn-admin-content > h1:first-child,
+.gn-admin-content > h2:first-child {
+    margin-top: 0;
+}
+
+/* Old page raw text */
+.gn-admin-content > p,
+.gn-admin-content > div > p {
+    color: var(--gn-text-soft);
+    line-height: 1.8;
+}
+
+/* =========================================================
+   LEGACY FORMS
+   ========================================================= */
+
+.gn-admin-content form,
+.gn-admin-form,
+.admin-form {
+    display: grid;
+    gap: 16px;
+}
+
+.gn-legacy-form-card {
+    background: var(--gn-surface);
+    border: 1px solid var(--gn-border);
+    border-radius: var(--gn-radius-xl);
+    box-shadow: var(--gn-shadow-sm);
+    padding: 22px;
+    margin-bottom: 18px;
+}
+
+.gn-legacy-form-card form {
+    margin: 0;
+}
+
+.gn-form-grid,
+.admin-form-grid,
+.gn-legacy-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.form-group,
+.gn-field,
+.gn-admin-content form > div {
+    display: grid;
+    gap: 7px;
+    min-width: 0;
+}
+
+.form-group label,
+.admin-form label,
+.gn-admin-form label,
+.gn-admin-content form label {
+    color: var(--gn-text);
+    font-size: 13px;
+    font-weight: 950;
+}
+
+.gn-admin-content input,
+.gn-admin-content select,
+.gn-admin-content textarea,
+.form-group input,
+.form-group select,
+.form-group textarea,
+.admin-form input,
+.admin-form select,
+.admin-form textarea,
+.gn-admin-form input,
+.gn-admin-form select,
+.gn-admin-form textarea {
+    width: 100%;
+    min-height: 46px;
+    padding: 10px 14px;
+    border-radius: var(--gn-radius-md);
+    border: 1px solid var(--gn-border);
+    background: var(--gn-surface-2);
+    color: var(--gn-text);
+    outline: none;
+    font-size: 14px;
+    box-sizing: border-box;
+}
+
+.gn-admin-content textarea {
+    min-height: 110px;
+    resize: vertical;
+    line-height: 1.7;
+}
+
+.gn-admin-content input::placeholder,
+.gn-admin-content textarea::placeholder {
+    color: var(--gn-muted-2);
+}
+
+.gn-admin-content input:focus,
+.gn-admin-content select:focus,
+.gn-admin-content textarea:focus {
+    border-color: var(--gn-primary);
+    box-shadow: 0 0 0 4px rgba(17, 148, 90, 0.14);
+}
+
+/* Fix old forms where labels/inputs are dumped directly */
+.gn-admin-content form > label {
+    margin-top: 4px;
+}
+
+.gn-admin-content form > input,
+.gn-admin-content form > select,
+.gn-admin-content form > textarea {
+    margin-bottom: 4px;
+}
+
+/* Make old consecutive label/input pairs look less broken */
+.gn-admin-content form:not(.gn-no-auto-form) {
+    background: transparent;
+}
+
+/* =========================================================
+   FILTERS
+   ========================================================= */
+
+.admin-filter-bar,
+.gn-filter-panel {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+    align-items: end;
+    background: var(--gn-surface);
+    border: 1px solid var(--gn-border);
+    border-radius: var(--gn-radius-xl);
+    box-shadow: var(--gn-shadow-sm);
+    padding: 18px;
+    margin-bottom: 18px;
+}
+
+/* =========================================================
+   ACTION ROWS + CANCEL FIX
+   ========================================================= */
+
+.admin-form-actions,
+.gn-form-actions,
+.gn-action-row,
+.gn-filter-actions,
+.gn-form-action-row {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 8px !important;
+    flex-wrap: wrap !important;
+    margin-top: 8px;
+}
+
+html[dir="rtl"] .admin-form-actions,
+html[dir="rtl"] .gn-form-actions,
+html[dir="rtl"] .gn-action-row,
+html[dir="rtl"] .gn-filter-actions,
+html[dir="rtl"] .gn-form-action-row {
+    justify-content: flex-start !important;
+}
+
+.gn-action-row a,
+.gn-action-row button,
+.gn-form-action-row a,
+.gn-form-action-row button,
+.admin-form-actions a,
+.admin-form-actions button,
+.gn-filter-actions a,
+.gn-filter-actions button {
+    width: auto !important;
+    max-width: max-content !important;
+}
+
+.gn-cancel-action,
+.gn-clear-action,
+a.gn-cancel-action,
+a.gn-clear-action,
+button.gn-cancel-action,
+button.gn-clear-action {
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: max-content !important;
+    min-height: 38px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 7px !important;
+    padding: 8px 14px !important;
+    border-radius: 999px !important;
+    border: 1px solid var(--gn-border) !important;
+    background: var(--gn-surface-2) !important;
+    color: var(--gn-text) !important;
+    font-size: 13px !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+    text-decoration: none !important;
+    box-shadow: var(--gn-shadow-sm) !important;
+    white-space: nowrap !important;
+    place-self: auto !important;
+    align-self: center !important;
+    justify-self: start !important;
+}
+
+.gn-cancel-action:hover,
+.gn-clear-action:hover {
+    background: var(--gn-primary-soft) !important;
+    color: var(--gn-primary) !important;
+    border-color: rgba(17, 148, 90, 0.30) !important;
+}
+
+/* =========================================================
+   BUTTONS FOR OLD PAGES
+   ========================================================= */
+
+.gn-admin-content button,
+.gn-admin-content input[type="submit"],
+.gn-admin-content .btn,
+.gn-admin-content .admin-mini-btn {
+    min-height: 42px;
+    border-radius: 999px;
+    padding: 9px 16px;
+    font-weight: 950;
+    cursor: pointer;
+}
+
+.gn-admin-content button[type="submit"],
+.gn-admin-content input[type="submit"] {
+    background: linear-gradient(135deg, var(--gn-primary-3), var(--gn-primary), var(--gn-primary-2)) !important;
+    color: #ffffff !important;
+    border: 1px solid transparent !important;
+    box-shadow: 0 14px 30px rgba(17, 148, 90, 0.22);
+}
+
+/* Old tabs/links inside forms */
+.gn-admin-content .tabs,
+.gn-admin-content .tab-actions,
+.gn-admin-content .admin-tabs,
+.gn-admin-content .nav-tabs {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 12px 0 18px;
+}
+
+.gn-admin-content .tabs a,
+.gn-admin-content .tab-actions a,
+.gn-admin-content .admin-tabs a,
+.gn-admin-content .nav-tabs a {
+    min-height: 38px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: var(--gn-surface-2);
+    border: 1px solid var(--gn-border);
+    color: var(--gn-text);
+    font-size: 13px;
+    font-weight: 950;
+    text-decoration: none;
+}
+
+/* =========================================================
+   DASHBOARD STATS
+   ========================================================= */
+
+.gn-dashboard-grid,
+.admin-stats-grid,
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.gn-stat-card,
+.admin-stat-card,
+.stat-card {
+    position: relative;
+    overflow: hidden;
+    padding: 18px;
+    border-radius: var(--gn-radius-xl);
+    background: linear-gradient(180deg, var(--gn-surface), var(--gn-surface-2));
+    border: 1px solid var(--gn-border);
+    box-shadow: var(--gn-shadow-sm);
+}
+
+.gn-stat-card::before,
+.admin-stat-card::before,
+.stat-card::before {
+    content: "";
+    position: absolute;
+    inset-inline-start: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: linear-gradient(180deg, var(--gn-primary), var(--gn-primary-3));
+}
+
+.gn-stat-label,
+.stat-label {
+    color: var(--gn-muted);
+    font-size: 12px;
+    font-weight: 900;
+}
+
+.gn-stat-value,
+.stat-value {
+    margin-top: 8px;
+    color: var(--gn-text);
+    font-size: 30px;
+    font-weight: 950;
+    letter-spacing: -0.04em;
+}
+
+/* =========================================================
+   BADGES / ALERTS
+   ========================================================= */
+
+.gn-badge,
+.badge,
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 26px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: var(--gn-primary-soft);
+    color: var(--gn-primary-2);
+    font-size: 12px;
+    font-weight: 950;
+    white-space: nowrap;
+}
+
+.gn-badge-success {
+    background: var(--gn-success-soft) !important;
+    color: var(--gn-success) !important;
+}
+
+.gn-badge-warning {
+    background: var(--gn-warning-soft) !important;
+    color: var(--gn-warning) !important;
+}
+
+.gn-badge-danger {
+    background: var(--gn-danger-soft) !important;
+    color: var(--gn-danger) !important;
+}
+
+.gn-badge-info {
+    background: var(--gn-info-soft) !important;
+    color: var(--gn-info) !important;
+}
+
+.gn-badge-muted {
+    background: var(--gn-surface-3) !important;
+    color: var(--gn-muted) !important;
+}
+
+.gn-alert,
+.alert {
+    padding: 14px 16px;
+    border-radius: var(--gn-radius-lg);
+    border: 1px solid var(--gn-border);
+    background: var(--gn-info-soft);
+    color: var(--gn-info);
+    font-weight: 900;
+    line-height: 1.7;
+    margin-bottom: 18px;
+}
+
+.gn-alert-success,
+.alert-success {
+    background: var(--gn-success-soft);
+    color: var(--gn-success);
+}
+
+.gn-alert-danger,
+.alert-danger,
+.alert-error {
+    background: var(--gn-danger-soft);
+    color: var(--gn-danger);
+}
+
+.gn-alert-warning,
+.alert-warning {
+    background: var(--gn-warning-soft);
+    color: var(--gn-warning);
+}
+
+/* =========================================================
+   TECHNICAL
+   ========================================================= */
+
+pre,
+code,
+.mono,
+.admin-code {
+    direction: ltr !important;
+    text-align: left !important;
+    unicode-bidi: plaintext !important;
+}
+
+/* =========================================================
+   DARK COMPATIBILITY
+   ========================================================= */
+
+html[data-theme="greennet-dark"] .gn-legacy-hero,
+html[data-theme="greennet-dark"] .gn-legacy-card,
+html[data-theme="greennet-dark"] .gn-legacy-form-card {
+    background:
+        radial-gradient(circle at 0% 0%, rgba(46, 230, 139, 0.07), transparent 28%),
+        linear-gradient(180deg, var(--gn-surface), var(--gn-surface-2)) !important;
+    color: var(--gn-text) !important;
+    border-color: var(--gn-border) !important;
+}
+
+html[data-theme="greennet-dark"] .gn-cancel-action,
+html[data-theme="greennet-dark"] .gn-clear-action {
+    background: var(--gn-surface-2) !important;
+    color: var(--gn-text) !important;
+    border-color: var(--gn-border) !important;
+}
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 1100px) {
+    .admin-filter-bar,
+    .gn-filter-panel,
+    .gn-dashboard-grid,
+    .admin-stats-grid,
+    .stats-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .gn-form-grid,
+    .admin-form-grid,
+    .gn-legacy-form-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 720px) {
+    .admin-page-header,
+    .gn-page-header {
+        display: grid;
+    }
+
+    .admin-filter-bar,
+    .gn-filter-panel,
+    .gn-dashboard-grid,
+    .admin-stats-grid,
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .admin-page-title,
+    .gn-page-title,
+    .gn-legacy-hero h1,
+    .gn-legacy-hero h2 {
+        font-size: 25px;
+    }
+
+    .admin-form-actions,
+    .gn-form-actions,
+    .gn-action-row,
+    .gn-filter-actions,
+    .gn-form-action-row {
+        width: 100%;
+        justify-content: stretch !important;
+    }
+
+    .admin-form-actions .gn-btn,
+    .admin-form-actions button,
+    .gn-form-actions .gn-btn,
+    .gn-form-actions button,
+    .gn-action-row .gn-btn,
+    .gn-action-row button,
+    .gn-filter-actions .gn-btn,
+    .gn-filter-actions button,
+    .gn-form-action-row .gn-btn,
+    .gn-form-action-row button {
+        flex: 1 1 auto;
+        max-width: none !important;
+    }
+
+    .gn-cancel-action,
+    .gn-clear-action {
+        flex: 0 0 auto !important;
+        max-width: max-content !important;
+    }
+}

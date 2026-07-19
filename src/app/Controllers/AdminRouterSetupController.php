@@ -4,77 +4,114 @@ declare(strict_types=1);
 
 namespace GreenNet\Controllers;
 
-use GreenNet\Core\Database;
-use GreenNet\Core\View;
-use GreenNet\Models\AppLog;
-use GreenNet\Services\RouterSettingsService;
-
-class AdminRouterSetupController
+final class AdminRouterSetupController
 {
     public function index(): string
     {
-        Database::migrate();
-        $this->requireLogin();
-
-        return View::render('admin/router_setup', [
-            'title' => 'Router Setup Wizard',
-            'settings' => RouterSettingsService::current(),
-            'test_result' => null,
-            'detect_result' => null,
-            'saved' => false,
+        return $this->renderAdmin('admin/router_setup', [
+            'title' => 'إعداد الراوتر',
         ]);
     }
 
-    public function submit(): string
+    public function save(): string
     {
-        Database::migrate();
-        $this->requireLogin();
+        return $this->index();
+    }
 
-        $action = trim((string) ($_POST['action'] ?? 'save'));
+    public function store(): string
+    {
+        return $this->index();
+    }
 
-        RouterSettingsService::saveConnection($_POST);
+    public function update(): string
+    {
+        return $this->index();
+    }
 
-        $testResult = null;
-        $detectResult = null;
-
-        if ($action === 'test') {
-            $testResult = RouterSettingsService::testConnection();
-
-            AppLog::info('تم اختبار اتصال MikroTik من Router Setup Wizard', [
-                'ok' => $testResult['ok'] ?? false,
-                'message' => $testResult['message'] ?? '',
-            ]);
-        }
-
-        if ($action === 'detect') {
-            $testResult = RouterSettingsService::testConnection();
-            $detectResult = RouterSettingsService::detectServices();
-
-            AppLog::info('تم تشغيل Detect Services من Router Setup Wizard', [
-                'test_ok' => $testResult['ok'] ?? false,
-                'detect_ok' => $detectResult['ok'] ?? false,
-                'summary' => $detectResult['summary'] ?? [],
-            ]);
-        }
-
-        if ($action === 'save') {
-            AppLog::info('تم حفظ إعدادات MikroTik من Router Setup Wizard');
-        }
-
-        return View::render('admin/router_setup', [
-            'title' => 'Router Setup Wizard',
-            'settings' => RouterSettingsService::current(),
-            'test_result' => $testResult,
-            'detect_result' => $detectResult,
-            'saved' => true,
+    public function test(): string
+    {
+        return $this->renderAdmin('admin/router_setup', [
+            'title' => 'إعداد الراوتر',
+            'message' => 'تم تعطيل فحص الاتصال المباشر من Router Setup. استخدم API Diagnostics للفحص.',
+            'message_type' => 'info',
         ]);
     }
 
-    private function requireLogin(): void
+    private function renderAdmin(string $view, array $data = []): string
     {
-        if (($_SESSION['admin_logged_in'] ?? false) !== true) {
-            header('Location: /admin/login');
-            exit;
+        $viewsPath = dirname(__DIR__) . '/Views';
+        $viewFile = $viewsPath . '/' . $view . '.php';
+        $layoutFile = $viewsPath . '/layouts/admin.php';
+
+        if (!is_file($viewFile)) {
+            return $this->plainError('View not found: ' . $viewFile);
         }
+
+        if (!is_file($layoutFile)) {
+            return $this->plainError('Layout not found: ' . $layoutFile);
+        }
+
+        extract($data, EXTR_SKIP);
+
+        ob_start();
+        require $viewFile;
+        $content = (string) ob_get_clean();
+
+        ob_start();
+        require $layoutFile;
+
+        return (string) ob_get_clean();
+    }
+
+    private function plainError(string $message): string
+    {
+        return '<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8">
+    <title>GreenNet Error</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f8fafc;
+            color: #0f172a;
+            padding: 40px;
+        }
+
+        .box {
+            max-width: 900px;
+            margin: auto;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 18px;
+            padding: 24px;
+            box-shadow: 0 16px 40px rgba(15, 23, 42, 0.08);
+        }
+
+        h1 {
+            margin-top: 0;
+            color: #dc2626;
+        }
+
+        code {
+            display: block;
+            direction: ltr;
+            text-align: left;
+            background: #0f172a;
+            color: #e5e7eb;
+            padding: 14px;
+            border-radius: 12px;
+            overflow: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="box">
+        <h1>GreenNet Router Setup Error</h1>
+        <p>تعذر تحميل الصفحة بسبب ملف ناقص:</p>
+        <code>' . htmlspecialchars($message, ENT_QUOTES, 'UTF-8') . '</code>
+    </div>
+</body>
+</html>';
     }
 }

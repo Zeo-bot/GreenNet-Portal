@@ -1,0 +1,205 @@
+/* GreenNet UI-6 Audit Center */
+
+.gn-audit-kpis {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+    margin-bottom: 22px;
+}
+
+.gn-audit-kpi {
+    position: relative;
+    overflow: hidden;
+    padding: 18px;
+    border-radius: var(--gn-radius-xl);
+    background: linear-gradient(180deg, var(--gn-surface), var(--gn-surface-2));
+    border: 1px solid var(--gn-border);
+    box-shadow: var(--gn-shadow-sm);
+}
+
+.gn-audit-kpi::before {
+    content: "";
+    position: absolute;
+    inset-inline-start: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: linear-gradient(180deg, var(--gn-primary), var(--gn-primary-3));
+}
+
+.gn-audit-kpi-label {
+    color: var(--gn-muted);
+    font-size: 12px;
+    font-weight: 900;
+}
+
+.gn-audit-kpi-value {
+    margin-top: 8px;
+    color: var(--gn-text);
+    font-size: 32px;
+    font-weight: 950;
+    letter-spacing: -0.04em;
+}
+
+.gn-audit-kpi-note {
+    margin-top: 4px;
+    color: var(--gn-muted);
+    font-size: 12px;
+}
+
+.gn-audit-filters {
+    display: grid;
+    grid-template-columns: minmax(260px, 1.5fr) minmax(160px, 0.7fr) minmax(160px, 0.7fr) auto auto;
+    gap: 14px;
+    align-items: end;
+}
+
+.gn-audit-card {
+    background: var(--gn-surface);
+    border: 1px solid var(--gn-border);
+    border-radius: var(--gn-radius-xl);
+    box-shadow: var(--gn-shadow-sm);
+    overflow: hidden;
+}
+
+.gn-audit-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 18px 20px;
+    background: linear-gradient(180deg, var(--gn-surface), var(--gn-surface-2));
+    border-bottom: 1px solid var(--gn-border);
+}
+
+.gn-audit-card-header h2 {
+    margin: 0;
+    color: var(--gn-text);
+    font-size: 20px;
+    font-weight: 950;
+    letter-spacing: -0.03em;
+}
+
+.gn-audit-card-header p {
+    margin: 5px 0 0;
+    color: var(--gn-muted);
+    font-size: 13px;
+}
+
+.gn-audit-table {
+    min-width: 1120px;
+}
+
+.gn-audit-source {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 28px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 950;
+}
+
+.gn-audit-source.is-mikrotik {
+    background: var(--gn-primary-soft);
+    color: var(--gn-primary-2);
+}
+
+.gn-audit-source.is-app {
+    background: var(--gn-info-soft);
+    color: var(--gn-info);
+}
+
+.gn-audit-details summary {
+    list-style: none;
+    cursor: pointer;
+}
+
+.gn-audit-details summary::-webkit-details-marker {
+    display: none;
+}
+
+.gn-audit-details[open] summary {
+    background: linear-gradient(135deg, var(--gn-primary), var(--gn-primary-2)) !important;
+    color: #ffffff !important;
+}
+
+.gn-audit-details-body {
+    position: fixed;
+    z-index: 10050;
+    inset: 90px 28px auto 28px;
+    max-height: calc(100vh - 120px);
+    overflow: auto;
+    padding: 16px;
+    border-radius: var(--gn-radius-xl);
+    background: var(--gn-surface);
+    border: 1px solid var(--gn-border);
+    box-shadow: var(--gn-shadow-lg);
+    text-align: start;
+}
+
+.gn-audit-detail-grid {
+    display: grid;
+    gap: 14px;
+}
+
+.gn-audit-detail-grid strong {
+    display: block;
+    color: var(--gn-text);
+    margin-bottom: 6px;
+    font-size: 12px;
+    font-weight: 950;
+}
+
+.gn-audit-detail-grid p {
+    margin: 0;
+    color: var(--gn-text-soft);
+    line-height: 1.7;
+}
+
+.gn-audit-detail-grid pre {
+    max-height: 260px !important;
+    overflow: auto !important;
+    margin: 0 !important;
+    white-space: pre-wrap !important;
+    direction: ltr !important;
+    text-align: left !important;
+    unicode-bidi: plaintext !important;
+}
+
+html[data-theme="greennet-dark"] .gn-audit-card,
+html[data-theme="greennet-dark"] .gn-audit-kpi,
+html[data-theme="greennet-dark"] .gn-audit-details-body {
+    background: linear-gradient(180deg, rgba(16, 32, 25, 0.94), rgba(10, 25, 17, 0.92));
+}
+
+@media (max-width: 1100px) {
+    .gn-audit-kpis {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .gn-audit-filters {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .gn-audit-filters .form-group:first-child {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 640px) {
+    .gn-audit-kpis,
+    .gn-audit-filters {
+        grid-template-columns: 1fr;
+    }
+
+    .gn-audit-card-header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .gn-audit-details-body {
+        inset: 76px 10px auto 10px;
+    }
+}

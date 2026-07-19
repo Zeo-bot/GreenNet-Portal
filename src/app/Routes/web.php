@@ -40,6 +40,7 @@ use GreenNet\Controllers\AdminRenewalRequestsController;
 use GreenNet\Controllers\AdminNotificationsController;
 use GreenNet\Controllers\AdminCustomerTimelineController;
 use GreenNet\Controllers\AdminPreMikroTikController;
+use GreenNet\Controllers\AdminMikroTikDryRunController;
 
 $router->get('/', [HomeController::class, 'index']);
 
@@ -75,6 +76,10 @@ $router->get('/admin/dashboard-widgets', [AdminPreMikroTikController::class, 'da
 $router->get('/admin/setup-wizard', [AdminPreMikroTikController::class, 'setupWizard']);
 $router->get('/admin/write-safety', [AdminPreMikroTikController::class, 'writeSafety']);
 $router->post('/admin/write-safety', [AdminPreMikroTikController::class, 'saveWriteSafety']);
+
+$router->get('/admin/mikrotik-dry-run', [AdminMikroTikDryRunController::class, 'index']);
+$router->post('/admin/mikrotik-dry-run/preview', [AdminMikroTikDryRunController::class, 'preview']);
+$router->post('/admin/mikrotik-dry-run/execute', [AdminMikroTikDryRunController::class, 'execute']);
 
 $router->get('/admin/security', [AdminSecurityController::class, 'index']);
 $router->post('/admin/security/password', [AdminSecurityController::class, 'updatePassword']);

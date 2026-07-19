@@ -1,0 +1,727 @@
+/* =========================================================
+   GreenNet Final Theme Layer v2
+   Strong theme consistency for Dashboard / Cards / Tables
+   Loaded last after all admin CSS files
+   ========================================================= */
+
+/* =========================================================
+   1) THEME TOKENS
+   ========================================================= */
+
+html,
+html[data-theme="greennet-light"] {
+    --gn-bg: #eef8f1;
+    --gn-bg-2: #e3f3ea;
+    --gn-bg-3: #f8fcfa;
+
+    --gn-surface: #ffffff;
+    --gn-surface-2: #f7fbf8;
+    --gn-surface-3: #eef7f2;
+    --gn-surface-4: #e4f2eb;
+    --gn-surface-glass: rgba(255, 255, 255, 0.88);
+
+    --gn-text: #102018;
+    --gn-text-soft: #475569;
+    --gn-muted: #64748b;
+    --gn-muted-2: #94a3b8;
+
+    --gn-border: #d7e7de;
+    --gn-border-strong: #b9d7c7;
+
+    --gn-primary: #11945a;
+    --gn-primary-2: #0f7f4d;
+    --gn-primary-3: #20c978;
+    --gn-primary-soft: #ddf8ea;
+
+    --gn-success: #16a34a;
+    --gn-success-soft: #dcfce7;
+
+    --gn-warning: #d97706;
+    --gn-warning-soft: #fef3c7;
+
+    --gn-danger: #dc2626;
+    --gn-danger-soft: #fee2e2;
+
+    --gn-info: #2563eb;
+    --gn-info-soft: #dbeafe;
+
+    --gn-code-bg: #0f172a;
+    --gn-code-text: #e5e7eb;
+
+    --gn-sidebar-bg: #07180f;
+    --gn-sidebar-bg-2: #092417;
+    --gn-sidebar-text: #ecfdf5;
+    --gn-sidebar-muted: rgba(236, 253, 245, 0.62);
+    --gn-sidebar-active: #16a464;
+    --gn-sidebar-active-soft: rgba(52, 217, 139, 0.14);
+
+    --gn-topbar-bg: rgba(255, 255, 255, 0.86);
+
+    --gn-radius-sm: 10px;
+    --gn-radius-md: 16px;
+    --gn-radius-lg: 22px;
+    --gn-radius-xl: 30px;
+
+    --gn-shadow-sm: 0 10px 28px rgba(15, 23, 42, 0.07);
+    --gn-shadow-md: 0 18px 48px rgba(15, 23, 42, 0.12);
+    --gn-shadow-lg: 0 28px 90px rgba(15, 23, 42, 0.18);
+}
+
+html[data-theme="greennet-dark"] {
+    --gn-bg: #020805;
+    --gn-bg-2: #06140c;
+    --gn-bg-3: #0b2216;
+
+    --gn-surface: #0d2117;
+    --gn-surface-2: #122b1f;
+    --gn-surface-3: #19382a;
+    --gn-surface-4: #214a37;
+    --gn-surface-glass: rgba(13, 33, 23, 0.88);
+
+    --gn-text: #ecfdf5;
+    --gn-text-soft: #c7ded2;
+    --gn-muted: #9bbba8;
+    --gn-muted-2: #7fa08d;
+
+    --gn-border: rgba(148, 184, 163, 0.22);
+    --gn-border-strong: rgba(148, 184, 163, 0.38);
+
+    --gn-primary: #2ee68b;
+    --gn-primary-2: #19c978;
+    --gn-primary-3: #76f3b4;
+    --gn-primary-soft: rgba(46, 230, 139, 0.16);
+
+    --gn-success: #4ade80;
+    --gn-success-soft: rgba(74, 222, 128, 0.16);
+
+    --gn-warning: #fbbf24;
+    --gn-warning-soft: rgba(251, 191, 36, 0.17);
+
+    --gn-danger: #fb7185;
+    --gn-danger-soft: rgba(251, 113, 133, 0.17);
+
+    --gn-info: #60a5fa;
+    --gn-info-soft: rgba(96, 165, 250, 0.17);
+
+    --gn-code-bg: #03100a;
+    --gn-code-text: #d1fae5;
+
+    --gn-sidebar-bg: #020805;
+    --gn-sidebar-bg-2: #06140c;
+    --gn-sidebar-text: #ecfdf5;
+    --gn-sidebar-muted: rgba(236, 253, 245, 0.62);
+    --gn-sidebar-active: #16a464;
+    --gn-sidebar-active-soft: rgba(46, 230, 139, 0.15);
+
+    --gn-topbar-bg: rgba(7, 26, 16, 0.88);
+
+    --gn-shadow-sm: 0 12px 34px rgba(0, 0, 0, 0.36);
+    --gn-shadow-md: 0 18px 54px rgba(0, 0, 0, 0.46);
+    --gn-shadow-lg: 0 28px 90px rgba(0, 0, 0, 0.62);
+}
+
+html[data-theme="cloud-light"] {
+    --gn-bg: #f3f7ff;
+    --gn-bg-2: #eaf2ff;
+    --gn-bg-3: #f8fbff;
+
+    --gn-surface: #ffffff;
+    --gn-surface-2: #f7faff;
+    --gn-surface-3: #edf4ff;
+    --gn-surface-4: #e0ecff;
+    --gn-surface-glass: rgba(255, 255, 255, 0.9);
+
+    --gn-text: #0f172a;
+    --gn-text-soft: #475569;
+    --gn-muted: #64748b;
+    --gn-muted-2: #94a3b8;
+
+    --gn-border: #d8e4f6;
+    --gn-border-strong: #b9cae4;
+
+    --gn-primary: #2563eb;
+    --gn-primary-2: #1d4ed8;
+    --gn-primary-3: #60a5fa;
+    --gn-primary-soft: #dbeafe;
+
+    --gn-success: #16a34a;
+    --gn-success-soft: #dcfce7;
+
+    --gn-warning: #d97706;
+    --gn-warning-soft: #fef3c7;
+
+    --gn-danger: #dc2626;
+    --gn-danger-soft: #fee2e2;
+
+    --gn-info: #0284c7;
+    --gn-info-soft: #e0f2fe;
+
+    --gn-code-bg: #0f172a;
+    --gn-code-text: #e5e7eb;
+
+    --gn-sidebar-bg: #0f172a;
+    --gn-sidebar-bg-2: #1e293b;
+    --gn-sidebar-text: #f8fafc;
+    --gn-sidebar-muted: rgba(248, 250, 252, 0.66);
+    --gn-sidebar-active: #2563eb;
+    --gn-sidebar-active-soft: rgba(96, 165, 250, 0.18);
+
+    --gn-topbar-bg: rgba(255, 255, 255, 0.88);
+}
+
+html[data-theme="high-contrast"] {
+    --gn-bg: #ffffff;
+    --gn-bg-2: #ffffff;
+    --gn-bg-3: #ffffff;
+
+    --gn-surface: #ffffff;
+    --gn-surface-2: #ffffff;
+    --gn-surface-3: #f1f5f9;
+    --gn-surface-4: #e5e7eb;
+    --gn-surface-glass: #ffffff;
+
+    --gn-text: #000000;
+    --gn-text-soft: #111827;
+    --gn-muted: #374151;
+    --gn-muted-2: #4b5563;
+
+    --gn-border: #000000;
+    --gn-border-strong: #000000;
+
+    --gn-primary: #006b3f;
+    --gn-primary-2: #004f2d;
+    --gn-primary-3: #008f54;
+    --gn-primary-soft: #dffbea;
+
+    --gn-success: #006b3f;
+    --gn-success-soft: #dffbea;
+
+    --gn-warning: #8a4b00;
+    --gn-warning-soft: #fff3cd;
+
+    --gn-danger: #b00020;
+    --gn-danger-soft: #ffe4e8;
+
+    --gn-info: #003b8e;
+    --gn-info-soft: #e0ecff;
+
+    --gn-code-bg: #000000;
+    --gn-code-text: #ffffff;
+
+    --gn-sidebar-bg: #000000;
+    --gn-sidebar-bg-2: #111111;
+    --gn-sidebar-text: #ffffff;
+    --gn-sidebar-muted: #ffffff;
+    --gn-sidebar-active: #006b3f;
+    --gn-sidebar-active-soft: rgba(0, 107, 63, 0.28);
+
+    --gn-topbar-bg: #ffffff;
+
+    --gn-shadow-sm: none;
+    --gn-shadow-md: none;
+    --gn-shadow-lg: none;
+}
+
+/* =========================================================
+   2) PAGE BACKGROUNDS
+   ========================================================= */
+
+body.gn-admin-body {
+    background:
+        radial-gradient(circle at 12% 8%, rgba(32, 201, 120, 0.16), transparent 30%),
+        radial-gradient(circle at 88% 12%, rgba(17, 148, 90, 0.10), transparent 28%),
+        linear-gradient(135deg, var(--gn-bg), var(--gn-bg-2) 48%, var(--gn-bg-3)) !important;
+    color: var(--gn-text) !important;
+}
+
+html[data-theme="greennet-dark"] body.gn-admin-body {
+    background:
+        radial-gradient(circle at 12% 8%, rgba(46, 230, 139, 0.14), transparent 30%),
+        radial-gradient(circle at 88% 12%, rgba(25, 201, 120, 0.10), transparent 28%),
+        linear-gradient(135deg, var(--gn-bg), var(--gn-bg-2) 48%, var(--gn-bg-3)) !important;
+}
+
+html[data-theme="cloud-light"] body.gn-admin-body {
+    background:
+        radial-gradient(circle at 12% 8%, rgba(96, 165, 250, 0.20), transparent 30%),
+        radial-gradient(circle at 88% 12%, rgba(37, 99, 235, 0.10), transparent 28%),
+        linear-gradient(135deg, var(--gn-bg), var(--gn-bg-2) 48%, var(--gn-bg-3)) !important;
+}
+
+html[data-theme="high-contrast"] body.gn-admin-body {
+    background: #ffffff !important;
+}
+
+/* =========================================================
+   3) LAYOUT
+   ========================================================= */
+
+.gn-admin-main,
+.gn-admin-content {
+    color: var(--gn-text) !important;
+}
+
+.gn-admin-topbar {
+    background: var(--gn-topbar-bg) !important;
+    border-bottom-color: var(--gn-border) !important;
+    color: var(--gn-text) !important;
+}
+
+.gn-admin-sidebar {
+    background:
+        radial-gradient(circle at 50% 0%, rgba(46, 230, 139, 0.14), transparent 32%),
+        linear-gradient(180deg, var(--gn-sidebar-bg), var(--gn-sidebar-bg-2)) !important;
+    color: var(--gn-sidebar-text) !important;
+}
+
+.gn-nav-item {
+    color: var(--gn-sidebar-text) !important;
+}
+
+.gn-nav-section-title,
+.gn-brand-subtitle,
+.gn-sidebar-status-note {
+    color: var(--gn-sidebar-muted) !important;
+}
+
+.gn-brand-title,
+.gn-sidebar-status-title {
+    color: #ffffff !important;
+}
+
+.gn-nav-item.is-active {
+    background:
+        radial-gradient(circle at 16% 16%, rgba(255, 255, 255, 0.22), transparent 24%),
+        linear-gradient(135deg, var(--gn-sidebar-active), var(--gn-primary-2)) !important;
+    color: #ffffff !important;
+}
+
+.gn-sidebar-status {
+    background: rgba(255, 255, 255, 0.07) !important;
+    border-color: rgba(255, 255, 255, 0.10) !important;
+}
+
+/* =========================================================
+   4) STRONG CARD OVERRIDE
+   This fixes old white dashboard cards in dark mode
+   ========================================================= */
+
+.admin-section-card,
+.gn-section-card,
+.admin-card,
+.card,
+.gn-table-card,
+.gn-audit-card,
+.gn-audit-kpi,
+.gn-dry-panel,
+.gn-dry-side,
+.gn-dry-result,
+.gn-dry-preflight-card,
+.gn-notif-card,
+.gn-notif-kpi,
+.gn-notif-filters,
+.gn-notif-empty,
+.gn-log-card,
+.gn-logs-kpi,
+.gn-logs-filters,
+.gn-logs-empty,
+.gn-renew-card,
+.gn-renew-kpi,
+.gn-renew-filters,
+.gn-renew-empty,
+.gn-pay-card,
+.gn-pay-kpi,
+.gn-pay-filters,
+.gn-pay-empty,
+.gn-ws-card,
+.gn-ws-hero,
+.gn-router-card,
+.gn-router-hero,
+.gn-stat-card,
+.admin-stat-card,
+.stat-card,
+.gn-dashboard-card,
+.gn-admin-content [class*="card"],
+.gn-admin-content [class*="box"],
+.gn-admin-content [class*="panel"],
+.gn-admin-content [class*="widget"],
+.gn-admin-content [class*="tile"],
+.gn-admin-content [class*="kpi"],
+.gn-admin-content [class*="stat"],
+.gn-admin-content [class*="check"],
+.gn-admin-content [class*="step"],
+.gn-admin-content [class*="item"] {
+    background: var(--gn-surface) !important;
+    color: var(--gn-text) !important;
+    border-color: var(--gn-border) !important;
+    box-shadow: var(--gn-shadow-sm) !important;
+}
+
+html[data-theme="greennet-dark"] .admin-section-card,
+html[data-theme="greennet-dark"] .gn-section-card,
+html[data-theme="greennet-dark"] .admin-card,
+html[data-theme="greennet-dark"] .card,
+html[data-theme="greennet-dark"] .gn-table-card,
+html[data-theme="greennet-dark"] .gn-audit-card,
+html[data-theme="greennet-dark"] .gn-audit-kpi,
+html[data-theme="greennet-dark"] .gn-dry-panel,
+html[data-theme="greennet-dark"] .gn-dry-side,
+html[data-theme="greennet-dark"] .gn-dry-result,
+html[data-theme="greennet-dark"] .gn-dry-preflight-card,
+html[data-theme="greennet-dark"] .gn-notif-card,
+html[data-theme="greennet-dark"] .gn-notif-kpi,
+html[data-theme="greennet-dark"] .gn-notif-filters,
+html[data-theme="greennet-dark"] .gn-notif-empty,
+html[data-theme="greennet-dark"] .gn-log-card,
+html[data-theme="greennet-dark"] .gn-logs-kpi,
+html[data-theme="greennet-dark"] .gn-logs-filters,
+html[data-theme="greennet-dark"] .gn-logs-empty,
+html[data-theme="greennet-dark"] .gn-renew-card,
+html[data-theme="greennet-dark"] .gn-renew-kpi,
+html[data-theme="greennet-dark"] .gn-renew-filters,
+html[data-theme="greennet-dark"] .gn-renew-empty,
+html[data-theme="greennet-dark"] .gn-pay-card,
+html[data-theme="greennet-dark"] .gn-pay-kpi,
+html[data-theme="greennet-dark"] .gn-pay-filters,
+html[data-theme="greennet-dark"] .gn-pay-empty,
+html[data-theme="greennet-dark"] .gn-ws-card,
+html[data-theme="greennet-dark"] .gn-ws-hero,
+html[data-theme="greennet-dark"] .gn-router-card,
+html[data-theme="greennet-dark"] .gn-router-hero,
+html[data-theme="greennet-dark"] .gn-stat-card,
+html[data-theme="greennet-dark"] .admin-stat-card,
+html[data-theme="greennet-dark"] .stat-card,
+html[data-theme="greennet-dark"] .gn-dashboard-card,
+html[data-theme="greennet-dark"] .gn-admin-content [class*="card"],
+html[data-theme="greennet-dark"] .gn-admin-content [class*="box"],
+html[data-theme="greennet-dark"] .gn-admin-content [class*="panel"],
+html[data-theme="greennet-dark"] .gn-admin-content [class*="widget"],
+html[data-theme="greennet-dark"] .gn-admin-content [class*="tile"],
+html[data-theme="greennet-dark"] .gn-admin-content [class*="kpi"],
+html[data-theme="greennet-dark"] .gn-admin-content [class*="stat"],
+html[data-theme="greennet-dark"] .gn-admin-content [class*="check"],
+html[data-theme="greennet-dark"] .gn-admin-content [class*="step"],
+html[data-theme="greennet-dark"] .gn-admin-content [class*="item"] {
+    background:
+        radial-gradient(circle at 0% 0%, rgba(46, 230, 139, 0.07), transparent 28%),
+        linear-gradient(180deg, var(--gn-surface), var(--gn-surface-2)) !important;
+    color: var(--gn-text) !important;
+    border-color: var(--gn-border) !important;
+}
+
+/* Fix inline white backgrounds in old dashboard sections */
+html[data-theme="greennet-dark"] .gn-admin-content :not(.gn-btn):not(button):not(input):not(select):not(textarea):not(.gn-badge):not([class*="badge"])[style*="background"],
+html[data-theme="greennet-dark"] .gn-admin-content :not(.gn-btn):not(button):not(input):not(select):not(textarea):not(.gn-badge):not([class*="badge"])[style*="background-color"] {
+    background:
+        radial-gradient(circle at 0% 0%, rgba(46, 230, 139, 0.07), transparent 28%),
+        linear-gradient(180deg, var(--gn-surface), var(--gn-surface-2)) !important;
+    color: var(--gn-text) !important;
+    border-color: var(--gn-border) !important;
+}
+
+/* =========================================================
+   5) TEXT CONTRAST
+   ========================================================= */
+
+.gn-topbar-title,
+.gn-topbar-kicker,
+.admin-page-title,
+.gn-page-title,
+.gn-dry-title,
+.gn-router-hero h1,
+.gn-ws-hero h1,
+.gn-notif-title,
+.gn-log-title,
+.gn-renew-title,
+.gn-pay-title,
+.gn-admin-content h1,
+.gn-admin-content h2,
+.gn-admin-content h3,
+.gn-admin-content h4,
+.gn-admin-content strong,
+.gn-cell-main,
+.gn-stat-value,
+.stat-value,
+.gn-audit-kpi-value,
+.gn-notif-kpi-value,
+.gn-logs-kpi-value,
+.gn-renew-kpi-value,
+.gn-pay-kpi-value,
+.gn-ws-title,
+.gn-router-step-title {
+    color: var(--gn-text) !important;
+}
+
+.admin-page-description,
+.gn-page-description,
+.gn-dry-description,
+.gn-router-hero p,
+.gn-ws-hero p,
+.gn-notif-message,
+.gn-log-message,
+.gn-renew-message,
+.gn-pay-message,
+.gn-cell-sub,
+.gn-stat-label,
+.stat-label,
+.gn-audit-kpi-label,
+.gn-audit-kpi-note,
+.gn-notif-kpi-label,
+.gn-notif-kpi-note,
+.gn-logs-kpi-label,
+.gn-logs-kpi-note,
+.gn-renew-kpi-label,
+.gn-renew-kpi-note,
+.gn-pay-kpi-label,
+.gn-pay-kpi-note,
+.gn-ws-desc,
+.gn-router-step-desc,
+.gn-router-summary-label,
+.gn-pay-side-label,
+.gn-renew-side-label,
+.gn-log-side-label,
+.gn-notif-side-label {
+    color: var(--gn-muted) !important;
+}
+
+/* Strong text fix for old dashboard cards */
+html[data-theme="greennet-dark"] .gn-admin-content [class*="card"] *,
+html[data-theme="greennet-dark"] .gn-admin-content [class*="box"] *,
+html[data-theme="greennet-dark"] .gn-admin-content [class*="panel"] *,
+html[data-theme="greennet-dark"] .gn-admin-content [class*="widget"] *,
+html[data-theme="greennet-dark"] .gn-admin-content [class*="tile"] *,
+html[data-theme="greennet-dark"] .gn-admin-content [class*="check"] *,
+html[data-theme="greennet-dark"] .gn-admin-content [class*="step"] *,
+html[data-theme="greennet-dark"] .gn-admin-content [class*="item"] * {
+    color: var(--gn-text) !important;
+}
+
+html[data-theme="greennet-dark"] .gn-admin-content [class*="card"] p,
+html[data-theme="greennet-dark"] .gn-admin-content [class*="box"] p,
+html[data-theme="greennet-dark"] .gn-admin-content [class*="panel"] p,
+html[data-theme="greennet-dark"] .gn-admin-content [class*="widget"] p,
+html[data-theme="greennet-dark"] .gn-admin-content [class*="tile"] p,
+html[data-theme="greennet-dark"] .gn-admin-content [class*="check"] p,
+html[data-theme="greennet-dark"] .gn-admin-content [class*="step"] p,
+html[data-theme="greennet-dark"] .gn-admin-content [class*="item"] p {
+    color: var(--gn-text-soft) !important;
+}
+
+/* =========================================================
+   6) FORMS
+   ========================================================= */
+
+.gn-admin-content input,
+.gn-admin-content select,
+.gn-admin-content textarea {
+    background: var(--gn-surface-2) !important;
+    color: var(--gn-text) !important;
+    border-color: var(--gn-border) !important;
+}
+
+.gn-admin-content input::placeholder,
+.gn-admin-content textarea::placeholder {
+    color: var(--gn-muted-2) !important;
+}
+
+.gn-admin-content input:focus,
+.gn-admin-content select:focus,
+.gn-admin-content textarea:focus {
+    border-color: var(--gn-primary) !important;
+    box-shadow: 0 0 0 4px rgba(17, 148, 90, 0.16) !important;
+}
+
+/* =========================================================
+   7) TABLES
+   ========================================================= */
+
+.gn-table-scroll,
+.admin-table-responsive,
+.table-responsive {
+    background: var(--gn-surface) !important;
+}
+
+.gn-data-table,
+.admin-table {
+    background: var(--gn-surface) !important;
+    color: var(--gn-text) !important;
+}
+
+.gn-data-table thead th,
+.admin-table thead th {
+    background: var(--gn-surface-2) !important;
+    color: var(--gn-text-soft) !important;
+    border-bottom-color: var(--gn-border) !important;
+}
+
+.gn-data-table tbody td,
+.admin-table tbody td {
+    color: var(--gn-text) !important;
+    border-bottom-color: var(--gn-border) !important;
+}
+
+.gn-data-table tbody tr:hover,
+.admin-table tbody tr:hover {
+    background: var(--gn-primary-soft) !important;
+}
+
+/* =========================================================
+   8) CODE / DETAILS
+   ========================================================= */
+
+pre,
+code,
+.gn-context-pre,
+.gn-log-details-body,
+.gn-notif-details-body,
+.gn-dry-command,
+.gn-code-cell,
+.gn-json-cell,
+.gn-command-cell {
+    background: var(--gn-code-bg) !important;
+    color: var(--gn-code-text) !important;
+    border-color: var(--gn-border-strong) !important;
+}
+
+.gn-context-details summary,
+.gn-log-details summary,
+.gn-notif-details summary,
+.gn-audit-details summary {
+    background: var(--gn-surface-2) !important;
+    color: var(--gn-text) !important;
+    border-color: var(--gn-border) !important;
+}
+
+/* =========================================================
+   9) BUTTONS
+   ========================================================= */
+
+.gn-btn-primary {
+    background: linear-gradient(135deg, var(--gn-primary-3), var(--gn-primary), var(--gn-primary-2)) !important;
+    color: #ffffff !important;
+    border-color: transparent !important;
+}
+
+.gn-btn-secondary,
+.gn-btn-soft,
+.gn-btn-ghost,
+.admin-mini-btn,
+.btn {
+    background: var(--gn-surface-2) !important;
+    color: var(--gn-text) !important;
+    border-color: var(--gn-border) !important;
+}
+
+.gn-btn-secondary:hover,
+.gn-btn-soft:hover,
+.gn-btn-ghost:hover,
+.admin-mini-btn:hover,
+.btn:hover {
+    background: var(--gn-primary-soft) !important;
+    color: var(--gn-primary) !important;
+}
+
+/* Danger buttons should remain visible */
+.gn-btn-danger,
+.btn-danger,
+.logout,
+a[href*="logout"] {
+    background: var(--gn-danger-soft) !important;
+    color: var(--gn-danger) !important;
+    border-color: rgba(220, 38, 38, 0.26) !important;
+}
+
+/* =========================================================
+   10) BADGES
+   ========================================================= */
+
+.gn-badge-success,
+.is-success {
+    color: var(--gn-success) !important;
+}
+
+.gn-badge-warning,
+.is-warning {
+    color: var(--gn-warning) !important;
+}
+
+.gn-badge-danger,
+.is-danger {
+    color: var(--gn-danger) !important;
+}
+
+.gn-badge-info,
+.is-info {
+    color: var(--gn-info) !important;
+}
+
+.gn-badge,
+.badge,
+.status-badge,
+.gn-notif-badge,
+.gn-log-badge,
+.gn-renew-badge,
+.gn-pay-badge,
+.gn-ws-badge,
+.gn-table-level-badge {
+    border: 1px solid transparent !important;
+}
+
+/* Undo global dark text override for badges */
+html[data-theme="greennet-dark"] .gn-admin-content [class*="badge"],
+html[data-theme="greennet-dark"] .gn-admin-content .gn-badge,
+html[data-theme="greennet-dark"] .gn-admin-content .badge,
+html[data-theme="greennet-dark"] .gn-admin-content .status-badge {
+    color: inherit !important;
+}
+
+/* =========================================================
+   11) THEME PANEL
+   ========================================================= */
+
+.gn-theme-panel {
+    background: var(--gn-surface-glass) !important;
+    border-color: var(--gn-border) !important;
+    box-shadow: var(--gn-shadow-md) !important;
+    backdrop-filter: blur(18px) !important;
+}
+
+.gn-theme-panel select,
+.gn-theme-panel button {
+    background: var(--gn-surface-2) !important;
+    color: var(--gn-text) !important;
+    border-color: var(--gn-border) !important;
+}
+
+.gn-theme-panel button.is-active {
+    background: linear-gradient(135deg, var(--gn-primary), var(--gn-primary-2)) !important;
+    color: #ffffff !important;
+}
+
+/* =========================================================
+   12) HIGH CONTRAST
+   ========================================================= */
+
+html[data-theme="high-contrast"] .gn-btn,
+html[data-theme="high-contrast"] input,
+html[data-theme="high-contrast"] select,
+html[data-theme="high-contrast"] textarea,
+html[data-theme="high-contrast"] .admin-section-card,
+html[data-theme="high-contrast"] .card,
+html[data-theme="high-contrast"] .gn-table-card {
+    border-width: 2px !important;
+}
+
+html[data-theme="high-contrast"] * {
+    text-shadow: none !important;
+}
+
+/* =========================================================
+   13) MOBILE
+   ========================================================= */
+
+@media (max-width: 760px) {
+    .gn-admin-content {
+        background: transparent !important;
+    }
+}

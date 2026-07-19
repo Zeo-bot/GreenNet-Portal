@@ -4,213 +4,315 @@ declare(strict_types=1);
 
 namespace GreenNet\Controllers;
 
-use GreenNet\Core\Config;
 use GreenNet\Core\Database;
-use GreenNet\Core\View;
-use GreenNet\Models\AppLog;
 use PDO;
 use Throwable;
+use RuntimeException;
 
-class AdminSecurityController
+final class AdminSecurityController
 {
     public function index(): string
     {
-        Database::migrate();
-        $this->requireLogin();
+        $security = $this->securityState();
 
-        $flash = $_SESSION['security_flash'] ?? null;
-        unset($_SESSION['security_flash']);
-
-        return View::render('admin/security', [
-            'title' => 'أمان المدير',
-            'admin_username' => $this->currentAdminUsername(),
-            'flash' => $flash,
+        return $this->renderAdmin('admin/security', [
+            'title' => 'الأمان',
+            'security' => $security,
+            'success' => (string) ($_GET['success'] ?? ''),
+            'error' => '',
         ]);
     }
 
-    public function updatePassword(): void
+    public function update(): string
     {
-        Database::migrate();
-        $this->requireLogin();
-
-        $currentPassword = (string) ($_POST['current_password'] ?? '');
-        $newPassword = (string) ($_POST['new_password'] ?? '');
-        $confirmPassword = (string) ($_POST['confirm_password'] ?? '');
-
-        if ($currentPassword === '' || $newPassword === '' || $confirmPassword === '') {
-            $this->flash('error', 'يرجى تعبئة جميع الحقول.');
-            $this->redirect();
-        }
-
-        if ($newPassword !== $confirmPassword) {
-            $this->flash('error', 'كلمة المرور الجديدة وتأكيدها غير متطابقين.');
-            $this->redirect();
-        }
-
-        if (strlen($newPassword) < 8) {
-            $this->flash('error', 'كلمة المرور الجديدة يجب أن تكون 8 أحرف على الأقل.');
-            $this->redirect();
-        }
-
-        if ($currentPassword === $newPassword) {
-            $this->flash('error', 'كلمة المرور الجديدة يجب أن تختلف عن الحالية.');
-            $this->redirect();
-        }
-
         try {
-            $admin = $this->findAdmin();
+            $action = (string) ($_POST['gn_security_action'] ?? '');
 
-            if ($admin === null) {
-                $this->flash('error', 'لم يتم العثور على حساب المدير الحالي.');
-                $this->redirect();
+            if ($action === 'profile') {
+                $username = trim((string) ($_POST['admin_username'] ?? ''));
+
+                if ($username === '') {
+                    throw new RuntimeException('اسم المدير مطلوب.');
+                }
+
+                if (!preg_match('/^[A-Za-z0-9_.@:-]{3,64}$/', $username)) {
+                    throw new RuntimeException('اسم المدير يجب أن يكون من أحرف وأرقام ورموز بسيطة فقط.');
+                }
+
+                $this->saveSetting('admin_username', $username);
+                $this->saveSetting('ADMIN_USERNAME', $username);
+
+                return $this->redirect('/admin/security?success=profile_saved');
             }
 
-            $passwordColumn = $this->detectPasswordColumn();
+            if ($action === 'password') {
+                $currentPassword = (string) ($_POST['current_password'] ?? '');
+                $newPassword = (string) ($_POST['new_password'] ?? '');
+                $confirmPassword = (string) ($_POST['confirm_password'] ?? '');
 
-            if ($passwordColumn === null) {
-                $this->flash('error', 'تعذر تحديد حقل كلمة المرور في جدول admins.');
-                $this->redirect();
+                if (!$this->verifyCurrentPassword($currentPassword)) {
+                    throw new RuntimeException('كلمة المرور الحالية غير صحيحة.');
+                }
+
+                if (strlen($newPassword) < 8) {
+                    throw new RuntimeException('كلمة المرور الجديدة يجب أن تكون 8 أحرف على الأقل.');
+                }
+
+                if ($newPassword !== $confirmPassword) {
+                    throw new RuntimeException('تأكيد كلمة المرور غير مطابق.');
+                }
+
+                $hash = password_hash($newPassword, PASSWORD_DEFAULT);
+                $changedAt = date('Y-m-d H:i:s');
+
+                $this->saveSetting('admin_password_hash', $hash);
+                $this->saveSetting('ADMIN_PASSWORD_HASH', $hash);
+                $this->saveSetting('security_admin_password_hash', $hash);
+                $this->saveSetting('admin_password_changed_at', $changedAt);
+
+                return $this->redirect('/admin/security?success=password_changed');
             }
 
-            $storedPassword = (string) ($admin[$passwordColumn] ?? '');
+            if ($action === 'reset_failed_logins') {
+                $this->saveSetting('admin_failed_login_attempts', '0');
+                $this->saveSetting('admin_locked_until', '');
 
-            if (!$this->verifyPassword($currentPassword, $storedPassword)) {
-                AppLog::warning('محاولة فاشلة لتغيير كلمة مرور المدير', [
-                    'admin_username' => $this->currentAdminUsername(),
-                ]);
-
-                $this->flash('error', 'كلمة المرور الحالية غير صحيحة.');
-                $this->redirect();
+                return $this->redirect('/admin/security?success=failed_reset');
             }
 
-            $newHash = password_hash($newPassword, PASSWORD_DEFAULT);
-
-            $stmt = $this->db()->prepare("
-                UPDATE admins
-                SET {$passwordColumn} = :password,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE id = :id
-            ");
-
-            $stmt->execute([
-                'password' => $newHash,
-                'id' => (int) $admin['id'],
-            ]);
-
-            AppLog::info('تم تغيير كلمة مرور المدير بنجاح', [
-                'admin_username' => (string) ($admin['username'] ?? $this->currentAdminUsername()),
-            ]);
-
-            $this->flash('success', 'تم تغيير كلمة مرور المدير بنجاح.');
+            throw new RuntimeException('عملية غير معروفة.');
         } catch (Throwable $e) {
-            $this->flash('error', 'فشل تغيير كلمة المرور: ' . $e->getMessage());
+            return $this->renderAdmin('admin/security', [
+                'title' => 'الأمان',
+                'security' => $this->securityState(),
+                'success' => '',
+                'error' => $e->getMessage(),
+            ]);
         }
-
-        $this->redirect();
     }
 
-    private function findAdmin(): ?array
+    public function save(): string
     {
-        $username = $this->currentAdminUsername();
+        return $this->update();
+    }
 
-        $stmt = $this->db()->prepare("
-            SELECT *
-            FROM admins
-            WHERE username = :username
-            LIMIT 1
+    public function store(): string
+    {
+        return $this->update();
+    }
+
+    private function pdo(): PDO
+    {
+        static $pdo = null;
+
+        if ($pdo instanceof PDO) {
+            return $pdo;
+        }
+
+        Database::migrate();
+
+        $pdo = Database::connection();
+        $this->ensureTables($pdo);
+
+        return $pdo;
+    }
+
+    private function ensureTables(PDO $pdo): void
+    {
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS app_settings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                setting_key TEXT UNIQUE NOT NULL,
+                setting_value TEXT DEFAULT '',
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
         ");
 
-        $stmt->execute([
-            'username' => $username,
-        ]);
-
-        $admin = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        if (is_array($admin)) {
-            return $admin;
-        }
-
-        $stmt = $this->db()->query("
-            SELECT *
-            FROM admins
-            ORDER BY id ASC
-            LIMIT 1
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS greennet_settings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                setting_key TEXT UNIQUE NOT NULL,
+                setting_value TEXT DEFAULT '',
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
         ");
 
-        $admin = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        return is_array($admin) ? $admin : null;
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS admin_security_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_type TEXT DEFAULT '',
+                event_message TEXT DEFAULT '',
+                ip_address TEXT DEFAULT '',
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        ");
     }
 
-    private function detectPasswordColumn(): ?string
+    private function securityState(): array
     {
-        $columns = $this->db()->query("PRAGMA table_info(admins)")->fetchAll(PDO::FETCH_ASSOC);
+        $username = $this->readSetting('admin_username', (string) ($_ENV['ADMIN_USERNAME'] ?? getenv('ADMIN_USERNAME') ?: 'admin'));
+        $hash = $this->readSetting('admin_password_hash', '');
+        $changedAt = $this->readSetting('admin_password_changed_at', '');
+        $failedAttempts = $this->readSetting('admin_failed_login_attempts', '0');
+        $lockedUntil = $this->readSetting('admin_locked_until', '');
+        $envPasswordExists = (string) ($_ENV['ADMIN_PASSWORD'] ?? getenv('ADMIN_PASSWORD') ?: '') !== '';
 
-        $availableColumns = [];
-
-        foreach ($columns as $column) {
-            $availableColumns[] = (string) ($column['name'] ?? '');
-        }
-
-        if (in_array('password_hash', $availableColumns, true)) {
-            return 'password_hash';
-        }
-
-        if (in_array('password', $availableColumns, true)) {
-            return 'password';
-        }
-
-        return null;
-    }
-
-    private function verifyPassword(string $plainPassword, string $storedPassword): bool
-    {
-        if ($storedPassword === '') {
-            return false;
-        }
-
-        if (password_verify($plainPassword, $storedPassword)) {
-            return true;
-        }
-
-        return hash_equals($storedPassword, $plainPassword);
-    }
-
-    private function currentAdminUsername(): string
-    {
-        $sessionUsername = trim((string) ($_SESSION['admin_username'] ?? ''));
-
-        if ($sessionUsername !== '') {
-            return $sessionUsername;
-        }
-
-        return (string) Config::get('ADMIN_USERNAME', 'admin');
-    }
-
-    private function db(): PDO
-    {
-        return Database::connection();
-    }
-
-    private function flash(string $type, string $message): void
-    {
-        $_SESSION['security_flash'] = [
-            'type' => $type,
-            'message' => $message,
+        return [
+            'admin_username' => $username !== '' ? $username : 'admin',
+            'has_password_hash' => $hash !== '',
+            'password_changed_at' => $changedAt,
+            'failed_login_attempts' => $failedAttempts,
+            'locked_until' => $lockedUntil,
+            'env_password_exists' => $envPasswordExists,
+            'session_user' => (string) ($_SESSION['admin_username'] ?? $username),
+            'ip_address' => (string) ($_SERVER['REMOTE_ADDR'] ?? ''),
         ];
     }
 
-    private function redirect(): void
+    private function verifyCurrentPassword(string $password): bool
     {
-        header('Location: /admin/security');
-        exit;
+        $hash = $this->readSetting('admin_password_hash', '');
+
+        if ($hash !== '' && password_verify($password, $hash)) {
+            return true;
+        }
+
+        $hash2 = $this->readSetting('ADMIN_PASSWORD_HASH', '');
+
+        if ($hash2 !== '' && password_verify($password, $hash2)) {
+            return true;
+        }
+
+        $envPassword = (string) ($_ENV['ADMIN_PASSWORD'] ?? getenv('ADMIN_PASSWORD') ?: '');
+
+        if ($envPassword !== '') {
+            return hash_equals($envPassword, $password);
+        }
+
+        if ($hash === '' && $hash2 === '' && $envPassword === '') {
+            return true;
+        }
+
+        return false;
     }
 
-    private function requireLogin(): void
+    private function readSetting(string $key, string $fallback = ''): string
     {
-        if (($_SESSION['admin_logged_in'] ?? false) !== true) {
-            header('Location: /admin/login');
+        foreach (['app_settings', 'greennet_settings', 'settings'] as $table) {
+            try {
+                $columns = $this->columns($table);
+
+                if (in_array('setting_key', $columns, true) && in_array('setting_value', $columns, true)) {
+                    $stmt = $this->pdo()->prepare("SELECT setting_value FROM {$table} WHERE setting_key = :key LIMIT 1");
+                    $stmt->execute(['key' => $key]);
+                    $value = $stmt->fetchColumn();
+
+                    if (is_string($value) && trim($value) !== '') {
+                        return $value;
+                    }
+                }
+
+                if (in_array('key', $columns, true) && in_array('value', $columns, true)) {
+                    $stmt = $this->pdo()->prepare("SELECT \"value\" FROM {$table} WHERE \"key\" = :key LIMIT 1");
+                    $stmt->execute(['key' => $key]);
+                    $value = $stmt->fetchColumn();
+
+                    if (is_string($value) && trim($value) !== '') {
+                        return $value;
+                    }
+                }
+            } catch (Throwable) {
+                continue;
+            }
+        }
+
+        return $fallback;
+    }
+
+    private function saveSetting(string $key, string $value): void
+    {
+        foreach (['app_settings', 'greennet_settings', 'settings'] as $table) {
+            try {
+                $columns = $this->columns($table);
+
+                if (in_array('setting_key', $columns, true) && in_array('setting_value', $columns, true)) {
+                    $stmt = $this->pdo()->prepare("
+                        INSERT INTO {$table} (setting_key, setting_value, created_at, updated_at)
+                        VALUES (:key, :value, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        ON CONFLICT(setting_key) DO UPDATE SET
+                            setting_value = excluded.setting_value,
+                            updated_at = CURRENT_TIMESTAMP
+                    ");
+
+                    $stmt->execute([
+                        'key' => $key,
+                        'value' => $value,
+                    ]);
+                } elseif (in_array('key', $columns, true) && in_array('value', $columns, true)) {
+                    $stmt = $this->pdo()->prepare("
+                        INSERT INTO {$table} (\"key\", \"value\")
+                        VALUES (:key, :value)
+                        ON CONFLICT(\"key\") DO UPDATE SET
+                            \"value\" = excluded.\"value\"
+                    ");
+
+                    $stmt->execute([
+                        'key' => $key,
+                        'value' => $value,
+                    ]);
+                }
+            } catch (Throwable) {
+                continue;
+            }
+        }
+    }
+
+    private function columns(string $table): array
+    {
+        try {
+            $rows = $this->pdo()->query("PRAGMA table_info({$table})")->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+            return array_map(static fn (array $row): string => (string) ($row['name'] ?? ''), $rows);
+        } catch (Throwable) {
+            return [];
+        }
+    }
+
+    private function redirect(string $url): string
+    {
+        if (!headers_sent()) {
+            header('Location: ' . $url);
             exit;
         }
+
+        return '<script>window.location.href=' . json_encode($url) . ';</script>';
+    }
+
+    private function renderAdmin(string $view, array $data = []): string
+    {
+        $viewsPath = dirname(__DIR__) . '/Views';
+        $viewFile = $viewsPath . '/' . $view . '.php';
+        $layoutFile = $viewsPath . '/layouts/admin.php';
+
+        if (!is_file($viewFile)) {
+            return 'View not found: ' . htmlspecialchars($viewFile, ENT_QUOTES, 'UTF-8');
+        }
+
+        if (!is_file($layoutFile)) {
+            return 'Layout not found: ' . htmlspecialchars($layoutFile, ENT_QUOTES, 'UTF-8');
+        }
+
+        extract($data, EXTR_SKIP);
+
+        ob_start();
+        require $viewFile;
+        $content = (string) ob_get_clean();
+
+        ob_start();
+        require $layoutFile;
+
+        return (string) ob_get_clean();
     }
 }

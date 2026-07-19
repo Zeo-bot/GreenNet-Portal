@@ -1,368 +1,304 @@
 <?php
-    $safeThemeColor = $theme_color ?? '#16a34a';
 
-    if (!is_string($safeThemeColor) || preg_match('/^#[0-9a-fA-F]{6}$/', $safeThemeColor) !== 1) {
-        $safeThemeColor = '#16a34a';
+declare(strict_types=1);
+
+if (!function_exists('gn_admin_h')) {
+    function gn_admin_h(mixed $value): string
+    {
+        return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
     }
+}
 
-    $currentPath = $current_path ?? (parse_url($_SERVER['REQUEST_URI'] ?? '/admin', PHP_URL_PATH) ?: '/admin');
+if (!function_exists('gn_admin_cookie_lang')) {
+    function gn_admin_cookie_lang(): string
+    {
+        $lang = (string) ($_COOKIE['greennet_admin_lang'] ?? 'ar');
 
-    $isActive = function (string $href) use ($currentPath): string {
+        return $lang === 'en' ? 'en' : 'ar';
+    }
+}
+
+if (!function_exists('gn_admin_dir')) {
+    function gn_admin_dir(string $lang): string
+    {
+        return $lang === 'en' ? 'ltr' : 'rtl';
+    }
+}
+
+if (!function_exists('gn_admin_path')) {
+    function gn_admin_path(): string
+    {
+        $uri = (string) ($_SERVER['REQUEST_URI'] ?? '/admin');
+        $path = parse_url($uri, PHP_URL_PATH);
+
+        return is_string($path) && $path !== '' ? rtrim($path, '/') ?: '/' : '/admin';
+    }
+}
+
+if (!function_exists('gn_admin_is_active')) {
+    function gn_admin_is_active(string $href): bool
+    {
+        $current = gn_admin_path();
+        $href = rtrim($href, '/') ?: '/';
+
         if ($href === '/admin') {
-            return $currentPath === '/admin' ? 'active' : '';
+            return $current === '/admin';
         }
 
-        if ($href === '/admin/customers') {
-            return $currentPath === '/admin/customers' ? 'active' : '';
-        }
-
-        return str_starts_with($currentPath, $href) ? 'active' : '';
-    };
-
-    $adminName = $admin_username ?? ($_SESSION['admin_username'] ?? 'admin');
-
-    $safeIcon = '';
-
-    if (!empty($app_icon_path) && is_string($app_icon_path) && str_starts_with($app_icon_path, '/media/')) {
-        $safeIcon = $app_icon_path;
-    } elseif (!empty($site_logo_path) && is_string($site_logo_path) && str_starts_with($site_logo_path, '/media/')) {
-        $safeIcon = $site_logo_path;
+        return $current === $href || str_starts_with($current, $href . '/');
     }
-?>
+}
 
-<!DOCTYPE html>
-<html lang="ar" dir="rtl">
+if (!function_exists('gn_admin_nav_item')) {
+    function gn_admin_nav_item(string $href, string $icon, string $label, ?string $match = null): string
+    {
+        $target = $match ?: $href;
+        $active = gn_admin_is_active($target) ? ' is-active' : '';
+
+        return '
+            <a class="gn-nav-item' . $active . '" href="' . gn_admin_h($href) . '">
+                <span class="gn-nav-icon">' . gn_admin_h($icon) . '</span>
+                <span class="gn-nav-label">' . gn_admin_h($label) . '</span>
+            </a>
+        ';
+    }
+}
+
+$lang = gn_admin_cookie_lang();
+$dir = gn_admin_dir($lang);
+$bodyDirClass = $lang === 'en' ? 'gn-dir-ltr' : 'gn-dir-rtl';
+
+$pageTitle = (string) ($title ?? ($lang === 'en' ? 'Admin Panel' : 'لوحة المدير'));
+$appName = (string) ($_ENV['APP_NAME'] ?? getenv('APP_NAME') ?: 'GreenNet');
+$adminUsername = (string) ($_SESSION['admin_username'] ?? 'admin');
+
+$labels = [
+    'ar' => [
+        'admin_panel' => 'لوحة الإدارة',
+        'dashboard' => 'لوحة التحكم',
+        'overview' => 'Overview',
+        'health' => 'System Health',
+        'notifications' => 'Notifications',
+        'widgets' => 'Widgets',
+        'customers' => 'Customers',
+        'customers_table' => 'Customer Table',
+        'add_customer' => 'Add Customer',
+        'passwords' => 'Subscriber Passwords',
+        'timeline' => 'Customer Timeline',
+        'global_search' => 'Global Search',
+        'billing' => 'Billing',
+        'packages' => 'Packages',
+        'payments' => 'Payments',
+        'renewal_requests' => 'Renewal Requests',
+        'subscriptions' => 'Subscriptions',
+        'reports' => 'Reports',
+        'mikrotik' => 'MikroTik',
+        'dry_run' => 'MikroTik Dry Run',
+        'write_safety' => 'Write Safety',
+        'router_setup' => 'Router Setup',
+        'api_diagnostics' => 'API Diagnostics',
+        'api_browser' => 'API Browser',
+        'routeros_users' => 'RouterOS Users',
+        'auto_match' => 'Auto Match',
+        'system' => 'System',
+        'audit' => 'Audit Center',
+        'logs' => 'Logs',
+        'settings' => 'Settings',
+        'security' => 'Security',
+        'media' => 'Media',
+        'backup' => 'Backup',
+        'logout' => 'Logout',
+        'preview' => 'Preview',
+        'console_note' => 'Safe UI layer before MikroTik real write.',
+    ],
+    'en' => [
+        'admin_panel' => 'Admin Panel',
+        'dashboard' => 'Dashboard',
+        'overview' => 'Overview',
+        'health' => 'System Health',
+        'notifications' => 'Notifications',
+        'widgets' => 'Widgets',
+        'customers' => 'Customers',
+        'customers_table' => 'Customer Table',
+        'add_customer' => 'Add Customer',
+        'passwords' => 'Subscriber Passwords',
+        'timeline' => 'Customer Timeline',
+        'global_search' => 'Global Search',
+        'billing' => 'Billing',
+        'packages' => 'Packages',
+        'payments' => 'Payments',
+        'renewal_requests' => 'Renewal Requests',
+        'subscriptions' => 'Subscriptions',
+        'reports' => 'Reports',
+        'mikrotik' => 'MikroTik',
+        'dry_run' => 'MikroTik Dry Run',
+        'write_safety' => 'Write Safety',
+        'router_setup' => 'Router Setup',
+        'api_diagnostics' => 'API Diagnostics',
+        'api_browser' => 'API Browser',
+        'routeros_users' => 'RouterOS Users',
+        'auto_match' => 'Auto Match',
+        'system' => 'System',
+        'audit' => 'Audit Center',
+        'logs' => 'Logs',
+        'settings' => 'Settings',
+        'security' => 'Security',
+        'media' => 'Media',
+        'backup' => 'Backup',
+        'logout' => 'Logout',
+        'preview' => 'Preview',
+        'console_note' => 'Safe UI layer before MikroTik real write.',
+    ],
+];
+
+$t = $labels[$lang];
+
+$navGroups = [
+    [
+        'title' => $t['overview'],
+        'items' => [
+            ['/admin', '⌂', $t['dashboard'], '/admin'],
+            ['/admin/health', '◆', $t['health'], '/admin/health'],
+            ['/admin/notifications', '●', $t['notifications'], '/admin/notifications'],
+            ['/admin/dashboard-widgets', '▦', $t['widgets'], '/admin/dashboard-widgets'],
+        ],
+    ],
+    [
+        'title' => $t['customers'],
+        'items' => [
+            ['/admin/customers/table', '☷', $t['customers_table'], '/admin/customers/table'],
+            ['/admin/customers', '+', $t['add_customer'], '/admin/customers'],
+            ['/admin/customers/password', '◉', $t['passwords'], '/admin/customers/password'],
+            ['/admin/customers/timeline', '◷', $t['timeline'], '/admin/customers/timeline'],
+            ['/admin/global-search', '⌕', $t['global_search'], '/admin/global-search'],
+        ],
+    ],
+    [
+        'title' => $t['billing'],
+        'items' => [
+            ['/admin/packages', '▣', $t['packages'], '/admin/packages'],
+            ['/admin/payments', '$', $t['payments'], '/admin/payments'],
+            ['/admin/renewal-requests', '↻', $t['renewal_requests'], '/admin/renewal-requests'],
+            ['/admin/subscriptions', '◫', $t['subscriptions'], '/admin/subscriptions'],
+            ['/admin/reports', '▤', $t['reports'], '/admin/reports'],
+        ],
+    ],
+    [
+        'title' => $t['mikrotik'],
+        'items' => [
+            ['/admin/mikrotik-dry-run', '⚗', $t['dry_run'], '/admin/mikrotik-dry-run'],
+            ['/admin/write-safety', '🛡', $t['write_safety'], '/admin/write-safety'],
+            ['/admin/router-setup', '◎', $t['router_setup'], '/admin/router-setup'],
+            ['/admin/api/diagnostics', '◈', $t['api_diagnostics'], '/admin/api/diagnostics'],
+            ['/admin/api/browser', '⌘', $t['api_browser'], '/admin/api/browser'],
+            ['/admin/routeros/users', '◌', $t['routeros_users'], '/admin/routeros/users'],
+            ['/admin/auto-match', '⇄', $t['auto_match'], '/admin/auto-match'],
+        ],
+    ],
+    [
+        'title' => $t['system'],
+        'items' => [
+            ['/admin/audit', '☰', $t['audit'], '/admin/audit'],
+            ['/admin/logs', '≡', $t['logs'], '/admin/logs'],
+            ['/admin/settings', '⚙', $t['settings'], '/admin/settings'],
+            ['/admin/security', '🔒', $t['security'], '/admin/security'],
+            ['/admin/media', '▧', $t['media'], '/admin/media'],
+            ['/admin/backup', '⬇', $t['backup'], '/admin/backup'],
+        ],
+    ],
+];
+
+?><!doctype html>
+<html lang="<?= gn_admin_h($lang) ?>" dir="<?= gn_admin_h($dir) ?>" data-theme="greennet-light">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= htmlspecialchars($title ?? ($app_title ?? 'GreenNet Admin')) ?></title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title><?= gn_admin_h($pageTitle) ?> - <?= gn_admin_h($appName) ?></title>
 
-    <?php if ($safeIcon !== ''): ?>
-        <link rel="icon" href="<?= htmlspecialchars($safeIcon) ?>">
-        <link rel="apple-touch-icon" href="<?= htmlspecialchars($safeIcon) ?>">
-    <?php endif; ?>
-
-    <meta name="theme-color" content="<?= htmlspecialchars($safeThemeColor) ?>">
-
-    <link rel="stylesheet" href="/css/app.css">
-    <link rel="stylesheet" href="/css/admin.css">
-
-    <style>
-        :root {
-            --greennet-theme: <?= htmlspecialchars($safeThemeColor) ?>;
-        }
-
-        .brand-mark,
-        .btn-primary,
-        .progress-bar,
-        .admin-nav-link.active,
-        .admin-mobile-link.active,
-        .admin-badge-primary {
-            background: var(--greennet-theme) !important;
-        }
-
-        .btn-primary {
-            border-color: var(--greennet-theme) !important;
-        }
-
-        .status-pill .dot,
-        .admin-status-dot {
-            background: var(--greennet-theme) !important;
-        }
-
-        .brand-logo {
-            width: 54px;
-            height: 54px;
-            object-fit: contain;
-            border-radius: 14px;
-            display: block;
-        }
-
-        .brand-mark.has-logo,
-        .admin-logo-box.has-logo {
-            background: #ffffff !important;
-            border: 1px solid #e5e7eb;
-            padding: 4px;
-        }
-
-        a {
-            color: var(--greennet-theme);
-        }
-
-        input:focus,
-        textarea:focus,
-        select:focus {
-            outline-color: var(--greennet-theme);
-        }
-    </style>
+    <link rel="stylesheet" href="/css/admin.css?v=base">
+    <link rel="stylesheet" href="/css/admin-ui.css?v=ui9">
+    <link rel="stylesheet" href="/css/admin-layout-fix.css?v=ui43hard">
+    <link rel="stylesheet" href="/css/admin-tables.css?v=ui5pack">
+    <link rel="stylesheet" href="/css/admin-audit.css?v=ui6pack">
+    <link rel="stylesheet" href="/css/admin-dry-run.css?v=ui7pack">
+    <link rel="stylesheet" href="/css/admin-pages.css?v=ui8pack">
+    <link rel="stylesheet" href="/css/admin-theme-final.css?v=themefinal1">
 </head>
-<body>
 
-<div class="admin-shell">
+<body class="gn-admin-body <?= gn_admin_h($bodyDirClass) ?>" data-admin-lang="<?= gn_admin_h($lang) ?>" data-admin-theme="greennet-light">
+    <div class="gn-sidebar-overlay" data-gn-sidebar-close></div>
 
-    <aside class="admin-sidebar">
-
-        <div class="admin-brand">
-            <div class="admin-logo-box <?= !empty($site_logo_path) ? 'has-logo' : '' ?>">
-                <?php if (!empty($site_logo_path)): ?>
-                    <img class="brand-logo" src="<?= htmlspecialchars($site_logo_path) ?>" alt="Logo">
-                <?php else: ?>
-                    G
-                <?php endif; ?>
-            </div>
-
-            <div>
-                <div class="admin-brand-title">
-                    <?= htmlspecialchars($app_name ?? 'GreenNet') ?>
-                </div>
-                <div class="admin-brand-subtitle">
-                    Admin Console
-                </div>
-            </div>
-        </div>
-
-        <nav class="admin-nav">
-
-            <div class="admin-nav-section">الرئيسية</div>
-
-            <a class="admin-nav-link <?= $isActive('/admin') ?>" href="/admin">
-                <span>🏠</span>
-                <span>لوحة المدير</span>
-            </a>
-
-            <a class="admin-nav-link <?= $isActive('/admin/dashboard-widgets') ?>" href="/admin/dashboard-widgets">
-                <span>📊</span>
-                <span>Dashboard Widgets</span>
-            </a>
-
-            <a class="admin-nav-link <?= $isActive('/admin/notifications') ?>" href="/admin/notifications">
-                <span>🔔</span>
-                <span>مركز الإشعارات</span>
-            </a>
-
-            <a class="admin-nav-link <?= $isActive('/admin/global-search') ?>" href="/admin/global-search">
-                <span>🌐</span>
-                <span>Global Search</span>
-            </a>
-
-            <a class="admin-nav-link <?= $isActive('/admin/audit') ?>" href="/admin/audit">
-                <span>🧿</span>
-                <span>Audit Center</span>
-            </a>
-
-            <a class="admin-nav-link <?= $isActive('/admin/health') ?>" href="/admin/health">
-                <span>❤️</span>
-                <span>Health Dashboard</span>
-            </a>
-
-            <a class="admin-nav-link <?= $isActive('/admin/search') ?>" href="/admin/search">
-                <span>🔎</span>
-                <span>البحث السريع</span>
-            </a>
-
-            <div class="admin-nav-section">المشتركين</div>
-
-            <a class="admin-nav-link <?= $isActive('/admin/customers/table') ?>" href="/admin/customers/table">
-                <span>👥</span>
-                <span>جدول الزبائن</span>
-            </a>
-
-            <a class="admin-nav-link <?= $isActive('/admin/customers/timeline') ?>" href="/admin/customers/timeline">
-                <span>🕓</span>
-                <span>Timeline المشترك</span>
-            </a>
-
-            <a class="admin-nav-link <?= $isActive('/admin/customers/password') ?>" href="/admin/customers/password">
-                <span>🔐</span>
-                <span>كلمات مرور المشتركين</span>
-            </a>
-
-            <a class="admin-nav-link <?= $isActive('/admin/customers') ?>" href="/admin/customers">
-                <span>🧾</span>
-                <span>إدارة الزبائن</span>
-            </a>
-
-            <a class="admin-nav-link <?= $isActive('/admin/subscriptions') ?>" href="/admin/subscriptions">
-                <span>📅</span>
-                <span>الاشتراكات</span>
-            </a>
-
-            <a class="admin-nav-link <?= $isActive('/admin/renewal-requests') ?>" href="/admin/renewal-requests">
-                <span>📨</span>
-                <span>طلبات التجديد</span>
-            </a>
-
-            <a class="admin-nav-link <?= $isActive('/admin/packages') ?>" href="/admin/packages">
-                <span>📦</span>
-                <span>الباقات</span>
-            </a>
-
-            <a class="admin-nav-link <?= $isActive('/admin/payments') ?>" href="/admin/payments">
-                <span>💳</span>
-                <span>الدفعات</span>
-            </a>
-
-            <div class="admin-nav-section">MikroTik</div>
-
-            <a class="admin-nav-link <?= $isActive('/admin/setup-wizard') ?>" href="/admin/setup-wizard">
-                <span>🧙</span>
-                <span>Setup Wizard</span>
-            </a>
-
-            <a class="admin-nav-link <?= $isActive('/admin/write-safety') ?>" href="/admin/write-safety">
-                <span>🛡️</span>
-                <span>Write Safety</span>
-            </a>
-
-            <a class="admin-nav-link <?= $isActive('/admin/router-setup') ?>" href="/admin/router-setup">
-                <span>🧭</span>
-                <span>Router Setup</span>
-            </a>
-
-            <a class="admin-nav-link <?= $isActive('/admin/routeros') ?>" href="/admin/routeros">
-                <span>🧩</span>
-                <span>RouterOS</span>
-            </a>
-
-            <a class="admin-nav-link <?= $isActive('/admin/api/diagnostics') ?>" href="/admin/api/diagnostics">
-                <span>🧪</span>
-                <span>API Diagnostics</span>
-            </a>
-
-            <a class="admin-nav-link <?= $isActive('/admin/api/browser') ?>" href="/admin/api/browser">
-                <span>🗂️</span>
-                <span>API Data Browser</span>
-            </a>
-
-            <a class="admin-nav-link <?= $isActive('/admin/readiness') ?>" href="/admin/readiness">
-                <span>✅</span>
-                <span>Readiness Check</span>
-            </a>
-
-            <a class="admin-nav-link <?= $isActive('/admin/auto-match') ?>" href="/admin/auto-match">
-                <span>🔗</span>
-                <span>Auto Match</span>
-            </a>
-
-            <a class="admin-nav-link <?= $isActive('/admin/routeros/active-users') ?>" href="/admin/routeros/active-users">
-                <span>🟢</span>
-                <span>المتصلون الآن</span>
-            </a>
-
-            <a class="admin-nav-link <?= $isActive('/admin/routeros/users') ?>" href="/admin/routeros/users">
-                <span>👤</span>
-                <span>مستخدمو MikroTik</span>
-            </a>
-
-            <a class="admin-nav-link <?= $isActive('/admin/routeros/profiles') ?>" href="/admin/routeros/profiles">
-                <span>📡</span>
-                <span>Profiles</span>
-            </a>
-
-            <div class="admin-nav-section">النظام</div>
-
-            <a class="admin-nav-link <?= $isActive('/admin/reports') ?>" href="/admin/reports">
-                <span>📊</span>
-                <span>التقارير</span>
-            </a>
-
-            <a class="admin-nav-link <?= $isActive('/admin/announcements') ?>" href="/admin/announcements">
-                <span>📢</span>
-                <span>الإعلانات</span>
-            </a>
-
-            <a class="admin-nav-link <?= $isActive('/admin/qos') ?>" href="/admin/qos">
-                <span>⚙️</span>
-                <span>Smart QoS</span>
-            </a>
-
-            <a class="admin-nav-link <?= $isActive('/admin/backup') ?>" href="/admin/backup">
-                <span>💾</span>
-                <span>Backup & Restore</span>
-            </a>
-
-            <a class="admin-nav-link <?= $isActive('/admin/settings') ?>" href="/admin/settings">
-                <span>🎨</span>
-                <span>الإعدادات والهوية</span>
-            </a>
-
-            <a class="admin-nav-link <?= $isActive('/admin/media') ?>" href="/admin/media">
-                <span>🖼️</span>
-                <span>الصور والهوية</span>
-            </a>
-
-            <a class="admin-nav-link <?= $isActive('/admin/security') ?>" href="/admin/security">
-                <span>🔒</span>
-                <span>الأمان</span>
-            </a>
-
-            <a class="admin-nav-link <?= $isActive('/admin/logs') ?>" href="/admin/logs">
-                <span>🧾</span>
-                <span>Logs</span>
-            </a>
-
-            <a class="admin-nav-link <?= $isActive('/admin/system') ?>" href="/admin/system">
-                <span>🛠️</span>
-                <span>حالة النظام</span>
-            </a>
-
-        </nav>
-
-        <div class="admin-sidebar-footer">
-            <a href="/admin/logout">تسجيل الخروج</a>
-        </div>
-
-    </aside>
-
-    <div class="admin-main-wrap">
-
-        <header class="admin-topbar">
-
-            <div>
-                <div class="admin-topbar-title">
-                    <?= htmlspecialchars($title ?? 'لوحة المدير') ?>
-                </div>
-
-                <div class="admin-topbar-subtitle">
-                    <span class="admin-status-dot"></span>
-                    المدير: <?= htmlspecialchars((string) $adminName) ?>
+    <div class="gn-admin-shell">
+        <aside class="gn-admin-sidebar" aria-label="Admin navigation">
+            <div class="gn-sidebar-brand">
+                <div class="gn-brand-mark">G</div>
+                <div class="gn-brand-text">
+                    <div class="gn-brand-title"><?= gn_admin_h($appName) ?></div>
+                    <div class="gn-brand-subtitle"><?= gn_admin_h($t['admin_panel']) ?></div>
                 </div>
             </div>
 
-            <div class="admin-topbar-actions">
-                <a class="admin-mini-btn" href="/admin/dashboard-widgets">Widgets</a>
-                <a class="admin-mini-btn" href="/admin/notifications">الإشعارات</a>
-                <a class="admin-mini-btn" href="/admin/global-search">Search</a>
-                <a class="admin-mini-btn" href="/admin/write-safety">Safety</a>
-                <a class="admin-mini-btn" href="/admin/health">Health</a>
-                <a class="admin-mini-btn" href="/dashboard">معاينة المشترك</a>
-                <a class="admin-mini-btn" href="/admin/backup">Backup</a>
-                <a class="admin-mini-btn danger" href="/admin/logout">خروج</a>
+            <nav class="gn-sidebar-scroll">
+                <?php foreach ($navGroups as $group): ?>
+                    <section class="gn-nav-section">
+                        <div class="gn-nav-section-title"><?= gn_admin_h((string) ($group['title'] ?? '')) ?></div>
+
+                        <div class="gn-nav-list">
+                            <?php foreach (($group['items'] ?? []) as $item): ?>
+                                <?= gn_admin_nav_item(
+                                    (string) ($item[0] ?? '#'),
+                                    (string) ($item[1] ?? '•'),
+                                    (string) ($item[2] ?? ''),
+                                    (string) ($item[3] ?? ($item[0] ?? '#'))
+                                ) ?>
+                            <?php endforeach; ?>
+                        </div>
+                    </section>
+                <?php endforeach; ?>
+            </nav>
+
+            <div class="gn-sidebar-footer">
+                <div class="gn-sidebar-status">
+                    <div class="gn-sidebar-status-title">GreenNet Console</div>
+                    <div class="gn-sidebar-status-note"><?= gn_admin_h($t['console_note']) ?></div>
+                </div>
             </div>
+        </aside>
 
-        </header>
+        <div class="gn-admin-main">
+            <header class="gn-admin-topbar">
+                <div class="gn-topbar-left">
+                    <button class="gn-btn gn-btn-secondary gn-btn-icon gn-mobile-menu-btn" type="button" data-gn-sidebar-toggle aria-label="Menu">☰</button>
 
-        <div class="admin-mobile-nav">
-            <a class="admin-mobile-link <?= $isActive('/admin') ?>" href="/admin">الرئيسية</a>
-            <a class="admin-mobile-link <?= $isActive('/admin/notifications') ?>" href="/admin/notifications">إشعارات</a>
-            <a class="admin-mobile-link <?= $isActive('/admin/global-search') ?>" href="/admin/global-search">بحث</a>
-            <a class="admin-mobile-link <?= $isActive('/admin/audit') ?>" href="/admin/audit">Audit</a>
-            <a class="admin-mobile-link <?= $isActive('/admin/customers/table') ?>" href="/admin/customers/table">الزبائن</a>
-            <a class="admin-mobile-link <?= $isActive('/admin/customers/timeline') ?>" href="/admin/customers/timeline">Timeline</a>
-            <a class="admin-mobile-link <?= $isActive('/admin/renewal-requests') ?>" href="/admin/renewal-requests">طلبات</a>
-            <a class="admin-mobile-link <?= $isActive('/admin/write-safety') ?>" href="/admin/write-safety">Safety</a>
-            <a class="admin-mobile-link <?= $isActive('/admin/router-setup') ?>" href="/admin/router-setup">Router</a>
-        </div>
+                    <div class="gn-topbar-title-wrap">
+                        <div class="gn-topbar-kicker"><?= gn_admin_h($appName) ?></div>
+                        <div class="gn-topbar-title"><?= gn_admin_h($pageTitle) ?></div>
+                    </div>
+                </div>
 
-        <main class="admin-main">
-            <div class="admin-content-card">
+                <div class="gn-topbar-right">
+                    <div class="gn-topbar-chip">
+                        <span class="gn-topbar-chip-dot"></span>
+                        <span><?= gn_admin_h($adminUsername) ?></span>
+                    </div>
+
+                    <a class="gn-btn gn-btn-secondary gn-btn-sm" href="/dashboard?username=test" target="_blank"><?= gn_admin_h($t['preview']) ?></a>
+                    <a class="gn-btn gn-btn-ghost gn-btn-sm" href="/admin/logout"><?= gn_admin_h($t['logout']) ?></a>
+                </div>
+            </header>
+
+            <main class="gn-admin-content">
                 <?= $content ?? '' ?>
-            </div>
-        </main>
+            </main>
 
+            <link rel="stylesheet" href="/css/admin-theme-final.css?v=themefinal1">
+        </div>
     </div>
 
-</div>
-
+    <script src="/js/admin-theme.js?v=themefinal1"></script>
+    <script src="/js/admin-buttons.js?v=ui3"></script>
+    <script src="/js/admin-layout.js?v=ui4"></script>
+    <script src="/js/admin-tables.js?v=ui5pack"></script>
+    <script src="/js/admin-pages.js?v=ui8pack"></script>
 </body>
 </html>

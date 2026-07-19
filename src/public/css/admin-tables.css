@@ -1,0 +1,549 @@
+/* =========================================================
+   GreenNet Tables Safe System
+   Stable no-overlap version
+   ========================================================= */
+
+.gn-table-card {
+    width: 100%;
+    max-width: 100%;
+    margin: 18px 0;
+    overflow: hidden;
+    background: var(--gn-surface);
+    border: 1px solid var(--gn-border);
+    border-radius: var(--gn-radius-xl);
+    box-shadow: var(--gn-shadow-sm);
+}
+
+.gn-table-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+    padding: 15px 16px;
+    background: linear-gradient(180deg, var(--gn-surface), var(--gn-surface-2));
+    border-bottom: 1px solid var(--gn-border);
+}
+
+.gn-table-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    color: var(--gn-text);
+    font-weight: 950;
+}
+
+.gn-table-title-icon {
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+    border-radius: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--gn-primary-soft);
+    color: var(--gn-primary);
+    font-weight: 950;
+}
+
+.gn-table-title-text {
+    color: var(--gn-text);
+    font-size: 16px;
+    font-weight: 950;
+    white-space: nowrap;
+}
+
+.gn-table-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 24px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: var(--gn-primary-soft);
+    color: var(--gn-primary);
+    font-size: 12px;
+    font-weight: 950;
+    white-space: nowrap;
+}
+
+.gn-table-tools {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.gn-table-search {
+    width: 280px !important;
+    max-width: 100% !important;
+    min-height: 38px !important;
+    padding: 9px 14px !important;
+    border-radius: 999px !important;
+    border: 1px solid var(--gn-border) !important;
+    background: var(--gn-surface-2) !important;
+    color: var(--gn-text) !important;
+    font-size: 13px !important;
+}
+
+.gn-table-search:focus {
+    border-color: var(--gn-primary) !important;
+    box-shadow: 0 0 0 4px rgba(17, 148, 90, 0.14) !important;
+}
+
+/* Scroll wrapper */
+
+.gn-table-scroll,
+.admin-table-responsive,
+.table-responsive {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto !important;
+    overflow-y: visible !important;
+    background: var(--gn-surface);
+    scrollbar-width: thin;
+    scrollbar-color: var(--gn-primary) var(--gn-surface-2);
+}
+
+.gn-table-scroll::-webkit-scrollbar,
+.admin-table-responsive::-webkit-scrollbar,
+.table-responsive::-webkit-scrollbar {
+    height: 10px;
+}
+
+.gn-table-scroll::-webkit-scrollbar-track,
+.admin-table-responsive::-webkit-scrollbar-track,
+.table-responsive::-webkit-scrollbar-track {
+    background: var(--gn-surface-2);
+    border-radius: 999px;
+}
+
+.gn-table-scroll::-webkit-scrollbar-thumb,
+.admin-table-responsive::-webkit-scrollbar-thumb,
+.table-responsive::-webkit-scrollbar-thumb {
+    background: var(--gn-primary);
+    border-radius: 999px;
+}
+
+/* Base table */
+
+.gn-data-table,
+.admin-table {
+    width: 100%;
+    min-width: 980px;
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+    table-layout: auto !important;
+    background: var(--gn-surface) !important;
+    color: var(--gn-text) !important;
+}
+
+.gn-data-table thead th,
+.admin-table thead th {
+    padding: 13px 14px !important;
+    vertical-align: middle !important;
+    background: var(--gn-surface-2) !important;
+    color: var(--gn-text-soft) !important;
+    border-bottom: 1px solid var(--gn-border) !important;
+    font-size: 12px !important;
+    font-weight: 950 !important;
+    line-height: 1.35 !important;
+    white-space: nowrap !important;
+    text-align: start !important;
+}
+
+.gn-data-table tbody td,
+.admin-table tbody td {
+    padding: 13px 14px !important;
+    vertical-align: middle !important;
+    background: transparent !important;
+    color: var(--gn-text) !important;
+    border-bottom: 1px solid var(--gn-border) !important;
+    font-size: 14px !important;
+    line-height: 1.6 !important;
+    white-space: normal !important;
+    overflow-wrap: anywhere !important;
+    word-break: normal !important;
+}
+
+.gn-data-table tbody tr,
+.admin-table tbody tr {
+    background: var(--gn-surface) !important;
+}
+
+.gn-data-table tbody tr:nth-child(even),
+.admin-table tbody tr:nth-child(even) {
+    background: var(--gn-surface-2) !important;
+}
+
+.gn-data-table tbody tr:hover,
+.admin-table tbody tr:hover {
+    background: var(--gn-primary-soft) !important;
+}
+
+.gn-data-table tbody tr.is-hidden-by-search,
+.admin-table tbody tr.is-hidden-by-search {
+    display: none !important;
+}
+
+.gn-data-table tbody tr:last-child td,
+.admin-table tbody tr:last-child td {
+    border-bottom: 0 !important;
+}
+
+/* Important: no sticky columns to prevent overlap */
+.gn-data-table th,
+.gn-data-table td,
+.admin-table th,
+.admin-table td {
+    position: static !important;
+}
+
+/* Column classes */
+
+.gn-table-col-id {
+    width: 80px;
+    white-space: nowrap !important;
+}
+
+.gn-table-col-user,
+.gn-table-col-subscriber,
+.gn-table-col-name {
+    min-width: 180px;
+    max-width: 280px;
+}
+
+.gn-table-col-phone {
+    min-width: 130px;
+    white-space: nowrap !important;
+    direction: ltr !important;
+    text-align: left !important;
+    unicode-bidi: plaintext !important;
+}
+
+.gn-table-col-access,
+.gn-table-col-type,
+.gn-table-col-payment,
+.gn-table-col-status {
+    min-width: 120px;
+    white-space: nowrap !important;
+    text-align: center !important;
+}
+
+.gn-table-col-package,
+.gn-table-col-plan {
+    min-width: 170px;
+}
+
+.gn-table-col-date,
+.gn-table-col-time,
+.gn-table-col-updated {
+    min-width: 165px;
+    white-space: nowrap !important;
+    direction: ltr !important;
+    text-align: left !important;
+    unicode-bidi: plaintext !important;
+    font-family: Consolas, "Cascadia Code", "Courier New", monospace !important;
+    font-size: 12px !important;
+}
+
+.gn-table-col-actions {
+    min-width: 150px;
+    white-space: nowrap !important;
+    text-align: center !important;
+}
+
+.gn-table-col-message {
+    min-width: 260px;
+    max-width: 440px;
+}
+
+.gn-table-col-context {
+    min-width: 320px;
+    max-width: 520px;
+}
+
+/* Cell content */
+
+.gn-cell-stack {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+}
+
+.gn-cell-main {
+    display: block;
+    max-width: 100%;
+    color: var(--gn-text);
+    font-weight: 950;
+    line-height: 1.45;
+}
+
+.gn-cell-sub {
+    display: block;
+    max-width: 100%;
+    color: var(--gn-muted);
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+.gn-technical-cell,
+.gn-table-date-value,
+.gn-cell-code {
+    direction: ltr !important;
+    text-align: left !important;
+    unicode-bidi: plaintext !important;
+    font-family: Consolas, "Cascadia Code", "Courier New", monospace !important;
+}
+
+/* Actions */
+
+.gn-table-actions-wrap {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    width: 100%;
+}
+
+.gn-table-actions-wrap a,
+.gn-table-actions-wrap button,
+.gn-table-actions-wrap input[type="submit"],
+.gn-table-col-actions a,
+.gn-table-col-actions button,
+.gn-table-col-actions input[type="submit"] {
+    min-height: 30px !important;
+    width: auto !important;
+    max-width: max-content !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 5px !important;
+    padding: 5px 10px !important;
+    border-radius: 999px !important;
+    border: 1px solid var(--gn-border) !important;
+    background: var(--gn-surface-2) !important;
+    color: var(--gn-primary) !important;
+    font-size: 12px !important;
+    font-weight: 950 !important;
+    text-decoration: none !important;
+    white-space: nowrap !important;
+    box-shadow: none !important;
+}
+
+.gn-table-actions-wrap a:hover,
+.gn-table-actions-wrap button:hover,
+.gn-table-col-actions a:hover,
+.gn-table-col-actions button:hover {
+    background: var(--gn-primary-soft) !important;
+    color: var(--gn-primary) !important;
+}
+
+/* Badges */
+
+.gn-table-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 26px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 950;
+    white-space: nowrap;
+    border: 1px solid transparent;
+}
+
+.gn-table-badge.is-success {
+    background: var(--gn-success-soft);
+    color: var(--gn-success);
+}
+
+.gn-table-badge.is-warning {
+    background: var(--gn-warning-soft);
+    color: var(--gn-warning);
+}
+
+.gn-table-badge.is-danger {
+    background: var(--gn-danger-soft);
+    color: var(--gn-danger);
+}
+
+.gn-table-badge.is-info {
+    background: var(--gn-info-soft);
+    color: var(--gn-info);
+}
+
+.gn-table-badge.is-muted {
+    background: var(--gn-surface-3);
+    color: var(--gn-muted);
+}
+
+.gn-table-badge.is-dark {
+    background: var(--gn-code-bg);
+    color: var(--gn-code-text);
+}
+
+/* Long cells */
+
+.gn-cell-long {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+}
+
+.gn-cell-long-content {
+    max-height: 74px;
+    overflow: hidden;
+    color: var(--gn-text);
+    line-height: 1.65;
+}
+
+.gn-cell-long.is-expanded .gn-cell-long-content {
+    max-height: none;
+}
+
+.gn-cell-toggle {
+    width: fit-content;
+    min-height: 28px !important;
+    padding: 4px 10px !important;
+    border-radius: 999px !important;
+    font-size: 11px !important;
+}
+
+/* Context / JSON */
+
+.gn-context-details {
+    display: block;
+    width: 100%;
+}
+
+.gn-context-details summary {
+    list-style: none;
+    cursor: pointer;
+    width: fit-content;
+    min-height: 30px;
+    padding: 5px 11px;
+    border-radius: 999px;
+    background: var(--gn-surface-2);
+    border: 1px solid var(--gn-border);
+    color: var(--gn-text);
+    font-size: 12px;
+    font-weight: 950;
+}
+
+.gn-context-details summary::-webkit-details-marker {
+    display: none;
+}
+
+.gn-context-pre,
+.gn-data-table td pre,
+.admin-table td pre,
+.gn-data-table td code,
+.admin-table td code {
+    display: block !important;
+    max-width: 100% !important;
+    max-height: 240px !important;
+    overflow: auto !important;
+    margin: 10px 0 0 !important;
+    padding: 12px !important;
+    border-radius: var(--gn-radius-md) !important;
+    border: 1px solid var(--gn-border-strong) !important;
+    background: var(--gn-code-bg) !important;
+    color: var(--gn-code-text) !important;
+    direction: ltr !important;
+    text-align: left !important;
+    unicode-bidi: plaintext !important;
+    font-family: Consolas, "Cascadia Code", "Courier New", monospace !important;
+    font-size: 12px !important;
+    line-height: 1.55 !important;
+    white-space: pre-wrap !important;
+    word-break: break-word !important;
+}
+
+/* Empty */
+
+.gn-table-empty {
+    padding: 28px;
+    text-align: center;
+    color: var(--gn-muted);
+    font-weight: 900;
+}
+
+/* Compact */
+
+.gn-table-compact .gn-data-table tbody td,
+.gn-table-compact .admin-table tbody td,
+html[data-density="compact"] .gn-data-table tbody td,
+html[data-density="compact"] .admin-table tbody td {
+    padding-block: 9px !important;
+    font-size: 13px !important;
+}
+
+.gn-table-compact .gn-data-table thead th,
+.gn-table-compact .admin-table thead th,
+html[data-density="compact"] .gn-data-table thead th,
+html[data-density="compact"] .admin-table thead th {
+    padding-block: 10px !important;
+}
+
+/* Customers table safe width */
+
+body.gn-page-admin-customers-table .gn-data-table,
+body.gn-page-admin-customers-table .admin-table {
+    min-width: 1120px !important;
+}
+
+/* Dark */
+
+html[data-theme="greennet-dark"] .gn-table-card,
+html[data-theme="greennet-dark"] .gn-table-scroll,
+html[data-theme="greennet-dark"] .admin-table-responsive,
+html[data-theme="greennet-dark"] .table-responsive {
+    background: var(--gn-surface) !important;
+}
+
+html[data-theme="greennet-dark"] .gn-data-table,
+html[data-theme="greennet-dark"] .admin-table {
+    background: var(--gn-surface) !important;
+}
+
+html[data-theme="greennet-dark"] .gn-data-table tbody tr,
+html[data-theme="greennet-dark"] .admin-table tbody tr {
+    background: var(--gn-surface) !important;
+}
+
+html[data-theme="greennet-dark"] .gn-data-table tbody tr:nth-child(even),
+html[data-theme="greennet-dark"] .admin-table tbody tr:nth-child(even) {
+    background: var(--gn-surface-2) !important;
+}
+
+html[data-theme="greennet-dark"] .gn-data-table tbody tr:hover,
+html[data-theme="greennet-dark"] .admin-table tbody tr:hover {
+    background: var(--gn-primary-soft) !important;
+}
+
+/* Responsive */
+
+@media (max-width: 900px) {
+    .gn-table-toolbar {
+        align-items: stretch;
+    }
+
+    .gn-table-title,
+    .gn-table-tools,
+    .gn-table-search {
+        width: 100% !important;
+    }
+
+    .gn-table-search {
+        min-width: 100% !important;
+    }
+
+    .gn-data-table,
+    .admin-table {
+        min-width: 900px;
+    }
+}

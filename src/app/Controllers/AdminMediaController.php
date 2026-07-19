@@ -5,349 +5,506 @@ declare(strict_types=1);
 namespace GreenNet\Controllers;
 
 use GreenNet\Core\Database;
-use GreenNet\Core\View;
-use GreenNet\Models\AppLog;
-use GreenNet\Models\Setting;
-use GreenNet\Services\SiteSettingsService;
+use PDO;
 use Throwable;
+use RuntimeException;
 
-class AdminMediaController
+final class AdminMediaController
 {
-    private array $allowedSettingKeys = [
-        'site_logo_path',
-        'app_icon_path',
-        'login_background_path',
+    private const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+    private const MAX_UPLOAD_BYTES = 5242880; // 5 MB
+
+    private const ASSET_SLOTS = [
+        'brand_logo' => 'شعار النظام',
+        'login_background' => 'خلفية تسجيل الدخول',
+        'subscriber_background' => 'خلفية بوابة المشترك',
+        'app_icon' => 'أيقونة التطبيق',
     ];
 
     public function index(): string
     {
-        Database::migrate();
-        SiteSettingsService::ensureDefaults();
-
-        $this->requireLogin();
-
-        $flash = $_SESSION['media_flash'] ?? null;
-        unset($_SESSION['media_flash']);
-
-        return View::render('admin/media', [
-            'title' => 'الصور والهوية',
-            'settings' => SiteSettingsService::all(),
-            'media_files' => $this->mediaFiles(),
-            'flash' => $flash,
+        return $this->renderAdmin('admin/media', [
+            'title' => 'Media Library',
+            'assets' => $this->assets(),
+            'assigned' => $this->assignedAssets(),
+            'slots' => self::ASSET_SLOTS,
+            'success' => (string) ($_GET['success'] ?? ''),
+            'error' => '',
+            'maxUploadMb' => 5,
         ]);
     }
 
-    public function upload(): void
+    public function upload(): string
     {
-        Database::migrate();
-        SiteSettingsService::ensureDefaults();
-
-        $this->requireLogin();
-
-        $assetType = trim((string) ($_POST['asset_type'] ?? 'gallery'));
-
         try {
-            $path = $this->handleImageUpload('media_file', $assetType);
+            $file = $_FILES['media_file'] ?? $_FILES['file'] ?? null;
 
-            if ($path === null) {
-                $this->flash('error', 'يرجى اختيار صورة للرفع.');
-                $this->redirect();
+            if (!is_array($file)) {
+                throw new RuntimeException('لم يتم اختيار ملف.');
             }
 
-            $settingKey = $this->assetTypeToSettingKey($assetType);
-
-            if ($settingKey !== null) {
-                Setting::set($settingKey, $path);
+            if ((int) ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+                throw new RuntimeException('فشل رفع الملف. الكود: ' . (string) ($file['error'] ?? 'unknown'));
             }
 
-            AppLog::info('تم رفع ملف Media جديد', [
-                'path' => $path,
-                'asset_type' => $assetType,
-                'assigned_to' => $settingKey,
+            $size = (int) ($file['size'] ?? 0);
+
+            if ($size <= 0) {
+                throw new RuntimeException('الملف فارغ.');
+            }
+
+            if ($size > self::MAX_UPLOAD_BYTES) {
+                throw new RuntimeException('حجم الملف أكبر من الحد المسموح 5MB.');
+            }
+
+            $originalName = (string) ($file['name'] ?? 'media');
+            $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+
+            if (!in_array($extension, self::ALLOWED_EXTENSIONS, true)) {
+                throw new RuntimeException('نوع الملف غير مسموح. الأنواع المسموحة: JPG, PNG, WEBP, GIF.');
+            }
+
+            $tmpName = (string) ($file['tmp_name'] ?? '');
+
+            if ($tmpName === '' || !is_uploaded_file($tmpName)) {
+                throw new RuntimeException('ملف الرفع غير صالح.');
+            }
+
+            $mimeType = $this->detectMime($tmpName);
+
+            if (!$this->isAllowedMime($mimeType)) {
+                throw new RuntimeException('نوع الملف غير مقبول: ' . $mimeType);
+            }
+
+            $uploadDir = $this->uploadDir();
+
+            if (!is_dir($uploadDir) && !mkdir($uploadDir, 0775, true) && !is_dir($uploadDir)) {
+                throw new RuntimeException('تعذر إنشاء مجلد الرفع.');
+            }
+
+            $safeBase = $this->safeName(pathinfo($originalName, PATHINFO_FILENAME));
+            $filename = date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '_' . $safeBase . '.' . $extension;
+            $targetPath = $uploadDir . '/' . $filename;
+
+            if (!move_uploaded_file($tmpName, $targetPath)) {
+                throw new RuntimeException('تعذر حفظ الملف.');
+            }
+
+            @chmod($targetPath, 0664);
+
+            $publicPath = '/uploads/media/' . $filename;
+            $tag = trim((string) ($_POST['tag'] ?? ''));
+
+            $stmt = $this->pdo()->prepare("
+                INSERT INTO media_assets (
+                    filename,
+                    original_name,
+                    mime_type,
+                    size_bytes,
+                    public_path,
+                    storage_path,
+                    tag,
+                    created_at,
+                    updated_at
+                )
+                VALUES (
+                    :filename,
+                    :original_name,
+                    :mime_type,
+                    :size_bytes,
+                    :public_path,
+                    :storage_path,
+                    :tag,
+                    CURRENT_TIMESTAMP,
+                    CURRENT_TIMESTAMP
+                )
+            ");
+
+            $stmt->execute([
+                'filename' => $filename,
+                'original_name' => $originalName,
+                'mime_type' => $mimeType,
+                'size_bytes' => $size,
+                'public_path' => $publicPath,
+                'storage_path' => $targetPath,
+                'tag' => $tag,
             ]);
 
-            $this->flash('success', 'تم رفع الصورة بنجاح.');
+            return $this->redirect('/admin/media?success=uploaded');
         } catch (Throwable $e) {
-            $this->flash('error', 'فشل رفع الصورة: ' . $e->getMessage());
+            return $this->renderWithError($e->getMessage());
         }
-
-        $this->redirect();
     }
 
-    public function assign(): void
+    public function assign(): string
     {
-        Database::migrate();
-        SiteSettingsService::ensureDefaults();
+        try {
+            $slot = trim((string) ($_POST['slot'] ?? ''));
+            $path = trim((string) ($_POST['public_path'] ?? ''));
 
-        $this->requireLogin();
+            if (!isset(self::ASSET_SLOTS[$slot])) {
+                throw new RuntimeException('مكان التعيين غير معروف.');
+            }
 
-        $settingKey = trim((string) ($_POST['setting_key'] ?? ''));
-        $path = SiteSettingsService::normalizePublicMediaPath((string) ($_POST['path'] ?? ''));
+            if ($path === '' || !str_starts_with($path, '/uploads/media/')) {
+                throw new RuntimeException('مسار الصورة غير صحيح.');
+            }
 
-        if (!in_array($settingKey, $this->allowedSettingKeys, true)) {
-            $this->flash('error', 'نوع التعيين غير صالح.');
-            $this->redirect();
+            $this->saveSetting($slot, $path);
+            $this->saveSetting('media_' . $slot, $path);
+
+            return $this->redirect('/admin/media?success=assigned');
+        } catch (Throwable $e) {
+            return $this->renderWithError($e->getMessage());
         }
-
-        if ($path === '') {
-            $this->flash('error', 'مسار الصورة غير صالح.');
-            $this->redirect();
-        }
-
-        if (!$this->mediaPathExists($path)) {
-            $this->flash('error', 'الصورة غير موجودة داخل مجلد media.');
-            $this->redirect();
-        }
-
-        Setting::set($settingKey, $path);
-
-        AppLog::info('تم تعيين صورة Media', [
-            'setting_key' => $settingKey,
-            'path' => $path,
-        ]);
-
-        $this->flash('success', 'تم تعيين الصورة بنجاح.');
-        $this->redirect();
     }
 
-    public function clearAsset(): void
+    public function clearAsset(): string
     {
-        Database::migrate();
-        SiteSettingsService::ensureDefaults();
+        try {
+            $slot = trim((string) ($_POST['slot'] ?? ''));
 
-        $this->requireLogin();
+            if (!isset(self::ASSET_SLOTS[$slot])) {
+                throw new RuntimeException('مكان التعيين غير معروف.');
+            }
 
-        $settingKey = trim((string) ($_POST['setting_key'] ?? ''));
+            $this->deleteSetting($slot);
+            $this->deleteSetting('media_' . $slot);
 
-        if (!in_array($settingKey, $this->allowedSettingKeys, true)) {
-            $this->flash('error', 'نوع الإزالة غير صالح.');
-            $this->redirect();
+            return $this->redirect('/admin/media?success=cleared');
+        } catch (Throwable $e) {
+            return $this->renderWithError($e->getMessage());
         }
-
-        Setting::set($settingKey, '');
-
-        AppLog::info('تم إزالة تعيين صورة Media', [
-            'setting_key' => $settingKey,
-        ]);
-
-        $this->flash('success', 'تم إزالة الصورة من هذا الاستخدام.');
-        $this->redirect();
     }
 
-    public function delete(): void
+    public function delete(): string
     {
-        Database::migrate();
-        SiteSettingsService::ensureDefaults();
+        try {
+            $id = (int) ($_POST['id'] ?? 0);
 
-        $this->requireLogin();
+            if ($id <= 0) {
+                throw new RuntimeException('معرّف الملف غير صحيح.');
+            }
 
-        $path = SiteSettingsService::normalizePublicMediaPath((string) ($_POST['path'] ?? ''));
+            $stmt = $this->pdo()->prepare("SELECT * FROM media_assets WHERE id = :id LIMIT 1");
+            $stmt->execute(['id' => $id]);
+            $asset = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        if ($path === '') {
-            $this->flash('error', 'مسار الصورة غير صالح.');
-            $this->redirect();
+            if (!$asset) {
+                throw new RuntimeException('الملف غير موجود.');
+            }
+
+            $publicPath = (string) ($asset['public_path'] ?? '');
+            $storagePath = (string) ($asset['storage_path'] ?? '');
+
+            if ($storagePath !== '' && is_file($storagePath)) {
+                @unlink($storagePath);
+            }
+
+            if ($publicPath !== '') {
+                foreach (array_keys(self::ASSET_SLOTS) as $slot) {
+                    if ($this->readSetting($slot, '') === $publicPath) {
+                        $this->deleteSetting($slot);
+                    }
+
+                    if ($this->readSetting('media_' . $slot, '') === $publicPath) {
+                        $this->deleteSetting('media_' . $slot);
+                    }
+                }
+            }
+
+            $delete = $this->pdo()->prepare("DELETE FROM media_assets WHERE id = :id");
+            $delete->execute(['id' => $id]);
+
+            return $this->redirect('/admin/media?success=deleted');
+        } catch (Throwable $e) {
+            return $this->renderWithError($e->getMessage());
+        }
+    }
+
+    private function pdo(): PDO
+    {
+        static $pdo = null;
+
+        if ($pdo instanceof PDO) {
+            return $pdo;
         }
 
-        $settings = SiteSettingsService::all();
+        Database::migrate();
 
-        foreach ($this->allowedSettingKeys as $settingKey) {
-            if (($settings[$settingKey] ?? '') === $path) {
-                $this->flash('error', 'لا يمكن حذف صورة مستخدمة حالياً. أزل تعيينها أولاً.');
-                $this->redirect();
+        $pdo = Database::connection();
+        $this->ensureTables($pdo);
+
+        return $pdo;
+    }
+
+    private function ensureTables(PDO $pdo): void
+    {
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS media_assets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                filename TEXT NOT NULL,
+                original_name TEXT DEFAULT '',
+                mime_type TEXT DEFAULT '',
+                size_bytes INTEGER DEFAULT 0,
+                public_path TEXT NOT NULL,
+                storage_path TEXT DEFAULT '',
+                tag TEXT DEFAULT '',
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        ");
+
+        $this->addColumnIfMissing($pdo, 'media_assets', 'updated_at', "ALTER TABLE media_assets ADD COLUMN updated_at TEXT DEFAULT CURRENT_TIMESTAMP");
+        $this->addColumnIfMissing($pdo, 'media_assets', 'tag', "ALTER TABLE media_assets ADD COLUMN tag TEXT DEFAULT ''");
+        $this->addColumnIfMissing($pdo, 'media_assets', 'storage_path', "ALTER TABLE media_assets ADD COLUMN storage_path TEXT DEFAULT ''");
+
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS app_settings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                setting_key TEXT UNIQUE NOT NULL,
+                setting_value TEXT DEFAULT '',
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        ");
+
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS greennet_settings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                setting_key TEXT UNIQUE NOT NULL,
+                setting_value TEXT DEFAULT '',
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        ");
+    }
+
+    private function addColumnIfMissing(PDO $pdo, string $table, string $column, string $sql): void
+    {
+        try {
+            $rows = $pdo->query("PRAGMA table_info({$table})")->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+            foreach ($rows as $row) {
+                if ((string) ($row['name'] ?? '') === $column) {
+                    return;
+                }
+            }
+
+            $pdo->exec($sql);
+        } catch (Throwable) {
+            // Ignore old SQLite edge cases.
+        }
+    }
+
+    private function assets(): array
+    {
+        $stmt = $this->pdo()->query("
+            SELECT *
+            FROM media_assets
+            ORDER BY datetime(created_at) DESC, id DESC
+            LIMIT 200
+        ");
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    private function assignedAssets(): array
+    {
+        $assigned = [];
+
+        foreach (array_keys(self::ASSET_SLOTS) as $slot) {
+            $assigned[$slot] = $this->readSetting($slot, '');
+
+            if ($assigned[$slot] === '') {
+                $assigned[$slot] = $this->readSetting('media_' . $slot, '');
             }
         }
 
-        $absolutePath = $this->publicPathToAbsolute($path);
-
-        if (!is_file($absolutePath)) {
-            $this->flash('error', 'الصورة غير موجودة.');
-            $this->redirect();
-        }
-
-        if (!unlink($absolutePath)) {
-            $this->flash('error', 'تعذر حذف الصورة.');
-            $this->redirect();
-        }
-
-        AppLog::warning('تم حذف ملف Media', [
-            'path' => $path,
-        ]);
-
-        $this->flash('success', 'تم حذف الصورة بنجاح.');
-        $this->redirect();
+        return $assigned;
     }
 
-    private function handleImageUpload(string $fieldName, string $assetType): ?string
+    private function saveSetting(string $key, string $value): void
     {
-        if (!isset($_FILES[$fieldName]) || !is_array($_FILES[$fieldName])) {
-            return null;
+        foreach (['app_settings', 'greennet_settings', 'settings'] as $table) {
+            try {
+                $columns = $this->columns($table);
+
+                if (in_array('setting_key', $columns, true) && in_array('setting_value', $columns, true)) {
+                    $stmt = $this->pdo()->prepare("
+                        INSERT INTO {$table} (setting_key, setting_value, created_at, updated_at)
+                        VALUES (:key, :value, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        ON CONFLICT(setting_key) DO UPDATE SET
+                            setting_value = excluded.setting_value,
+                            updated_at = CURRENT_TIMESTAMP
+                    ");
+                    $stmt->execute(['key' => $key, 'value' => $value]);
+                } elseif (in_array('key', $columns, true) && in_array('value', $columns, true)) {
+                    $stmt = $this->pdo()->prepare("
+                        INSERT INTO {$table} (\"key\", \"value\")
+                        VALUES (:key, :value)
+                        ON CONFLICT(\"key\") DO UPDATE SET
+                            \"value\" = excluded.\"value\"
+                    ");
+                    $stmt->execute(['key' => $key, 'value' => $value]);
+                }
+            } catch (Throwable) {
+                continue;
+            }
         }
-
-        $file = $_FILES[$fieldName];
-
-        if (($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
-            return null;
-        }
-
-        if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
-            throw new \RuntimeException('فشل رفع الملف.');
-        }
-
-        $tmpName = (string) ($file['tmp_name'] ?? '');
-
-        if ($tmpName === '' || !is_uploaded_file($tmpName)) {
-            throw new \RuntimeException('ملف غير صالح.');
-        }
-
-        $size = (int) ($file['size'] ?? 0);
-
-        if ($size <= 0 || $size > 4 * 1024 * 1024) {
-            throw new \RuntimeException('حجم الصورة يجب أن يكون أقل من 4MB.');
-        }
-
-        $imageInfo = @getimagesize($tmpName);
-
-        if ($imageInfo === false) {
-            throw new \RuntimeException('الملف المرفوع ليس صورة صالحة.');
-        }
-
-        $mime = (string) ($imageInfo['mime'] ?? '');
-
-        $extension = match ($mime) {
-            'image/png' => 'png',
-            'image/jpeg' => 'jpg',
-            'image/webp' => 'webp',
-            'image/gif' => 'gif',
-            default => '',
-        };
-
-        if ($extension === '') {
-            throw new \RuntimeException('صيغة الصورة غير مدعومة. استخدم PNG أو JPG أو WEBP أو GIF.');
-        }
-
-        $mediaDir = $this->mediaDirectory();
-
-        if (!is_dir($mediaDir)) {
-            mkdir($mediaDir, 0775, true);
-        }
-
-        $safePrefix = match ($assetType) {
-            'logo' => 'logo',
-            'icon' => 'icon',
-            'login_background' => 'login-bg',
-            default => 'media',
-        };
-
-        $filename = $safePrefix . '-' . date('YmdHis') . '-' . bin2hex(random_bytes(3)) . '.' . $extension;
-        $destination = $mediaDir . '/' . $filename;
-
-        if (!move_uploaded_file($tmpName, $destination)) {
-            throw new \RuntimeException('تعذر حفظ الصورة.');
-        }
-
-        @chmod($destination, 0664);
-
-        return '/media/' . $filename;
     }
 
-    private function mediaFiles(): array
+    private function readSetting(string $key, string $fallback = ''): string
     {
-        $mediaDir = $this->mediaDirectory();
+        foreach (['app_settings', 'greennet_settings', 'settings'] as $table) {
+            try {
+                $columns = $this->columns($table);
 
-        if (!is_dir($mediaDir)) {
-            mkdir($mediaDir, 0775, true);
+                if (in_array('setting_key', $columns, true) && in_array('setting_value', $columns, true)) {
+                    $stmt = $this->pdo()->prepare("SELECT setting_value FROM {$table} WHERE setting_key = :key LIMIT 1");
+                    $stmt->execute(['key' => $key]);
+                    $value = $stmt->fetchColumn();
+
+                    if (is_string($value)) {
+                        return $value;
+                    }
+                }
+
+                if (in_array('key', $columns, true) && in_array('value', $columns, true)) {
+                    $stmt = $this->pdo()->prepare("SELECT \"value\" FROM {$table} WHERE \"key\" = :key LIMIT 1");
+                    $stmt->execute(['key' => $key]);
+                    $value = $stmt->fetchColumn();
+
+                    if (is_string($value)) {
+                        return $value;
+                    }
+                }
+            } catch (Throwable) {
+                continue;
+            }
         }
 
-        $files = [];
-        $extensions = ['png', 'jpg', 'jpeg', 'webp', 'gif'];
+        return $fallback;
+    }
 
-        foreach ($extensions as $extension) {
-            $matches = glob($mediaDir . '/*.' . $extension);
+    private function deleteSetting(string $key): void
+    {
+        foreach (['app_settings', 'greennet_settings', 'settings'] as $table) {
+            try {
+                $columns = $this->columns($table);
 
-            if (is_array($matches)) {
-                foreach ($matches as $match) {
-                    $files[] = $match;
+                if (in_array('setting_key', $columns, true)) {
+                    $stmt = $this->pdo()->prepare("DELETE FROM {$table} WHERE setting_key = :key");
+                    $stmt->execute(['key' => $key]);
+                } elseif (in_array('key', $columns, true)) {
+                    $stmt = $this->pdo()->prepare("DELETE FROM {$table} WHERE \"key\" = :key");
+                    $stmt->execute(['key' => $key]);
+                }
+            } catch (Throwable) {
+                continue;
+            }
+        }
+    }
+
+    private function columns(string $table): array
+    {
+        try {
+            $rows = $this->pdo()->query("PRAGMA table_info({$table})")->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+            return array_map(static fn (array $row): string => (string) ($row['name'] ?? ''), $rows);
+        } catch (Throwable) {
+            return [];
+        }
+    }
+
+    private function detectMime(string $path): string
+    {
+        if (function_exists('finfo_open')) {
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+
+            if ($finfo !== false) {
+                $mime = finfo_file($finfo, $path);
+                finfo_close($finfo);
+
+                if (is_string($mime) && $mime !== '') {
+                    return $mime;
                 }
             }
         }
 
-        $files = array_values(array_unique($files));
-
-        $items = [];
-
-        foreach ($files as $file) {
-            if (!is_file($file)) {
-                continue;
-            }
-
-            $filename = basename($file);
-            $path = '/media/' . $filename;
-
-            $items[] = [
-                'filename' => $filename,
-                'path' => $path,
-                'size_bytes' => filesize($file) ?: 0,
-                'modified_at' => date('Y-m-d H:i:s', filemtime($file) ?: time()),
-            ];
-        }
-
-        usort($items, function (array $a, array $b): int {
-            return strcmp((string) $b['modified_at'], (string) $a['modified_at']);
-        });
-
-        return $items;
+        return 'application/octet-stream';
     }
 
-    private function mediaPathExists(string $path): bool
+    private function isAllowedMime(string $mime): bool
     {
-        return is_file($this->publicPathToAbsolute($path));
+        return in_array($mime, [
+            'image/jpeg',
+            'image/png',
+            'image/webp',
+            'image/gif',
+        ], true);
     }
 
-    private function publicPathToAbsolute(string $path): string
+    private function safeName(string $name): string
     {
-        $path = SiteSettingsService::normalizePublicMediaPath($path);
+        $name = strtolower(trim($name));
+        $name = preg_replace('/[^a-z0-9_-]+/i', '-', $name) ?: 'media';
+        $name = trim($name, '-_');
 
-        if ($path === '') {
-            return '';
-        }
-
-        return BASE_PATH . '/public' . $path;
+        return $name !== '' ? substr($name, 0, 50) : 'media';
     }
 
-    private function mediaDirectory(): string
+    private function uploadDir(): string
     {
-        return BASE_PATH . '/public/media';
+        return dirname(__DIR__, 2) . '/public/uploads/media';
     }
 
-    private function assetTypeToSettingKey(string $assetType): ?string
+    private function renderWithError(string $message): string
     {
-        return match ($assetType) {
-            'logo' => 'site_logo_path',
-            'icon' => 'app_icon_path',
-            'login_background' => 'login_background_path',
-            default => null,
-        };
+        return $this->renderAdmin('admin/media', [
+            'title' => 'Media Library',
+            'assets' => $this->assets(),
+            'assigned' => $this->assignedAssets(),
+            'slots' => self::ASSET_SLOTS,
+            'success' => '',
+            'error' => $message,
+            'maxUploadMb' => 5,
+        ]);
     }
 
-    private function flash(string $type, string $message): void
+    private function redirect(string $url): string
     {
-        $_SESSION['media_flash'] = [
-            'type' => $type,
-            'message' => $message,
-        ];
-    }
-
-    private function redirect(): void
-    {
-        header('Location: /admin/media');
-        exit;
-    }
-
-    private function requireLogin(): void
-    {
-        if (($_SESSION['admin_logged_in'] ?? false) !== true) {
-            header('Location: /admin/login');
+        if (!headers_sent()) {
+            header('Location: ' . $url);
             exit;
         }
+
+        return '<script>window.location.href=' . json_encode($url) . ';</script>';
+    }
+
+    private function renderAdmin(string $view, array $data = []): string
+    {
+        $viewsPath = dirname(__DIR__) . '/Views';
+        $viewFile = $viewsPath . '/' . $view . '.php';
+        $layoutFile = $viewsPath . '/layouts/admin.php';
+
+        if (!is_file($viewFile)) {
+            return 'View not found: ' . htmlspecialchars($viewFile, ENT_QUOTES, 'UTF-8');
+        }
+
+        if (!is_file($layoutFile)) {
+            return 'Layout not found: ' . htmlspecialchars($layoutFile, ENT_QUOTES, 'UTF-8');
+        }
+
+        extract($data, EXTR_SKIP);
+
+        ob_start();
+        require $viewFile;
+        $content = (string) ob_get_clean();
+
+        ob_start();
+        require $layoutFile;
+
+        return (string) ob_get_clean();
     }
 }
