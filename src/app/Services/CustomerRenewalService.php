@@ -11,6 +11,7 @@ use GreenNet\Models\AppLog;
 use GreenNet\Models\CustomerLocal;
 use GreenNet\Models\Payment;
 use GreenNet\Models\ServicePackage;
+use Throwable;
 
 class CustomerRenewalService
 {
@@ -103,6 +104,8 @@ class CustomerRenewalService
 
         CustomerLocal::updatePaymentStatus((string) $customer['username'], 'paid');
 
+        $baseline = $this->createRenewalBaseline((string) $customer['username']);
+
         AppLog::info('تم تجديد اشتراك', [
             'username' => (string) $customer['username'],
             'package_id' => (int) $package['id'],
@@ -111,14 +114,29 @@ class CustomerRenewalService
             'currency' => $currency,
             'starts_at' => $startsAt->format('Y-m-d H:i:s'),
             'expires_at' => $expiresAtText,
+            'baseline_ok' => !empty($baseline['ok']),
+            'baseline_id' => (int) ($baseline['baseline_id'] ?? 0),
+            'baseline_message' => (string) ($baseline['message'] ?? ''),
         ]);
+
+        $message = 'تم تسجيل الدفعة وتجديد الاشتراك.';
+
+        if (!empty($baseline['ok'])) {
+            $message .= ' تم إنشاء Baseline جديد، وسيبدأ الاستهلاك من 0 داخل GreenNet.';
+        } else {
+            $message .= ' تنبيه: لم يتم إنشاء Baseline تلقائي. السبب: ' . (string) ($baseline['message'] ?? 'غير معروف');
+        }
 
         return [
             'ok' => true,
-            'message' => 'تم تسجيل الدفعة وتجديد الاشتراك.',
+            'message' => $message,
             'username' => (string) $customer['username'],
             'starts_at' => $startsAt->format('Y-m-d H:i:s'),
             'expires_at' => $expiresAtText,
+            'baseline' => $baseline,
+            'baseline_ok' => !empty($baseline['ok']),
+            'baseline_id' => (int) ($baseline['baseline_id'] ?? 0),
+            'mikrotik_write' => false,
         ];
     }
 
@@ -161,5 +179,25 @@ class CustomerRenewalService
             'days_left' => $daysLeft,
             'days_left_label' => $daysLeft . ' يوم',
         ];
+    }
+
+    private function createRenewalBaseline(string $username): array
+    {
+        try {
+            $baselineService = new GreenNetUsageBaselineService();
+
+            return $baselineService->createForUser($username, 'auto_renewal', 0);
+        } catch (Throwable $e) {
+            AppLog::warning('فشل إنشاء Baseline تلقائي بعد التجديد', [
+                'username' => $username,
+                'error' => $e->getMessage(),
+            ]);
+
+            return [
+                'ok' => false,
+                'reason' => 'exception',
+                'message' => $e->getMessage(),
+            ];
+        }
     }
 }
