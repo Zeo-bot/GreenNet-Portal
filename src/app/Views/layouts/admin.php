@@ -177,6 +177,9 @@ $navGroups = [
         'title' => $t['billing'],
         'items' => [
             ['/admin/packages', '▣', $t['packages'], '/admin/packages'],
+            ['/admin/user-manager-packages', '⇣', 'Import UM Packages', '/admin/user-manager-packages'],
+            ['/admin/package-push', '⇡', 'Push Packages', '/admin/package-push'],
+            ['/admin/package-assign', '⇄', 'Assign Package', '/admin/package-assign'],
             ['/admin/payments', '$', $t['payments'], '/admin/payments'],
             ['/admin/renewal-requests', '↻', $t['renewal_requests'], '/admin/renewal-requests'],
             ['/admin/subscriptions', '◫', $t['subscriptions'], '/admin/subscriptions'],

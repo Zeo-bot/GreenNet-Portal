@@ -41,6 +41,9 @@ use GreenNet\Controllers\AdminNotificationsController;
 use GreenNet\Controllers\AdminCustomerTimelineController;
 use GreenNet\Controllers\AdminPreMikroTikController;
 use GreenNet\Controllers\AdminMikroTikDryRunController;
+use GreenNet\Controllers\AdminUserManagerPackagesController;
+use GreenNet\Controllers\AdminPackagePushController;
+use GreenNet\Controllers\AdminPackageAssignController;
 
 $router->get('/', [HomeController::class, 'index']);
 
@@ -148,6 +151,7 @@ $router->get('/admin/export/subscriptions.csv', [AdminExportController::class, '
 $router->get('/admin/export/logs.csv', [AdminExportController::class, 'logs']);
 
 $router->get('/admin/packages', [AdminPackagesController::class, 'index']);
+$router->post('/admin/packages', [AdminPackagesController::class, 'index']);
 $router->post('/admin/packages/sync-routeros', [AdminPackagesController::class, 'syncFromRouterOS']);
 $router->get('/admin/packages/edit', [AdminPackagesController::class, 'edit']);
 $router->post('/admin/packages/update', [AdminPackagesController::class, 'update']);
@@ -190,3 +194,11 @@ $router->get('/admin/routeros/active-users', [AdminRouterOsController::class, 'a
 $router->get('/admin/routeros/discovery', [AdminRouterOsController::class, 'discovery']);
 $router->get('/admin/routeros/users', [AdminRouterOsController::class, 'users']);
 $router->get('/admin/routeros/profiles', [AdminRouterOsController::class, 'profiles']);
+$router->get('/admin/user-manager-packages', [AdminUserManagerPackagesController::class, 'index']);
+$router->post('/admin/user-manager-packages/import', [AdminUserManagerPackagesController::class, 'import']);
+$router->get('/admin/package-push', [AdminPackagePushController::class, 'index']);
+$router->post('/admin/package-push/preview', [AdminPackagePushController::class, 'preview']);
+$router->post('/admin/package-push/execute', [AdminPackagePushController::class, 'execute']);
+$router->get('/admin/package-assign', [AdminPackageAssignController::class, 'index']);
+$router->post('/admin/package-assign/preview', [AdminPackageAssignController::class, 'preview']);
+$router->post('/admin/package-assign/execute', [AdminPackageAssignController::class, 'execute']);

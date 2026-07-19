@@ -7,6 +7,7 @@ namespace GreenNet\Controllers;
 use GreenNet\Core\Database;
 use GreenNet\Core\View;
 use GreenNet\Models\AppLog;
+use GreenNet\Services\GreenNetUsageBaselineService;
 use GreenNet\Services\RouterOS\RouterOSApiClient;
 use GreenNet\Services\WriteSafetyGuard;
 use PDO;
@@ -18,8 +19,8 @@ class AdminMikroTikDryRunController
     public function index(): string
     {
         Database::migrate();
+
         $this->requireLogin();
-        $this->ensureBaselineTables();
 
         $guard = new WriteSafetyGuard();
         $guard->ensureTables();
@@ -36,8 +37,8 @@ class AdminMikroTikDryRunController
     public function preview(): void
     {
         Database::migrate();
+
         $this->requireLogin();
-        $this->ensureBaselineTables();
 
         $guard = new WriteSafetyGuard();
         $guard->ensureTables();
@@ -54,11 +55,16 @@ class AdminMikroTikDryRunController
 
             $this->validateUsername($username);
 
-            $plan = $this->buildPlan($action, $username);
+            $plan = match ($action) {
+                'hotspot_reset_counters' => $this->buildBaselinePlan($username),
+                'um_disable_user' => $this->buildSetDisabledPlan($username, true),
+                'um_enable_user' => $this->buildSetDisabledPlan($username, false),
+                default => throw new RuntimeException('عملية غير معروفة.'),
+            };
 
             $auditId = $guard->recordDryRun([
                 'action' => $action,
-                'dataset' => (string) ($plan['dataset'] ?? 'user_manager_monitor'),
+                'dataset' => (string) ($plan['dataset'] ?? 'mikrotik'),
                 'username' => $username,
                 'command' => (string) ($plan['command'] ?? ''),
                 'params' => $plan,
@@ -69,21 +75,22 @@ class AdminMikroTikDryRunController
 
             $_SESSION['mikrotik_dry_run_result'] = $plan;
 
-            AppLog::info('GreenNet Baseline Dry Run created', [
+            AppLog::info('MikroTik Dry Run created', [
+                'action' => $action,
                 'username' => $username,
                 'audit_id' => $auditId,
-                'monitor_ok' => !empty($plan['monitor_summary']['ok']),
-                'baseline_id' => (int) ($plan['latest_baseline']['id'] ?? 0),
+                'can_execute_later' => !empty($plan['can_execute_later']),
             ]);
 
-            $this->flash('تم إنشاء Dry Run بنجاح. لم يتم تنفيذ أي أمر على MikroTik.', 'success');
+            $this->flash('تم إنشاء Dry Run بنجاح. لم يتم تنفيذ أي أمر بعد.', 'success');
         } catch (Throwable $e) {
             $_SESSION['mikrotik_dry_run_result'] = [
                 'error' => $e->getMessage(),
                 'executed' => false,
+                'real_execution' => false,
             ];
 
-            AppLog::error('GreenNet Baseline Dry Run failed', [
+            AppLog::error('MikroTik Dry Run failed', [
                 'error' => $e->getMessage(),
             ]);
 
@@ -97,78 +104,26 @@ class AdminMikroTikDryRunController
     public function execute(): void
     {
         Database::migrate();
+
         $this->requireLogin();
-        $this->ensureBaselineTables();
 
         $method = trim((string) ($_POST['method'] ?? ''));
         $username = trim((string) ($_POST['username'] ?? ''));
-        $confirm = trim((string) ($_POST['confirm_baseline'] ?? ''));
 
         try {
-            if ($method !== 'create_greennet_baseline') {
-                throw new RuntimeException('في S10.2G التنفيذ المسموح فقط هو إنشاء GreenNet Baseline داخل قاعدة البيانات.');
-            }
-
             if ($username === '') {
                 throw new RuntimeException('اسم المستخدم مطلوب.');
             }
 
             $this->validateUsername($username);
 
-            if ($confirm !== 'BASELINE') {
-                throw new RuntimeException('لإنشاء Baseline اكتب BASELINE في خانة التأكيد.');
+            if ($method === 'create_greennet_baseline') {
+                $this->executeCreateBaseline($username);
+            } elseif ($method === 'um_set_disabled') {
+                $this->executeSetDisabled($username);
+            } else {
+                throw new RuntimeException('طريقة تنفيذ غير معروفة.');
             }
-
-            $lastPlan = $this->requireSuccessfulMonitorDryRun($username);
-
-            /*
-             * Fresh read before creating baseline.
-             * Do not trust old monitor totals.
-             */
-            $freshPlan = $this->buildPlan('hotspot_reset_counters', $username);
-            $monitor = is_array($freshPlan['monitor_summary'] ?? null) ? $freshPlan['monitor_summary'] : [];
-
-            if (empty($monitor['ok'])) {
-                throw new RuntimeException('فشل قراءة User Manager Monitor. لا يمكن إنشاء Baseline بدون أرقام مؤكدة.');
-            }
-
-            if ((string) ($freshPlan['recommended_backend'] ?? '') !== 'user-manager') {
-                throw new RuntimeException('المستخدم ليس User Manager حسب القراءة الجديدة.');
-            }
-
-            $baselineId = $this->createBaseline($username, $freshPlan, $monitor, [
-                'reason' => 'manual_admin_baseline',
-                'dry_run_audit_id' => (int) ($lastPlan['audit_id'] ?? 0),
-            ]);
-
-            $afterPlan = $this->buildPlan('hotspot_reset_counters', $username);
-            $afterPlan['baseline_created'] = true;
-            $afterPlan['executed'] = false;
-            $afterPlan['real_execution'] = false;
-            $afterPlan['baseline_result'] = [
-                'baseline_id' => $baselineId,
-                'username' => $username,
-                'baseline_total_human' => (string) ($monitor['total_human'] ?? '0 B'),
-                'baseline_total_bytes' => (int) ($monitor['total_bytes'] ?? 0),
-                'baseline_download_human' => (string) ($monitor['total_download_human'] ?? '0 B'),
-                'baseline_upload_human' => (string) ($monitor['total_upload_human'] ?? '0 B'),
-                'baseline_uptime_human' => (string) ($monitor['total_uptime_human'] ?? '0s'),
-                'created_at' => date('Y-m-d H:i:s'),
-                'note' => 'تم إنشاء Baseline داخل GreenNet فقط. لم يتم تعديل MikroTik.',
-            ];
-            $afterPlan['notes'][] = 'تم إنشاء Baseline جديد داخل GreenNet.';
-            $afterPlan['notes'][] = 'استهلاك المشترك بعد الـ Baseline يجب أن يصبح 0 B داخل GreenNet.';
-
-            $_SESSION['mikrotik_dry_run_result'] = $afterPlan;
-
-            AppLog::info('GreenNet usage baseline created', [
-                'username' => $username,
-                'baseline_id' => $baselineId,
-                'baseline_total_bytes' => (int) ($monitor['total_bytes'] ?? 0),
-                'dry_run_audit_id' => (int) ($lastPlan['audit_id'] ?? 0),
-            ]);
-
-            $this->flash('تم إنشاء GreenNet Baseline بنجاح. لم يتم تعديل MikroTik.', 'success');
         } catch (Throwable $e) {
             $previous = $_SESSION['mikrotik_dry_run_result'] ?? [];
 
@@ -178,698 +133,289 @@ class AdminMikroTikDryRunController
 
             $previous['execute_error'] = $e->getMessage();
             $previous['executed'] = false;
-            $previous['real_execution'] = false;
 
             $_SESSION['mikrotik_dry_run_result'] = $previous;
 
-            AppLog::error('GreenNet usage baseline failed', [
+            AppLog::error('MikroTik execution failed', [
                 'username' => $username,
                 'method' => $method,
                 'error' => $e->getMessage(),
             ]);
 
-            $this->flash('فشل إنشاء Baseline: ' . $e->getMessage(), 'warning');
+            $this->flash('فشل التنفيذ: ' . $e->getMessage(), 'warning');
+
+            header('Location: /admin/mikrotik-dry-run');
+            exit;
         }
+    }
+
+    private function executeCreateBaseline(string $username): void
+    {
+        $confirm = trim((string) ($_POST['confirm_baseline'] ?? ''));
+
+        if ($confirm !== 'BASELINE') {
+            throw new RuntimeException('لإنشاء Baseline اكتب BASELINE في خانة التأكيد.');
+        }
+
+        $lastPlan = $this->requireLastPlan($username, 'hotspot_reset_counters');
+
+        if ((string) ($lastPlan['recommended_backend'] ?? '') !== 'user-manager') {
+            throw new RuntimeException('آخر Dry Run لا يثبت أن المستخدم User Manager.');
+        }
+
+        $baselineService = new GreenNetUsageBaselineService();
+        $baseline = $baselineService->createForUser($username, 'manual_admin_baseline', (int) ($lastPlan['audit_id'] ?? 0));
+
+        if (empty($baseline['ok'])) {
+            throw new RuntimeException((string) ($baseline['message'] ?? 'فشل إنشاء Baseline.'));
+        }
+
+        $afterPlan = $this->buildBaselinePlan($username);
+        $afterPlan['baseline_created'] = true;
+        $afterPlan['baseline_result'] = $baseline;
+        $afterPlan['executed'] = false;
+        $afterPlan['real_execution'] = false;
+        $afterPlan['notes'][] = 'تم إنشاء Baseline داخل GreenNet فقط، بدون أي تعديل على MikroTik.';
+
+        $_SESSION['mikrotik_dry_run_result'] = $afterPlan;
+
+        AppLog::info('GreenNet usage baseline created from Dry Run', [
+            'username' => $username,
+            'baseline_id' => (int) ($baseline['baseline_id'] ?? 0),
+        ]);
+
+        $this->flash('تم إنشاء GreenNet Baseline بنجاح. لم يتم تعديل MikroTik.', 'success');
 
         header('Location: /admin/mikrotik-dry-run');
         exit;
     }
 
-    private function buildPlan(string $action, string $username): array
+    private function executeSetDisabled(string $username): void
     {
-        if ($action !== 'hotspot_reset_counters') {
-            return [
-                'title' => 'Read Only Dry Run',
-                'dataset' => 'mikrotik',
-                'action' => $action,
-                'username' => $username,
-                'command' => 'read-only-placeholder',
-                'expected_command' => 'No write command in S10.2G.',
-                'router_status' => 'not_checked',
-                'recommended_backend' => 'not_checked',
-                'executed' => false,
-                'can_execute_later' => false,
-                'notes' => [
-                    'باقي العمليات مؤجلة حالياً.',
-                    'S10.2G مخصصة لبناء GreenNet Baseline فقط.',
-                ],
-                'created_at' => date('Y-m-d H:i:s'),
-            ];
+        $action = trim((string) ($_POST['action'] ?? ''));
+        $confirm = trim((string) ($_POST['confirm_execute'] ?? ''));
+
+        if (!in_array($action, ['um_disable_user', 'um_enable_user'], true)) {
+            throw new RuntimeException('عملية User Manager غير صحيحة.');
         }
 
-        return $this->buildUserManagerBaselinePlan($username);
+        $desiredDisabled = $action === 'um_disable_user';
+        $requiredConfirm = $desiredDisabled ? 'DISABLE' : 'ENABLE';
+
+        if ($confirm !== $requiredConfirm) {
+            throw new RuntimeException('للتنفيذ اكتب ' . $requiredConfirm . ' في خانة التأكيد.');
+        }
+
+        $guard = new WriteSafetyGuard();
+        $guard->ensureTables();
+        $guard->assertRealWriteAllowed([
+            'confirmed' => true,
+        ]);
+
+        $lastPlan = $this->requireLastPlan($username, $action);
+
+        if (empty($lastPlan['can_execute_later'])) {
+            throw new RuntimeException('آخر Dry Run لا يسمح بالتنفيذ.');
+        }
+
+        $freshPlan = $this->buildSetDisabledPlan($username, $desiredDisabled);
+
+        if (empty($freshPlan['can_execute_later'])) {
+            throw new RuntimeException((string) ($freshPlan['block_reason'] ?? 'العملية لم تعد قابلة للتنفيذ.'));
+        }
+
+        $userId = trim((string) ($freshPlan['user_manager_id'] ?? ''));
+
+        if ($userId === '') {
+            throw new RuntimeException('لم يتم تحديد .id للمستخدم داخل User Manager.');
+        }
+
+        $command = '/user-manager/user/set';
+        $params = [
+            'numbers' => $userId,
+            'disabled' => $desiredDisabled ? 'yes' : 'no',
+        ];
+
+        $client = new RouterOSApiClient([
+            'timeout' => 5,
+        ]);
+
+        try {
+            $routerResponse = $client->comm($command, $params);
+        } finally {
+            $client->disconnect();
+        }
+
+        $afterPlan = $this->buildSetDisabledPlan($username, $desiredDisabled);
+        $afterDisabled = (bool) ($afterPlan['current_disabled_bool'] ?? !$desiredDisabled);
+        $success = $afterDisabled === $desiredDisabled;
+
+        $guard->recordRealAttempt([
+            'action' => $desiredDisabled ? 'user_manager_disable_user' : 'user_manager_enable_user',
+            'dataset' => 'user_manager_user',
+            'username' => $username,
+            'command' => $command,
+            'params' => [
+                'username' => $username,
+                'numbers' => $userId,
+                'disabled' => $params['disabled'],
+                'dry_run_audit_id' => (int) ($lastPlan['audit_id'] ?? 0),
+                'confirmed' => true,
+            ],
+            'executed' => 1,
+            'success' => $success ? 1 : 0,
+            'router_response' => $this->jsonString([
+                'response' => $routerResponse,
+                'verified_disabled' => $afterDisabled,
+                'desired_disabled' => $desiredDisabled,
+            ]),
+        ]);
+
+        $afterPlan['real_result'] = [
+            'success' => $success,
+            'command' => $command,
+            'params' => $params,
+            'username' => $username,
+            'user_manager_id' => $userId,
+            'desired_disabled' => $desiredDisabled,
+            'verified_disabled' => $afterDisabled,
+            'router_response' => $routerResponse,
+            'executed_at' => date('Y-m-d H:i:s'),
+        ];
+
+        $afterPlan['executed'] = true;
+        $afterPlan['real_execution'] = true;
+
+        $_SESSION['mikrotik_dry_run_result'] = $afterPlan;
+
+        if (!$success) {
+            throw new RuntimeException('تم إرسال الأمر لكن التحقق بعد التنفيذ لم يطابق الحالة المطلوبة.');
+        }
+
+        $this->flash($desiredDisabled ? 'تم تعطيل المستخدم بنجاح.' : 'تم تفعيل المستخدم بنجاح.', 'success');
+
+        header('Location: /admin/mikrotik-dry-run');
+        exit;
     }
 
-    private function buildUserManagerBaselinePlan(string $username): array
+    private function buildBaselinePlan(string $username): array
     {
-        $plan = [
+        $lookup = $this->lookupUserManagerUser($username);
+        $monitor = [];
+        $latestBaseline = [];
+        $baselineUsage = [];
+
+        if (!empty($lookup['found'])) {
+            $monitor = $this->readUserManagerMonitor($username, (string) ($lookup['matched_id'] ?? ''));
+            $latestBaseline = $this->latestBaseline($username);
+            $baselineUsage = $this->buildBaselineUsage($username, $monitor, $latestBaseline);
+        }
+
+        return [
             'title' => 'GreenNet Baseline Usage Engine',
             'dataset' => 'greennet_usage_baseline',
             'action' => 'hotspot_reset_counters',
             'username' => $username,
             'command' => '/user-manager/user/monitor + GreenNet baseline',
             'expected_command' => 'Read only from MikroTik. Optional SQLite baseline only.',
-            'router_status' => 'checking',
-            'recommended_backend' => 'unknown',
-            'executed' => false,
-            'can_execute_later' => false,
+            'router_status' => !empty($lookup['found']) ? 'found' : (string) ($lookup['status'] ?? 'not_found'),
+            'recommended_backend' => !empty($lookup['found']) ? 'user-manager' : 'not-found',
             'backend_lookup' => [
-                'hotspot_local' => $this->emptyBackend('Hotspot Local Users', '/ip/hotspot/user/print'),
-                'user_manager' => $this->emptyBackend('User Manager Users', '/user-manager/user/print'),
-                'hotspot_active' => $this->emptyBackend('Hotspot Active Sessions', '/ip/hotspot/active/print'),
+                'user_manager' => $lookup,
             ],
-            'user_manager_user' => null,
-            'monitor_summary' => null,
-            'session_summary' => null,
-            'latest_baseline' => null,
-            'baseline_usage' => null,
-            'comparison' => null,
-            'reset_policy' => null,
+            'found_user_manager' => !empty($lookup['found']),
+            'user_manager_id' => (string) ($lookup['matched_id'] ?? ''),
+            'user_manager_user' => is_array($lookup['matched_row'] ?? null) ? $lookup['matched_row'] : [],
+            'monitor_summary' => $monitor,
+            'latest_baseline' => $latestBaseline,
+            'baseline_usage' => $baselineUsage,
+            'executed' => false,
+            'real_execution' => false,
+            'can_execute_later' => !empty($monitor['ok']),
             'notes' => [
-                'هذه المرحلة لا تكتب على MikroTik.',
-                'User Manager Monitor هو مصدر العدادات الأساسي.',
-                'GreenNet Baseline يحسب الاستهلاك الجديد بدون حذف sessions وبدون تصفير MikroTik.',
+                'هذه العملية لا تكتب على MikroTik.',
+                'الاستهلاك داخل GreenNet = Monitor Total - Latest Baseline.',
+                'استخدم Create Baseline عند التجديد أو بداية باقة جديدة.',
             ],
             'created_at' => date('Y-m-d H:i:s'),
         ];
-
-        $hotspot = $this->lookupRouterBackend(
-            'Hotspot Local Users',
-            '/ip/hotspot/user/print',
-            ['?name' => $username],
-            $username,
-            ['name']
-        );
-
-        $userManager = $this->lookupRouterBackend(
-            'User Manager Users',
-            '/user-manager/user/print',
-            ['?name' => $username],
-            $username,
-            ['name', 'username']
-        );
-
-        $active = $this->lookupRouterBackend(
-            'Hotspot Active Sessions',
-            '/ip/hotspot/active/print',
-            ['?user' => $username],
-            $username,
-            ['user', 'name']
-        );
-
-        $plan['backend_lookup'] = [
-            'hotspot_local' => $hotspot,
-            'user_manager' => $userManager,
-            'hotspot_active' => $active,
-        ];
-
-        $foundHotspot = (bool) ($hotspot['found'] ?? false);
-        $foundUserManager = (bool) ($userManager['found'] ?? false);
-        $foundActive = (bool) ($active['found'] ?? false);
-
-        $plan['found_hotspot_local'] = $foundHotspot;
-        $plan['found_user_manager'] = $foundUserManager;
-        $plan['found_hotspot_active'] = $foundActive;
-        $plan['recommended_backend'] = $this->recommendedBackend($foundHotspot, $foundUserManager, $foundActive);
-        $plan['router_status'] = $this->routerStatusFromBackends($plan['backend_lookup']);
-
-        if ($foundUserManager) {
-            $umRow = is_array($userManager['matched_raw_row'] ?? null) ? $userManager['matched_raw_row'] : [];
-            $umId = trim((string) ($umRow['.id'] ?? ''));
-
-            $plan['user_manager_resolved_id'] = $umId;
-            $plan['user_manager_user'] = $this->cleanUserManagerRow($umRow);
-
-            $monitor = $this->readUserManagerMonitor($username, $umId);
-            $sessions = $this->buildUserManagerSessionSummary($username);
-            $latestBaseline = $this->latestBaseline($username);
-
-            $plan['monitor_summary'] = $monitor;
-            $plan['session_summary'] = $sessions;
-            $plan['latest_baseline'] = $latestBaseline;
-            $plan['baseline_usage'] = $this->buildBaselineUsage($username, $monitor, $latestBaseline);
-            $plan['comparison'] = $this->buildUsageComparison($monitor, $sessions, $latestBaseline);
-            $plan['reset_policy'] = $this->buildResetPolicy($username, $monitor, $latestBaseline);
-            $plan['can_execute_later'] = !empty($monitor['ok']);
-
-            if (!empty($monitor['ok'])) {
-                $plan['notes'][] = 'تمت قراءة Monitor بنجاح، ويمكن إنشاء Baseline من الأرقام الحالية.';
-            } else {
-                $plan['notes'][] = 'لم تنجح قراءة Monitor، لا تنشئ Baseline قبل حل المشكلة.';
-            }
-
-            if (!empty($latestBaseline)) {
-                $plan['notes'][] = 'يوجد Baseline سابق لهذا المستخدم.';
-            } else {
-                $plan['notes'][] = 'لا يوجد Baseline سابق. الاستهلاك الحالي داخل GreenNet يساوي Monitor Total.';
-            }
-        }
-
-        if ($plan['recommended_backend'] === 'hotspot-local') {
-            $plan['notes'][] = 'المستخدم Hotspot Local وليس User Manager. Baseline الحالي مخصص لـ User Manager Monitor.';
-        } elseif ($plan['recommended_backend'] === 'user-manager') {
-            $plan['notes'][] = 'المستخدم User Manager. سيتم حساب الاستهلاك من Monitor - Baseline.';
-        } elseif ($plan['recommended_backend'] === 'ambiguous') {
-            $plan['notes'][] = 'المستخدم موجود في أكثر من مصدر. يجب تحديد Backend قبل أي اعتماد نهائي.';
-        } elseif ($plan['recommended_backend'] === 'not-found') {
-            $plan['notes'][] = 'لم يتم العثور على المستخدم.';
-        }
-
-        return $plan;
     }
 
-    private function requireSuccessfulMonitorDryRun(string $username): array
+    private function buildSetDisabledPlan(string $username, bool $desiredDisabled): array
     {
-        $plan = $_SESSION['mikrotik_dry_run_result'] ?? null;
+        $lookup = $this->lookupUserManagerUser($username);
+        $found = !empty($lookup['found']);
 
-        if (!is_array($plan)) {
-            throw new RuntimeException('نفّذ Dry Run ناجح قبل إنشاء Baseline.');
+        $currentDisabled = false;
+        $currentDisabledRaw = '';
+        $userId = '';
+
+        if ($found) {
+            $row = is_array($lookup['matched_raw_row'] ?? null) ? $lookup['matched_raw_row'] : [];
+            $userId = trim((string) ($row['.id'] ?? ''));
+            $currentDisabledRaw = (string) ($row['disabled'] ?? 'false');
+            $currentDisabled = $this->routerBool($currentDisabledRaw);
         }
 
-        if ((string) ($plan['username'] ?? '') !== $username) {
-            throw new RuntimeException('اسم المستخدم لا يطابق آخر Dry Run.');
+        $alreadyDesired = $found && $currentDisabled === $desiredDisabled;
+        $canExecute = $found && $userId !== '' && !$alreadyDesired;
+
+        $blockReason = '';
+
+        if (!$found) {
+            $blockReason = 'المستخدم غير موجود في User Manager.';
+        } elseif ($userId === '') {
+            $blockReason = 'لم يتم العثور على .id للمستخدم.';
+        } elseif ($alreadyDesired) {
+            $blockReason = $desiredDisabled ? 'المستخدم معطّل مسبقاً.' : 'المستخدم مفعّل مسبقاً.';
         }
-
-        if ((string) ($plan['recommended_backend'] ?? '') !== 'user-manager') {
-            throw new RuntimeException('آخر Dry Run لا يثبت أن المستخدم User Manager.');
-        }
-
-        $monitor = is_array($plan['monitor_summary'] ?? null) ? $plan['monitor_summary'] : [];
-
-        if (empty($monitor['ok'])) {
-            throw new RuntimeException('آخر Dry Run لم يقرأ Monitor بنجاح.');
-        }
-
-        return $plan;
-    }
-
-    private function ensureBaselineTables(): void
-    {
-        $pdo = $this->pdo();
-
-        $pdo->exec("
-            CREATE TABLE IF NOT EXISTS greennet_usage_baselines (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT NOT NULL,
-                backend TEXT NOT NULL DEFAULT 'user-manager',
-                router_user_id TEXT,
-                baseline_download_bytes INTEGER NOT NULL DEFAULT 0,
-                baseline_upload_bytes INTEGER NOT NULL DEFAULT 0,
-                baseline_total_bytes INTEGER NOT NULL DEFAULT 0,
-                baseline_uptime_seconds INTEGER NOT NULL DEFAULT 0,
-                baseline_monitor_raw TEXT,
-                baseline_at TEXT NOT NULL,
-                reason TEXT,
-                dry_run_audit_id INTEGER DEFAULT 0,
-                created_by TEXT,
-                created_at TEXT NOT NULL
-            )
-        ");
-
-        $pdo->exec("
-            CREATE INDEX IF NOT EXISTS idx_greennet_usage_baselines_username
-            ON greennet_usage_baselines(username, id)
-        ");
-    }
-
-    private function latestBaseline(string $username): array
-    {
-        $stmt = $this->pdo()->prepare("
-            SELECT *
-            FROM greennet_usage_baselines
-            WHERE username = :username
-            ORDER BY id DESC
-            LIMIT 1
-        ");
-
-        $stmt->execute([
-            ':username' => $username,
-        ]);
-
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        if (!is_array($row)) {
-            return [];
-        }
-
-        $row['baseline_total_human'] = $this->formatBytes((int) ($row['baseline_total_bytes'] ?? 0));
-        $row['baseline_download_human'] = $this->formatBytes((int) ($row['baseline_download_bytes'] ?? 0));
-        $row['baseline_upload_human'] = $this->formatBytes((int) ($row['baseline_upload_bytes'] ?? 0));
-        $row['baseline_uptime_human'] = $this->formatDuration((int) ($row['baseline_uptime_seconds'] ?? 0));
-
-        return $row;
-    }
-
-    private function createBaseline(string $username, array $plan, array $monitor, array $options = []): int
-    {
-        $stmt = $this->pdo()->prepare("
-            INSERT INTO greennet_usage_baselines (
-                username,
-                backend,
-                router_user_id,
-                baseline_download_bytes,
-                baseline_upload_bytes,
-                baseline_total_bytes,
-                baseline_uptime_seconds,
-                baseline_monitor_raw,
-                baseline_at,
-                reason,
-                dry_run_audit_id,
-                created_by,
-                created_at
-            ) VALUES (
-                :username,
-                :backend,
-                :router_user_id,
-                :baseline_download_bytes,
-                :baseline_upload_bytes,
-                :baseline_total_bytes,
-                :baseline_uptime_seconds,
-                :baseline_monitor_raw,
-                :baseline_at,
-                :reason,
-                :dry_run_audit_id,
-                :created_by,
-                :created_at
-            )
-        ");
-
-        $now = date('Y-m-d H:i:s');
-
-        $stmt->execute([
-            ':username' => $username,
-            ':backend' => 'user-manager',
-            ':router_user_id' => (string) ($plan['user_manager_resolved_id'] ?? ''),
-            ':baseline_download_bytes' => (int) ($monitor['total_download_bytes'] ?? 0),
-            ':baseline_upload_bytes' => (int) ($monitor['total_upload_bytes'] ?? 0),
-            ':baseline_total_bytes' => (int) ($monitor['total_bytes'] ?? 0),
-            ':baseline_uptime_seconds' => (int) ($monitor['total_uptime_seconds'] ?? 0),
-            ':baseline_monitor_raw' => $this->jsonString($monitor['raw_row'] ?? []),
-            ':baseline_at' => $now,
-            ':reason' => (string) ($options['reason'] ?? 'manual_baseline'),
-            ':dry_run_audit_id' => (int) ($options['dry_run_audit_id'] ?? 0),
-            ':created_by' => (string) ($_SESSION['admin_username'] ?? 'admin'),
-            ':created_at' => $now,
-        ]);
-
-        return (int) $this->pdo()->lastInsertId();
-    }
-
-    private function buildBaselineUsage(string $username, array $monitor, array $baseline): array
-    {
-        $monitorOk = !empty($monitor['ok']);
-
-        $currentDownload = (int) ($monitor['total_download_bytes'] ?? 0);
-        $currentUpload = (int) ($monitor['total_upload_bytes'] ?? 0);
-        $currentTotal = (int) ($monitor['total_bytes'] ?? 0);
-        $currentUptime = (int) ($monitor['total_uptime_seconds'] ?? 0);
-
-        $baseDownload = (int) ($baseline['baseline_download_bytes'] ?? 0);
-        $baseUpload = (int) ($baseline['baseline_upload_bytes'] ?? 0);
-        $baseTotal = (int) ($baseline['baseline_total_bytes'] ?? 0);
-        $baseUptime = (int) ($baseline['baseline_uptime_seconds'] ?? 0);
-
-        $downloadDelta = max(0, $currentDownload - $baseDownload);
-        $uploadDelta = max(0, $currentUpload - $baseUpload);
-        $totalDelta = max(0, $currentTotal - $baseTotal);
-        $uptimeDelta = max(0, $currentUptime - $baseUptime);
 
         return [
+            'title' => $desiredDisabled ? 'Disable User Manager User' : 'Enable User Manager User',
+            'dataset' => 'user_manager_user',
+            'action' => $desiredDisabled ? 'um_disable_user' : 'um_enable_user',
             'username' => $username,
-            'monitor_ok' => $monitorOk,
-            'has_baseline' => !empty($baseline),
-            'baseline_id' => (int) ($baseline['id'] ?? 0),
-            'baseline_at' => (string) ($baseline['baseline_at'] ?? ''),
-            'current_total_bytes' => $currentTotal,
-            'current_total_human' => $this->formatBytes($currentTotal),
-            'baseline_total_bytes' => $baseTotal,
-            'baseline_total_human' => $this->formatBytes($baseTotal),
-            'used_since_baseline_bytes' => !empty($baseline) ? $totalDelta : $currentTotal,
-            'used_since_baseline_human' => !empty($baseline) ? $this->formatBytes($totalDelta) : $this->formatBytes($currentTotal),
-            'download_since_baseline_bytes' => !empty($baseline) ? $downloadDelta : $currentDownload,
-            'download_since_baseline_human' => !empty($baseline) ? $this->formatBytes($downloadDelta) : $this->formatBytes($currentDownload),
-            'upload_since_baseline_bytes' => !empty($baseline) ? $uploadDelta : $currentUpload,
-            'upload_since_baseline_human' => !empty($baseline) ? $this->formatBytes($uploadDelta) : $this->formatBytes($currentUpload),
-            'uptime_since_baseline_seconds' => !empty($baseline) ? $uptimeDelta : $currentUptime,
-            'uptime_since_baseline_human' => !empty($baseline) ? $this->formatDuration($uptimeDelta) : $this->formatDuration($currentUptime),
-            'counter_reset_detected' => !empty($baseline) && $currentTotal < $baseTotal,
-            'formula' => !empty($baseline)
-                ? 'used = max(0, monitor_total - baseline_total)'
-                : 'no baseline yet: used = monitor_total',
+            'command' => '/user-manager/user/set',
+            'expected_command' => '/user-manager/user/set numbers=' . ($userId !== '' ? $userId : '<id>') . ' disabled=' . ($desiredDisabled ? 'yes' : 'no'),
+            'expected_params' => [
+                'numbers' => $userId,
+                'disabled' => $desiredDisabled ? 'yes' : 'no',
+            ],
+            'router_status' => $found ? 'found' : (string) ($lookup['status'] ?? 'not_found'),
+            'recommended_backend' => $found ? 'user-manager' : 'not-found',
+            'backend_lookup' => [
+                'user_manager' => $lookup,
+            ],
+            'found_user_manager' => $found,
+            'user_manager_id' => $userId,
+            'user_manager_user' => is_array($lookup['matched_row'] ?? null) ? $lookup['matched_row'] : [],
+            'current_disabled_raw' => $currentDisabledRaw,
+            'current_disabled_bool' => $currentDisabled,
+            'desired_disabled_bool' => $desiredDisabled,
+            'desired_disabled_label' => $desiredDisabled ? 'disabled' : 'enabled',
+            'already_desired' => $alreadyDesired,
+            'block_reason' => $blockReason,
+            'executed' => false,
+            'real_execution' => false,
+            'can_execute_later' => $canExecute,
+            'confirm_word' => $desiredDisabled ? 'DISABLE' : 'ENABLE',
+            'notes' => [
+                'هذه العملية تكتب على MikroTik عند الضغط على Execute.',
+                'الأمر الحقيقي يستخدم /user-manager/user/set.',
+                'لن يتم تنفيذ شيء بدون Dry Run و WriteSafetyGuard وكلمة تأكيد.',
+            ],
+            'created_at' => date('Y-m-d H:i:s'),
         ];
     }
 
-    private function readUserManagerMonitor(string $username, string $userManagerId): array
+    private function lookupUserManagerUser(string $username): array
     {
-        $summary = [
-            'ok' => false,
-            'status' => 'not_checked',
-            'command' => '/user-manager/user/monitor',
-            'username' => $username,
-            'user_manager_id' => $userManagerId,
-            'attempts' => [],
-            'rows_count' => 0,
-            'raw_row' => null,
-            'error' => '',
-            'total_uptime_raw' => '',
-            'total_uptime_seconds' => 0,
-            'total_uptime_human' => '0s',
-            'total_download_raw' => '',
-            'total_download_bytes' => 0,
-            'total_download_human' => '0 B',
-            'total_upload_raw' => '',
-            'total_upload_bytes' => 0,
-            'total_upload_human' => '0 B',
-            'total_bytes' => 0,
-            'total_human' => '0 B',
-            'active_sessions_raw' => '',
-            'active_sessions' => 0,
-        ];
-
-        $attempts = [];
-
-        if ($userManagerId !== '') {
-            $attempts[] = [
-                'label' => 'monitor by .id',
-                'params' => [
-                    'numbers' => $userManagerId,
-                    'once' => '',
-                ],
-            ];
-        }
-
-        $attempts[] = [
-            'label' => 'monitor by username',
+        $result = [
+            'label' => 'User Manager Users',
+            'command' => '/user-manager/user/print',
             'params' => [
-                'numbers' => $username,
-                'once' => '',
+                '?name' => $username,
             ],
-        ];
-
-        $lastError = '';
-
-        foreach ($attempts as $attempt) {
-            $label = (string) ($attempt['label'] ?? 'monitor');
-            $params = is_array($attempt['params'] ?? null) ? $attempt['params'] : [];
-
-            try {
-                $client = new RouterOSApiClient([
-                    'timeout' => 5,
-                ]);
-
-                try {
-                    $rows = $client->comm('/user-manager/user/monitor', $params);
-                } finally {
-                    $client->disconnect();
-                }
-
-                $rows = $this->normalizeRows($rows);
-
-                $summary['attempts'][] = [
-                    'label' => $label,
-                    'params' => $params,
-                    'ok' => true,
-                    'rows_count' => count($rows),
-                    'error' => '',
-                ];
-
-                if (count($rows) === 0) {
-                    continue;
-                }
-
-                $row = $this->pickMonitorRow($rows, $username);
-
-                $uptimeRaw = $this->firstExistingValue($row, [
-                    'total-uptime',
-                    'uptime',
-                    'total-time',
-                ]);
-
-                $downloadRaw = $this->firstExistingValue($row, [
-                    'total-download',
-                    'download',
-                    'download-used',
-                    'total-bytes-out',
-                    'bytes-out',
-                ]);
-
-                $uploadRaw = $this->firstExistingValue($row, [
-                    'total-upload',
-                    'upload',
-                    'upload-used',
-                    'total-bytes-in',
-                    'bytes-in',
-                ]);
-
-                $activeRaw = $this->firstExistingValue($row, [
-                    'active-sessions',
-                    'active-session',
-                    'sessions',
-                ]);
-
-                $downloadBytes = $this->parseBytesToInt($downloadRaw);
-                $uploadBytes = $this->parseBytesToInt($uploadRaw);
-                $uptimeSeconds = $this->parseDurationToSeconds($uptimeRaw);
-
-                $summary['ok'] = true;
-                $summary['status'] = 'has_rows';
-                $summary['rows_count'] = count($rows);
-                $summary['raw_row'] = $this->sanitizeRowForDisplay($row);
-                $summary['total_uptime_raw'] = $uptimeRaw;
-                $summary['total_uptime_seconds'] = $uptimeSeconds;
-                $summary['total_uptime_human'] = $this->formatDuration($uptimeSeconds);
-                $summary['total_download_raw'] = $downloadRaw;
-                $summary['total_download_bytes'] = $downloadBytes;
-                $summary['total_download_human'] = $this->formatBytes($downloadBytes);
-                $summary['total_upload_raw'] = $uploadRaw;
-                $summary['total_upload_bytes'] = $uploadBytes;
-                $summary['total_upload_human'] = $this->formatBytes($uploadBytes);
-                $summary['total_bytes'] = $downloadBytes + $uploadBytes;
-                $summary['total_human'] = $this->formatBytes($downloadBytes + $uploadBytes);
-                $summary['active_sessions_raw'] = $activeRaw;
-                $summary['active_sessions'] = $this->parseInteger($activeRaw);
-
-                return $summary;
-            } catch (Throwable $e) {
-                $lastError = $e->getMessage();
-
-                $summary['attempts'][] = [
-                    'label' => $label,
-                    'params' => $params,
-                    'ok' => false,
-                    'rows_count' => 0,
-                    'error' => $lastError,
-                ];
-            }
-        }
-
-        $summary['ok'] = false;
-        $summary['status'] = $lastError !== '' ? $this->backendErrorStatus($lastError) : 'empty';
-        $summary['error'] = $lastError !== '' ? $lastError : 'No monitor rows returned.';
-
-        return $summary;
-    }
-
-    private function buildUserManagerSessionSummary(string $username): array
-    {
-        $summary = [
-            'ok' => false,
-            'status' => 'not_checked',
-            'command' => '/user-manager/session/print',
-            'username' => $username,
-            'error' => '',
-            'sessions_count' => 0,
-            'active_sessions' => 0,
-            'closed_sessions' => 0,
-            'total_download_bytes' => 0,
-            'total_download_human' => '0 B',
-            'total_upload_bytes' => 0,
-            'total_upload_human' => '0 B',
-            'total_bytes' => 0,
-            'total_human' => '0 B',
-            'total_uptime_seconds' => 0,
-            'total_uptime_human' => '0s',
-            'sessions_preview' => [],
-        ];
-
-        try {
-            $client = new RouterOSApiClient([
-                'timeout' => 4,
-            ]);
-
-            try {
-                $rows = $client->comm('/user-manager/session/print', [
-                    '?user' => $username,
-                ]);
-            } finally {
-                $client->disconnect();
-            }
-
-            $rows = $this->normalizeRows($rows);
-
-            $download = 0;
-            $upload = 0;
-            $uptime = 0;
-            $active = 0;
-
-            foreach ($rows as $row) {
-                if (!is_array($row)) {
-                    continue;
-                }
-
-                $download += $this->numericField($row, [
-                    'download',
-                    'download-used',
-                    'bytes-out',
-                    'acct-output-octets',
-                    'output-octets',
-                ]);
-
-                $upload += $this->numericField($row, [
-                    'upload',
-                    'upload-used',
-                    'bytes-in',
-                    'acct-input-octets',
-                    'input-octets',
-                ]);
-
-                $uptime += $this->durationFieldSeconds($row, [
-                    'uptime',
-                    'session-time',
-                    'acct-session-time',
-                ]);
-
-                if ($this->isActiveSession($row)) {
-                    $active++;
-                }
-            }
-
-            $summary['ok'] = true;
-            $summary['status'] = count($rows) > 0 ? 'has_rows' : 'empty';
-            $summary['sessions_count'] = count($rows);
-            $summary['active_sessions'] = $active;
-            $summary['closed_sessions'] = max(0, count($rows) - $active);
-            $summary['total_download_bytes'] = $download;
-            $summary['total_download_human'] = $this->formatBytes($download);
-            $summary['total_upload_bytes'] = $upload;
-            $summary['total_upload_human'] = $this->formatBytes($upload);
-            $summary['total_bytes'] = $download + $upload;
-            $summary['total_human'] = $this->formatBytes($download + $upload);
-            $summary['total_uptime_seconds'] = $uptime;
-            $summary['total_uptime_human'] = $this->formatDuration($uptime);
-            $summary['sessions_preview'] = $this->sanitizeRowsPreview($rows, 10);
-
-            return $summary;
-        } catch (Throwable $e) {
-            $summary['ok'] = false;
-            $summary['status'] = $this->backendErrorStatus($e->getMessage());
-            $summary['error'] = $e->getMessage();
-
-            return $summary;
-        }
-    }
-
-    private function buildUsageComparison(array $monitor, array $sessions, array $baseline): array
-    {
-        $monitorBytes = (int) ($monitor['total_bytes'] ?? 0);
-        $sessionBytes = (int) ($sessions['total_bytes'] ?? 0);
-        $baselineBytes = (int) ($baseline['baseline_total_bytes'] ?? 0);
-
-        return [
-            'source_of_truth' => !empty($monitor['ok']) ? 'user_manager_monitor' : 'unknown',
-            'monitor_ok' => !empty($monitor['ok']),
-            'sessions_ok' => !empty($sessions['ok']),
-            'has_baseline' => !empty($baseline),
-            'monitor_total_bytes' => $monitorBytes,
-            'monitor_total_human' => $this->formatBytes($monitorBytes),
-            'sessions_total_bytes' => $sessionBytes,
-            'sessions_total_human' => $this->formatBytes($sessionBytes),
-            'baseline_total_bytes' => $baselineBytes,
-            'baseline_total_human' => $this->formatBytes($baselineBytes),
-            'monitor_minus_sessions_bytes' => max(0, $monitorBytes - $sessionBytes),
-            'monitor_minus_sessions_human' => $this->formatBytes(max(0, $monitorBytes - $sessionBytes)),
-            'decision' => !empty($monitor['ok'])
-                ? 'اعتمد Monitor كمصدر الحقيقة، واحسب الاستهلاك داخل GreenNet من Monitor - Baseline.'
-                : 'لا تعتمد الحسابات قبل نجاح Monitor.',
-        ];
-    }
-
-    private function buildResetPolicy(string $username, array $monitor, array $baseline): array
-    {
-        return [
-            'username' => $username,
-            'read_only' => true,
-            'mikrotik_write_required' => false,
-            'recommended_strategy' => 'greennet_baseline',
-            'usage_source' => !empty($monitor['ok']) ? 'user_manager_monitor' : 'unknown',
-            'baseline_status' => !empty($baseline) ? 'exists' : 'missing',
-            'why' => [
-                'Monitor يقرأ نفس أرقام Winbox Users.',
-                'Sessions تفاصيل فقط ولا تكفي للتصفير.',
-                'Baseline يحافظ على بيانات MikroTik كاملة ويعطي تصفير منطقي داخل GreenNet.',
-            ],
-            'next_step' => 'ربط هذا الحساب مع لوحة المشترك والتجديدات ليتم إنشاء Baseline عند التجديد.',
-        ];
-    }
-
-    private function lookupRouterBackend(
-        string $label,
-        string $command,
-        array $params,
-        string $username,
-        array $matchKeys
-    ): array {
-        $result = $this->emptyBackend($label, $command);
-        $result['params'] = $params;
-
-        try {
-            $client = new RouterOSApiClient([
-                'timeout' => 4,
-            ]);
-
-            try {
-                $rows = $client->comm($command, $params);
-            } finally {
-                $client->disconnect();
-            }
-
-            $rows = $this->normalizeRows($rows);
-            $matched = $this->findMatchingRow($rows, $username, $matchKeys);
-
-            $result['ok'] = true;
-            $result['available'] = true;
-            $result['status'] = $matched !== null ? 'found' : 'not_found';
-            $result['found'] = $matched !== null;
-            $result['rows_count'] = count($rows);
-            $result['matched_raw_row'] = $matched ?? null;
-            $result['matched_row'] = is_array($matched) ? $this->sanitizeRowForDisplay($matched) : null;
-            $result['matched_id'] = is_array($matched) ? (string) ($matched['.id'] ?? '') : '';
-            $result['error'] = '';
-
-            return $result;
-        } catch (Throwable $e) {
-            $message = $e->getMessage();
-
-            $result['ok'] = false;
-            $result['available'] = false;
-            $result['status'] = $this->backendErrorStatus($message);
-            $result['found'] = false;
-            $result['rows_count'] = 0;
-            $result['matched_raw_row'] = null;
-            $result['matched_row'] = null;
-            $result['matched_id'] = '';
-            $result['error'] = $message;
-
-            return $result;
-        }
-    }
-
-    private function emptyBackend(string $label, string $command): array
-    {
-        return [
-            'label' => $label,
-            'command' => $command,
-            'params' => [],
             'ok' => false,
             'available' => false,
             'status' => 'not_checked',
@@ -880,6 +426,261 @@ class AdminMikroTikDryRunController
             'matched_raw_row' => null,
             'error' => '',
         ];
+
+        try {
+            $client = new RouterOSApiClient([
+                'timeout' => 4,
+            ]);
+
+            try {
+                $rows = $this->normalizeRows($client->comm('/user-manager/user/print', [
+                    '?name' => $username,
+                ]));
+            } finally {
+                $client->disconnect();
+            }
+
+            $matched = $this->findMatchingRow($rows, $username, ['name', 'username']);
+
+            $result['ok'] = true;
+            $result['available'] = true;
+            $result['status'] = $matched !== null ? 'found' : 'not_found';
+            $result['found'] = $matched !== null;
+            $result['rows_count'] = count($rows);
+            $result['matched_raw_row'] = $matched;
+            $result['matched_row'] = is_array($matched) ? $this->sanitizeRowForDisplay($matched) : null;
+            $result['matched_id'] = is_array($matched) ? (string) ($matched['.id'] ?? '') : '';
+
+            return $result;
+        } catch (Throwable $e) {
+            $result['ok'] = false;
+            $result['available'] = false;
+            $result['status'] = $this->backendErrorStatus($e->getMessage());
+            $result['error'] = $e->getMessage();
+
+            return $result;
+        }
+    }
+
+    private function readUserManagerMonitor(string $username, string $userManagerId): array
+    {
+        $summary = [
+            'ok' => false,
+            'error' => '',
+            'username' => $username,
+            'user_manager_id' => $userManagerId,
+            'raw_row' => [],
+            'total_uptime_seconds' => 0,
+            'total_uptime_human' => '0s',
+            'total_download_bytes' => 0,
+            'total_download_human' => '0 B',
+            'total_upload_bytes' => 0,
+            'total_upload_human' => '0 B',
+            'total_bytes' => 0,
+            'total_human' => '0 B',
+            'active_sessions' => 0,
+        ];
+
+        $client = new RouterOSApiClient([
+            'timeout' => 5,
+        ]);
+
+        try {
+            $attempts = [];
+
+            if ($userManagerId !== '') {
+                $attempts[] = [
+                    'numbers' => $userManagerId,
+                    'once' => '',
+                ];
+            }
+
+            $attempts[] = [
+                'numbers' => $username,
+                'once' => '',
+            ];
+
+            $lastError = '';
+
+            foreach ($attempts as $params) {
+                try {
+                    $rows = $this->normalizeRows($client->comm('/user-manager/user/monitor', $params));
+
+                    if (count($rows) === 0) {
+                        continue;
+                    }
+
+                    $row = $this->pickMonitorRow($rows, $username);
+
+                    $downloadBytes = $this->parseBytesToInt($this->firstExistingValue($row, [
+                        'total-download',
+                        'download',
+                        'download-used',
+                        'total-bytes-out',
+                        'bytes-out',
+                    ]));
+
+                    $uploadBytes = $this->parseBytesToInt($this->firstExistingValue($row, [
+                        'total-upload',
+                        'upload',
+                        'upload-used',
+                        'total-bytes-in',
+                        'bytes-in',
+                    ]));
+
+                    $uptimeSeconds = $this->parseDurationToSeconds($this->firstExistingValue($row, [
+                        'total-uptime',
+                        'uptime',
+                        'total-time',
+                    ]));
+
+                    $activeSessions = $this->parseInteger($this->firstExistingValue($row, [
+                        'active-sessions',
+                        'active-session',
+                        'sessions',
+                    ]));
+
+                    return [
+                        'ok' => true,
+                        'error' => '',
+                        'username' => $username,
+                        'user_manager_id' => $userManagerId,
+                        'raw_row' => $this->sanitizeRowForDisplay($row),
+                        'total_uptime_seconds' => $uptimeSeconds,
+                        'total_uptime_human' => $this->formatDurationSeconds($uptimeSeconds),
+                        'total_download_bytes' => $downloadBytes,
+                        'total_download_human' => $this->formatBytes($downloadBytes),
+                        'total_upload_bytes' => $uploadBytes,
+                        'total_upload_human' => $this->formatBytes($uploadBytes),
+                        'total_bytes' => $downloadBytes + $uploadBytes,
+                        'total_human' => $this->formatBytes($downloadBytes + $uploadBytes),
+                        'active_sessions' => $activeSessions,
+                    ];
+                } catch (Throwable $e) {
+                    $lastError = $e->getMessage();
+                }
+            }
+
+            $summary['error'] = $lastError !== '' ? $lastError : 'No monitor rows returned.';
+
+            return $summary;
+        } catch (Throwable $e) {
+            $summary['error'] = $e->getMessage();
+
+            return $summary;
+        } finally {
+            $client->disconnect();
+        }
+    }
+
+    private function latestBaseline(string $username): array
+    {
+        try {
+            Database::connection()->exec("
+                CREATE TABLE IF NOT EXISTS greennet_usage_baselines (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username TEXT NOT NULL,
+                    backend TEXT NOT NULL DEFAULT 'user-manager',
+                    router_user_id TEXT,
+                    baseline_download_bytes INTEGER NOT NULL DEFAULT 0,
+                    baseline_upload_bytes INTEGER NOT NULL DEFAULT 0,
+                    baseline_total_bytes INTEGER NOT NULL DEFAULT 0,
+                    baseline_uptime_seconds INTEGER NOT NULL DEFAULT 0,
+                    baseline_monitor_raw TEXT,
+                    baseline_at TEXT NOT NULL,
+                    reason TEXT,
+                    dry_run_audit_id INTEGER DEFAULT 0,
+                    created_by TEXT,
+                    created_at TEXT NOT NULL
+                )
+            ");
+
+            $stmt = Database::connection()->prepare("
+                SELECT *
+                FROM greennet_usage_baselines
+                WHERE username = :username
+                ORDER BY id DESC
+                LIMIT 1
+            ");
+
+            $stmt->execute([
+                ':username' => $username,
+            ]);
+
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!is_array($row)) {
+                return [];
+            }
+
+            $row['baseline_total_human'] = $this->formatBytes((int) ($row['baseline_total_bytes'] ?? 0));
+            $row['baseline_download_human'] = $this->formatBytes((int) ($row['baseline_download_bytes'] ?? 0));
+            $row['baseline_upload_human'] = $this->formatBytes((int) ($row['baseline_upload_bytes'] ?? 0));
+            $row['baseline_uptime_human'] = $this->formatDurationSeconds((int) ($row['baseline_uptime_seconds'] ?? 0));
+
+            return $row;
+        } catch (Throwable) {
+            return [];
+        }
+    }
+
+    private function buildBaselineUsage(string $username, array $monitor, array $baseline): array
+    {
+        $monitorTotal = (int) ($monitor['total_bytes'] ?? 0);
+        $monitorDownload = (int) ($monitor['total_download_bytes'] ?? 0);
+        $monitorUpload = (int) ($monitor['total_upload_bytes'] ?? 0);
+        $monitorUptime = (int) ($monitor['total_uptime_seconds'] ?? 0);
+
+        $hasBaseline = !empty($baseline);
+        $baseTotal = $hasBaseline ? (int) ($baseline['baseline_total_bytes'] ?? 0) : 0;
+        $baseDownload = $hasBaseline ? (int) ($baseline['baseline_download_bytes'] ?? 0) : 0;
+        $baseUpload = $hasBaseline ? (int) ($baseline['baseline_upload_bytes'] ?? 0) : 0;
+        $baseUptime = $hasBaseline ? (int) ($baseline['baseline_uptime_seconds'] ?? 0) : 0;
+
+        return [
+            'username' => $username,
+            'monitor_ok' => !empty($monitor['ok']),
+            'has_baseline' => $hasBaseline,
+            'baseline_id' => (int) ($baseline['id'] ?? 0),
+            'baseline_at' => (string) ($baseline['baseline_at'] ?? ''),
+            'current_total_bytes' => $monitorTotal,
+            'current_total_human' => $this->formatBytes($monitorTotal),
+            'baseline_total_bytes' => $baseTotal,
+            'baseline_total_human' => $this->formatBytes($baseTotal),
+            'used_since_baseline_bytes' => $hasBaseline ? max(0, $monitorTotal - $baseTotal) : $monitorTotal,
+            'used_since_baseline_human' => $hasBaseline ? $this->formatBytes(max(0, $monitorTotal - $baseTotal)) : $this->formatBytes($monitorTotal),
+            'download_since_baseline_bytes' => $hasBaseline ? max(0, $monitorDownload - $baseDownload) : $monitorDownload,
+            'download_since_baseline_human' => $hasBaseline ? $this->formatBytes(max(0, $monitorDownload - $baseDownload)) : $this->formatBytes($monitorDownload),
+            'upload_since_baseline_bytes' => $hasBaseline ? max(0, $monitorUpload - $baseUpload) : $monitorUpload,
+            'upload_since_baseline_human' => $hasBaseline ? $this->formatBytes(max(0, $monitorUpload - $baseUpload)) : $this->formatBytes($monitorUpload),
+            'uptime_since_baseline_seconds' => $hasBaseline ? max(0, $monitorUptime - $baseUptime) : $monitorUptime,
+            'uptime_since_baseline_human' => $hasBaseline ? $this->formatDurationSeconds(max(0, $monitorUptime - $baseUptime)) : $this->formatDurationSeconds($monitorUptime),
+            'counter_reset_detected' => $hasBaseline && $monitorTotal < $baseTotal,
+            'formula' => $hasBaseline ? 'used = max(0, monitor_total - baseline_total)' : 'no baseline yet: used = monitor_total',
+        ];
+    }
+
+    private function requireLastPlan(string $username, string $action): array
+    {
+        $plan = $_SESSION['mikrotik_dry_run_result'] ?? null;
+
+        if (!is_array($plan)) {
+            throw new RuntimeException('نفّذ Dry Run ناجح قبل التنفيذ.');
+        }
+
+        if ((string) ($plan['username'] ?? '') !== $username) {
+            throw new RuntimeException('اسم المستخدم لا يطابق آخر Dry Run.');
+        }
+
+        if ((string) ($plan['action'] ?? '') !== $action) {
+            throw new RuntimeException('نوع العملية لا يطابق آخر Dry Run.');
+        }
+
+        if (!empty($plan['executed'])) {
+            throw new RuntimeException('آخر Dry Run تم تنفيذه مسبقاً. أعد إنشاء Dry Run جديد.');
+        }
+
+        return $plan;
     }
 
     private function backendErrorStatus(string $message): string
@@ -912,68 +713,6 @@ class AdminMikroTikDryRunController
         return 'error';
     }
 
-    private function recommendedBackend(bool $foundHotspot, bool $foundUserManager, bool $foundActive): string
-    {
-        if ($foundHotspot && !$foundUserManager) {
-            return 'hotspot-local';
-        }
-
-        if (!$foundHotspot && $foundUserManager) {
-            return 'user-manager';
-        }
-
-        if ($foundHotspot && $foundUserManager) {
-            return 'ambiguous';
-        }
-
-        if (!$foundHotspot && !$foundUserManager && $foundActive) {
-            return 'active-only';
-        }
-
-        return 'not-found';
-    }
-
-    private function routerStatusFromBackends(array $backends): string
-    {
-        $found = false;
-        $checked = false;
-        $unreachable = true;
-
-        foreach ($backends as $backend) {
-            if (!is_array($backend)) {
-                continue;
-            }
-
-            $status = (string) ($backend['status'] ?? 'not_checked');
-
-            if ($status !== 'not_checked') {
-                $checked = true;
-            }
-
-            if (!in_array($status, ['unreachable', 'not_checked'], true)) {
-                $unreachable = false;
-            }
-
-            if (!empty($backend['found'])) {
-                $found = true;
-            }
-        }
-
-        if ($found) {
-            return 'found';
-        }
-
-        if ($checked && $unreachable) {
-            return 'unreachable';
-        }
-
-        if ($checked) {
-            return 'not_found';
-        }
-
-        return 'not_checked';
-    }
-
     private function normalizeRows(mixed $rows): array
     {
         if (!is_array($rows)) {
@@ -995,6 +734,27 @@ class AdminMikroTikDryRunController
         return $out;
     }
 
+    private function findMatchingRow(array $rows, string $username, array $keys): ?array
+    {
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            foreach ($keys as $key) {
+                if (isset($row[$key]) && (string) $row[$key] === $username) {
+                    return $row;
+                }
+            }
+        }
+
+        if (count($rows) === 1 && is_array($rows[0] ?? null)) {
+            return $rows[0];
+        }
+
+        return null;
+    }
+
     private function pickMonitorRow(array $rows, string $username): array
     {
         foreach ($rows as $row) {
@@ -1014,23 +774,6 @@ class AdminMikroTikDryRunController
         return is_array($rows[0] ?? null) ? $rows[0] : [];
     }
 
-    private function findMatchingRow(array $rows, string $username, array $keys): ?array
-    {
-        foreach ($rows as $row) {
-            foreach ($keys as $key) {
-                if (isset($row[$key]) && (string) $row[$key] === $username) {
-                    return $row;
-                }
-            }
-        }
-
-        if (count($rows) === 1 && is_array($rows[0] ?? null)) {
-            return $rows[0];
-        }
-
-        return null;
-    }
-
     private function firstExistingValue(array $row, array $keys): string
     {
         foreach ($keys as $key) {
@@ -1040,45 +783,6 @@ class AdminMikroTikDryRunController
         }
 
         return '';
-    }
-
-    private function cleanUserManagerRow(array $row): array
-    {
-        $allowed = [
-            '.id',
-            'name',
-            'username',
-            'actual-profile',
-            'group',
-            'disabled',
-            'comment',
-            'shared-users',
-            'attributes',
-            'customer',
-        ];
-
-        $clean = [];
-
-        foreach ($allowed as $key) {
-            if (array_key_exists($key, $row)) {
-                $clean[$key] = (string) $row[$key];
-            }
-        }
-
-        return $clean;
-    }
-
-    private function sanitizeRowsPreview(array $rows, int $limit = 12): array
-    {
-        $preview = [];
-
-        foreach (array_slice($rows, 0, $limit) as $row) {
-            if (is_array($row)) {
-                $preview[] = $this->sanitizeRowForDisplay($row);
-            }
-        }
-
-        return $preview;
     }
 
     private function sanitizeRowForDisplay(array $row): array
@@ -1114,30 +818,11 @@ class AdminMikroTikDryRunController
         return $clean;
     }
 
-    private function numericField(array $row, array $keys): int
+    private function routerBool(string $value): bool
     {
-        foreach ($keys as $key) {
-            if (!array_key_exists($key, $row)) {
-                continue;
-            }
+        $value = strtolower(trim($value));
 
-            return $this->parseBytesToInt((string) $row[$key]);
-        }
-
-        return 0;
-    }
-
-    private function durationFieldSeconds(array $row, array $keys): int
-    {
-        foreach ($keys as $key) {
-            if (!array_key_exists($key, $row)) {
-                continue;
-            }
-
-            return $this->parseDurationToSeconds((string) $row[$key]);
-        }
-
-        return 0;
+        return in_array($value, ['true', 'yes', '1', 'on'], true);
     }
 
     private function parseBytesToInt(string $value): int
@@ -1222,31 +907,6 @@ class AdminMikroTikDryRunController
         return $seconds;
     }
 
-    private function isActiveSession(array $row): bool
-    {
-        $active = strtolower((string) ($row['active'] ?? ''));
-
-        if (in_array($active, ['true', 'yes', '1'], true)) {
-            return true;
-        }
-
-        if (in_array($active, ['false', 'no', '0'], true)) {
-            return false;
-        }
-
-        $status = strtolower((string) ($row['status'] ?? ''));
-
-        if ($status === '') {
-            return false;
-        }
-
-        if (str_contains($status, 'stop') || str_contains($status, 'close') || str_contains($status, 'ended')) {
-            return false;
-        }
-
-        return str_contains($status, 'start') || str_contains($status, 'active');
-    }
-
     private function formatBytes(int $bytes): string
     {
         if ($bytes < 1024) {
@@ -1270,7 +930,7 @@ class AdminMikroTikDryRunController
         return rtrim(rtrim(number_format($value, 2, '.', ''), '0'), '.') . ' ' . $unit;
     }
 
-    private function formatDuration(int $seconds): string
+    private function formatDurationSeconds(int $seconds): string
     {
         if ($seconds <= 0) {
             return '0s';
@@ -1323,31 +983,12 @@ class AdminMikroTikDryRunController
 
     private function auditResponseFromPlan(array $plan): string
     {
-        $backend = (string) ($plan['recommended_backend'] ?? '');
-        $monitor = is_array($plan['monitor_summary'] ?? null) ? $plan['monitor_summary'] : [];
-        $usage = is_array($plan['baseline_usage'] ?? null) ? $plan['baseline_usage'] : [];
-
-        return 'Dry Run only. S10.2G GreenNet Baseline. Backend: '
-            . $backend
-            . '. Monitor: '
-            . (!empty($monitor['ok']) ? 'OK' : 'FAILED')
-            . '. Used since baseline: '
-            . (string) ($usage['used_since_baseline_human'] ?? 'unknown');
-    }
-
-    private function pdo(): PDO
-    {
-        foreach (['pdo', 'connection', 'getConnection', 'getPdo'] as $method) {
-            if (method_exists(Database::class, $method)) {
-                $pdo = Database::$method();
-
-                if ($pdo instanceof PDO) {
-                    return $pdo;
-                }
-            }
-        }
-
-        throw new RuntimeException('لم أستطع الوصول إلى PDO من GreenNet\\Core\\Database.');
+        return 'Dry Run. Action: '
+            . (string) ($plan['action'] ?? '')
+            . '. Backend: '
+            . (string) ($plan['recommended_backend'] ?? '')
+            . '. Can execute later: '
+            . (!empty($plan['can_execute_later']) ? 'YES' : 'NO');
     }
 
     private function jsonString(mixed $value): string
