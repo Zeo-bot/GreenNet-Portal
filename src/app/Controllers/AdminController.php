@@ -13,6 +13,7 @@ use GreenNet\Models\Payment;
 use GreenNet\Models\Announcement;
 use GreenNet\Models\QosProfile;
 use GreenNet\Models\CustomerLocal;
+use GreenNet\Services\CustomerRenewalService;
 
 class AdminController
 {
@@ -29,8 +30,8 @@ class AdminController
     {
         Database::migrate();
 
-        $username = trim($_POST['username'] ?? '');
-        $password = trim($_POST['password'] ?? '');
+        $username = trim((string) ($_POST['username'] ?? ''));
+        $password = trim((string) ($_POST['password'] ?? ''));
 
         if (Admin::verifyPassword($username, $password)) {
             $_SESSION['admin_logged_in'] = true;
@@ -95,7 +96,7 @@ class AdminController
 
         $this->requireLogin();
 
-        $username = trim($_GET['username'] ?? '');
+        $username = trim((string) ($_GET['username'] ?? ''));
         $customer = CustomerLocal::findByUsername($username);
 
         if (!$customer) {
@@ -116,12 +117,12 @@ class AdminController
 
         $this->requireLogin();
 
-        $username = trim($_POST['username'] ?? '');
-        $displayName = trim($_POST['display_name'] ?? '');
-        $phone = trim($_POST['phone'] ?? '');
-        $accessType = trim($_POST['access_type'] ?? 'hybrid');
-        $paymentStatus = trim($_POST['payment_status'] ?? 'unknown');
-        $notes = trim($_POST['notes'] ?? '');
+        $username = trim((string) ($_POST['username'] ?? ''));
+        $displayName = trim((string) ($_POST['display_name'] ?? ''));
+        $phone = trim((string) ($_POST['phone'] ?? ''));
+        $accessType = trim((string) ($_POST['access_type'] ?? 'hybrid'));
+        $paymentStatus = trim((string) ($_POST['payment_status'] ?? 'unknown'));
+        $notes = trim((string) ($_POST['notes'] ?? ''));
 
         $allowedAccessTypes = ['hotspot', 'ppp', 'hybrid'];
         $allowedStatuses = ['paid', 'due', 'pending', 'unknown'];
@@ -155,7 +156,7 @@ class AdminController
 
         $this->requireLogin();
 
-        $username = trim($_GET['username'] ?? '');
+        $username = trim((string) ($_GET['username'] ?? ''));
         $customer = CustomerLocal::findByUsername($username);
 
         if (!$customer) {
@@ -176,8 +177,8 @@ class AdminController
 
         $this->requireLogin();
 
-        $username = trim($_POST['username'] ?? '');
-        $confirm = trim($_POST['confirm'] ?? '');
+        $username = trim((string) ($_POST['username'] ?? ''));
+        $confirm = trim((string) ($_POST['confirm'] ?? ''));
 
         if ($username !== '' && $confirm === 'DELETE') {
             CustomerLocal::deleteByUsername($username);
@@ -210,12 +211,12 @@ class AdminController
 
         $this->requireLogin();
 
-        $username = trim($_POST['username'] ?? '');
-        $displayName = trim($_POST['display_name'] ?? '');
-        $phone = trim($_POST['phone'] ?? '');
-        $accessType = trim($_POST['access_type'] ?? 'hybrid');
-        $paymentStatus = trim($_POST['payment_status'] ?? 'unknown');
-        $notes = trim($_POST['notes'] ?? '');
+        $username = trim((string) ($_POST['username'] ?? ''));
+        $displayName = trim((string) ($_POST['display_name'] ?? ''));
+        $phone = trim((string) ($_POST['phone'] ?? ''));
+        $accessType = trim((string) ($_POST['access_type'] ?? 'hybrid'));
+        $paymentStatus = trim((string) ($_POST['payment_status'] ?? 'unknown'));
+        $notes = trim((string) ($_POST['notes'] ?? ''));
 
         if ($username !== '') {
             CustomerLocal::create(
@@ -238,9 +239,9 @@ class AdminController
 
         $this->requireLogin();
 
-        $username = trim($_POST['username'] ?? '');
-        $paymentStatus = trim($_POST['payment_status'] ?? 'unknown');
-        $redirectTo = trim($_POST['redirect_to'] ?? '/admin/customers');
+        $username = trim((string) ($_POST['username'] ?? ''));
+        $paymentStatus = trim((string) ($_POST['payment_status'] ?? 'unknown'));
+        $redirectTo = trim((string) ($_POST['redirect_to'] ?? '/admin/customers'));
 
         $allowedStatuses = ['paid', 'due', 'pending', 'unknown'];
 
@@ -283,22 +284,34 @@ class AdminController
 
         $this->requireLogin();
 
-        $username = trim($_POST['username'] ?? '');
+        $username = trim((string) ($_POST['username'] ?? ''));
         $amount = (int) ($_POST['amount'] ?? 0);
-        $currency = trim($_POST['currency'] ?? 'SYP');
-        $note = trim($_POST['note'] ?? '');
+        $currency = trim((string) ($_POST['currency'] ?? 'SYP'));
+        $note = trim((string) ($_POST['note'] ?? ''));
 
-        if ($username !== '' && $amount > 0) {
-            Payment::create(
-                username: $username,
-                amount: $amount,
-                currency: $currency,
-                status: 'paid',
-                note: $note
-            );
-
-            CustomerLocal::updatePaymentStatus($username, 'paid');
+        if ($currency === '') {
+            $currency = 'SYP';
         }
+
+        if ($username === '' || $amount <= 0) {
+            $_SESSION['admin_payments_flash_message'] = 'لم يتم تسجيل الدفعة. تأكد من اختيار مشترك وإدخال مبلغ صحيح.';
+            $_SESSION['admin_payments_flash_type'] = 'warning';
+
+            header('Location: /admin/payments');
+            exit;
+        }
+
+        /*
+         * S10.2J:
+         * Do not create payments directly here.
+         * All subscription payments must pass through CustomerRenewalService::renew()
+         * so a GreenNet usage baseline is created automatically.
+         */
+        $renewalService = new CustomerRenewalService();
+        $result = $renewalService->renew($username, $amount, $currency, $note);
+
+        $_SESSION['admin_payments_flash_message'] = (string) ($result['message'] ?? '');
+        $_SESSION['admin_payments_flash_type'] = !empty($result['ok']) ? 'success' : 'warning';
 
         header('Location: /admin/payments');
         exit;
@@ -323,8 +336,8 @@ class AdminController
 
         $this->requireLogin();
 
-        $title = trim($_POST['title'] ?? '');
-        $body = trim($_POST['body'] ?? '');
+        $title = trim((string) ($_POST['title'] ?? ''));
+        $body = trim((string) ($_POST['body'] ?? ''));
         $isActive = isset($_POST['is_active']) ? 1 : 0;
 
         if ($title !== '' && $body !== '') {
@@ -363,8 +376,8 @@ class AdminController
         $this->requireLogin();
 
         $id = (int) ($_POST['id'] ?? 0);
-        $title = trim($_POST['title'] ?? '');
-        $body = trim($_POST['body'] ?? '');
+        $title = trim((string) ($_POST['title'] ?? ''));
+        $body = trim((string) ($_POST['body'] ?? ''));
         $isActive = isset($_POST['is_active']) ? 1 : 0;
 
         if ($id > 0 && $title !== '' && $body !== '') {
@@ -382,7 +395,7 @@ class AdminController
         $this->requireLogin();
 
         $id = (int) ($_POST['id'] ?? 0);
-        $confirm = trim($_POST['confirm'] ?? '');
+        $confirm = trim((string) ($_POST['confirm'] ?? ''));
 
         if ($id > 0 && $confirm === 'DELETE') {
             Announcement::delete($id);
