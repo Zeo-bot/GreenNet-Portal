@@ -33,3 +33,11 @@ docker compose config
 ```
 
 `docker compose config` may expose interpolated configuration; review output carefully and do not publish it. PHP lint and automated tests should run only after an isolated test environment exists and only with explicit permission if containers are required.
+
+The approved isolated test command is shown below, but running it still requires explicit user permission. Never combine this file with the production `docker-compose.yml`.
+
+```powershell
+docker compose --env-file .env.example -f compose.test.yaml run --rm test
+```
+
+The test runtime must retain `network_mode: none`. This allowance does not permit RouterOS access or starting, stopping, building, or otherwise operating the production Compose stack.

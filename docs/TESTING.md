@@ -2,7 +2,7 @@
 
 ## Current state
 
-The repository has no Composer manifest, PHPUnit configuration, automated test directory, or CI workflow. Phase 0 adds documentation only; it does not add or run a test framework.
+Phase 1A provides Composer, PHPUnit 11, disposable SQLite support, initial unit tests, and a dedicated test-only Docker runtime. There is still no CI workflow, production database provisioning mechanism, or RouterOS fake suitable for controller tests.
 
 ## Absolute isolation requirements
 
@@ -15,25 +15,37 @@ Future tests must not:
 - start the normal application stack with production-like configuration;
 - change Write Safety settings in the tracked database.
 
-## Proposed Phase 1 test environment
+## Phase 1A test environment
 
 - Create a unique temporary directory per test run.
 - Create a new SQLite database there from an explicit test schema or migrations.
 - Seed only synthetic administrators, customers, packages, and audit rows.
-- Inject a fake/null RouterOS client that records commands in memory and rejects all networking.
+- Do not instantiate the RouterOS client. A fake/null client remains future work because production controllers are not yet dependency-injected.
 - Provide test-only configuration with writes disabled and safe mode enabled by default.
 - Delete temporary state after the run while retaining failure output that contains no secrets.
 
-## Initial test layers
+## Initial test coverage
 
-1. Router tests for method/path dispatch and 404 behavior.
-2. Database schema/migration tests against disposable SQLite.
-3. `WriteSafetyGuard` tests for disabled writes, safe mode, confirmation, stale backup, dry-run recording, and audit outcomes.
-4. Controller tests proving preview does not invoke a mutating client method.
-5. Execute-flow tests using only a fake client, including partial failure and duplicate-submit behavior.
-6. Static PHP syntax checks inside an approved isolated PHP 8.3 environment.
+1. PHPUnit bootstrap requires `APP_ENV=testing` and empty RouterOS credential variables.
+2. Core application classes autoload without instantiating RouterOS services.
+3. Each SQLite helper instance creates a random database under the container's `/tmp` tmpfs.
+4. Tests write/read synthetic data, reject operational paths, and remove database files/directories.
+5. A runtime assertion verifies that the container exposes only the loopback interface.
 
-## Safe checks available before Phase 1
+`WriteSafetyGuard` is intentionally not exercised in Phase 1A. It depends directly on the static `Database` singleton and derives the backup directory from production `BASE_PATH`; reliably isolating both requires a production refactor or dependency seam, which is outside this phase.
+
+## Running the isolated suite
+
+Builds may use the public package network to download pinned Composer dependencies. Test runtime has no network:
+
+```powershell
+docker compose -f compose.test.yaml build test
+docker compose -f compose.test.yaml run --rm test
+```
+
+Do not combine `compose.test.yaml` with the production `docker-compose.yml`. The test image copies only application PHP sources, tests, and test configuration; `.env`, `src/.env`, the runtime database, and backups are excluded from the build context.
+
+## Additional safe checks
 
 ```powershell
 git status --short
@@ -43,7 +55,7 @@ rg --files
 docker compose config
 ```
 
-Do not run Compose lifecycle commands merely to obtain PHP lint. Container use requires explicit permission, and configuration must first be made incapable of external RouterOS access.
+The test service is `read_only`, uses `/tmp` as an in-memory tmpfs, and has `network_mode: none`. The production Nginx and PHP-FPM services are not started by these commands.
 
 ## Test data policy
 

@@ -1,0 +1,15 @@
+services:
+  test:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile.test
+    network_mode: none
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=64m
+    environment:
+      APP_ENV: testing
+      MIKROTIK_HOST: ""
+      MIKROTIK_USERNAME: ""
+      MIKROTIK_PASSWORD: ""
+    init: true

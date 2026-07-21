@@ -8,6 +8,7 @@ src/.env.*
 
 # Live state must not be copied into an image build context
 src/database/
+src/database/*.sqlite
 src/storage/backups/
 src/storage/logs/
 *.sqlite
@@ -24,6 +25,7 @@ src/storage/logs/
 .vscode/
 .phpunit.cache/
 coverage/
+tests/.tmp/
 tmp/
 temp/
 vendor/

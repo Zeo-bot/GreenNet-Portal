@@ -54,4 +54,11 @@ See [GreenNet_MASTER_CONTEXT.md](GreenNet_MASTER_CONTEXT.md), [docs/ARCHITECTURE
 
 ## Tests
 
-No automated test suite is currently installed. Do not treat the live UI or live database as a test environment. The isolation requirements and proposed Phase 1 approach are documented in [docs/TESTING.md](docs/TESTING.md).
+Phase 1A includes an isolated PHPUnit suite. Build and run only the dedicated test service:
+
+```powershell
+docker compose -f compose.test.yaml build test
+docker compose -f compose.test.yaml run --rm test
+```
+
+The test runtime uses `network_mode: none`, a read-only filesystem, and a temporary `/tmp` tmpfs. It does not receive `.env`, `src/.env`, the live portal database, or operational backups. Do not combine the test Compose file with `docker-compose.yml`. See [docs/TESTING.md](docs/TESTING.md) for isolation guarantees and current coverage limits.

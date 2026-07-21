@@ -24,6 +24,7 @@ src/storage/logs/
 .phpunit.cache/
 .phpunit.result.cache
 coverage/
+tests/.tmp/
 tmp/
 temp/
 

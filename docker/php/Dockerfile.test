@@ -1,0 +1,23 @@
+FROM php:8.3-cli-alpine
+
+RUN apk add --no-cache sqlite-dev
+
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+
+WORKDIR /app
+
+COPY composer.json composer.lock ./
+
+RUN composer install \
+    --no-interaction \
+    --no-progress \
+    --no-scripts \
+    --no-plugins \
+    --prefer-dist \
+    --optimize-autoloader
+
+COPY phpunit.xml.dist ./
+COPY src/app ./src/app
+COPY tests ./tests
+
+CMD ["composer", "test"]
