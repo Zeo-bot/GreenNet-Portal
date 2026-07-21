@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace GreenNet\Services\RouterOS;
 
+use GreenNet\Contracts\RouterOSClientInterface;
 use GreenNet\Services\RouterSettingsService;
 use RuntimeException;
 use Throwable;
 
-class RouterOSApiClient
+class RouterOSApiClient implements RouterOSClientInterface
 {
     private string $host = '';
     private int $port = 8728;

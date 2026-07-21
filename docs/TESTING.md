@@ -34,6 +34,10 @@ Future tests must not:
 
 Phase 1B exercises `WriteSafetyGuard` through optional constructor dependencies for PDO, a clock callable, and a backup directory. Production construction with `new WriteSafetyGuard()` retains the original `Database` singleton, real clock, and `BASE_PATH`-derived backup location. Tests use only disposable SQLite, a temporary backup directory, and a fixed clock.
 
+Phase 1C-B tests a read-only RouterOS boundary. A fake low-level client proves exact command, parameter, response, and exception forwarding without opening a socket. The real read gateway is tested against the complete current read-command allowlist, current write actions, and an unknown command. The null gateway must fail explicitly without disclosing an address. Test fakes are located only in `tests/Support`; an architectural assertion rejects test-fake references and write-gateway types under `src/`.
+
+Production routes, controllers, `MikroTikService`, and other consumers have not yet migrated to this boundary. Existing controller-guarded writes remain unchanged. Testing a future write boundary is deferred until its contract enforces safety rather than forwarding arbitrary writes to `comm()`.
+
 ## Running the isolated suite
 
 Builds may use the public package network to download pinned Composer dependencies. Test runtime has no network:

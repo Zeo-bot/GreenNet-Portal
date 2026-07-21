@@ -18,6 +18,15 @@
 - Do not commit, push, rewrite Git history, or remove tracked files automatically.
 - Do not print `.env` values, credentials, customer data, or RouterOS audit payloads.
 
+## RouterOS boundary rules
+
+- Do not add new production calls directly to `RouterOSApiClient::comm()`. Existing direct calls are legacy paths to migrate gradually.
+- New RouterOS reads must use `RouterOSReadGatewayInterface` and its fail-closed `ReadCommandPolicy`; unknown commands must be rejected before reaching the client.
+- Keep RouterOS fakes under `tests/` only. Never place a fake in `src/` or select one through production `.env` configuration.
+- Do not create a write gateway that forwards raw commands directly to `comm()`. A future write boundary must preserve and enforce guarded authorization.
+- The current router is a lab router. Authorized testing is limited to GreenNet test users, packages, and sessions.
+- Never factory-reset or upgrade RouterOS, or change WAN, LAN, or firewall configuration, without a separate explicit request for that exact operation.
+
 ## Safe verification commands
 
 These commands are read-only and do not start the application or contact RouterOS:

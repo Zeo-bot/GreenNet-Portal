@@ -1,6 +1,6 @@
 # GreenNet Portal master context
 
-Last verified: 2026-07-22 (Asia/Damascus), read-only repository inspection.
+Last verified: 2026-07-22 (Asia/Damascus), through phase 1C-B implementation.
 
 ## Authoritative baseline
 
@@ -11,7 +11,7 @@ Last verified: 2026-07-22 (Asia/Damascus), read-only repository inspection.
 
 ## Stack and structure
 
-- Custom PHP 8.3 application; no framework and no Composer dependency manifest.
+- Custom PHP 8.3 application with Composer development tooling; no framework.
 - Nginx serves `src/public`; PHP runs through PHP-FPM.
 - SQLite portal database at `src/database/database.sqlite`.
 - Application code: `src/app/Controllers`, `Core`, `Models`, `Services`, `Routes`, and `Views`.
@@ -52,7 +52,8 @@ The following non-secret values were read from `greennet_write_safety_settings`:
 
 - Real RouterOS write code exists and the checked-in database has write enabled with safe mode off.
 - Live `.env` files, the portal SQLite database, and backup artifacts are no longer tracked by new commits after the local tracking cleanup. They remain present on the current workstation and their older versions remain in local Git history.
-- There is no automated test suite, Composer setup, CI pipeline, or isolated RouterOS fake.
+- Composer and an isolated PHPUnit suite now exist, but there is no CI pipeline or production database provisioning workflow.
+- A fail-closed RouterOS read boundary exists, but production consumers still use legacy direct client calls and have not migrated to it.
 - The portal database mixes application state with operational/audit data.
 - Database schema creation occurs from application code rather than versioned migrations.
 - Some read-facing admin pages can initiate RouterOS connections when requested.
@@ -62,12 +63,23 @@ The following non-secret values were read from `greennet_write_safety_settings`:
 
 ## Proposed next stages
 
-1. Phase 1: add Composer/PHPUnit, disposable SQLite fixtures, and RouterOS fake/null clients; test routing and Write Safety denial paths without network access.
-   Phase 1 must also add an explicit database creation/restore mechanism for fresh clones, because runtime SQLite and backup files are no longer distributed through new commits.
-2. Phase 2: separate configuration from secrets and plan removal/rotation of already tracked secrets and operational data, with explicit owner approval.
-3. Phase 3: version database migrations and define backup/restore verification.
-4. Phase 4: review authentication, CSRF, production error handling, authorization, and write-flow idempotency.
-5. Phase 5: enable CI using only synthetic data and blocked outbound RouterOS access.
+Completed foundation:
+
+- Phase 1A: Composer, PHPUnit, a network-disabled test runtime, and disposable SQLite tests are complete.
+- Phase 1B: `WriteSafetyGuard` has injectable test seams and its current decision behavior is covered by isolated tests.
+- Phase 1C-B: `RouterOSClientInterface` and a fail-closed read-only gateway, null implementation, policy, and test fakes are complete. Production routes, controllers, and services have not migrated to this boundary yet.
+
+Current RouterOS writes remain on the existing S10.13 controller paths and are guarded by `WriteSafetyGuard`. The current router is dedicated to lab testing and contains no real customer users; permitted test scope is GreenNet test users, packages, and sessions. Factory reset, RouterOS upgrades, and WAN, LAN, or firewall changes require a separate explicit request.
+
+Next stages:
+
+1. Migrate production reads gradually to `RouterOSReadGatewayInterface`, preserving responses and failure behavior.
+2. Design a guarded write boundary that cannot become a raw pass-through to `comm()`.
+3. Add an explicit database creation/restore mechanism for fresh clones, because runtime SQLite and backup files are not distributed through new commits.
+4. Separate configuration from secrets and plan rotation/history cleanup with explicit owner approval.
+5. Version database migrations and define backup/restore verification.
+6. Review authentication, CSRF, production error handling, authorization, and write-flow idempotency.
+7. Enable CI using only synthetic data and blocked outbound RouterOS access.
 
 ## Operating rule
 

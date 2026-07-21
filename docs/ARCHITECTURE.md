@@ -22,6 +22,10 @@ The portal database is not RouterOS and is not a replica with guaranteed parity.
 
 RouterOS is an external operational system. Reading it can still disclose data or load a production router; writing it can change customer access. No route, controller, diagnostic, or test that reaches this boundary may be invoked without explicit permission.
 
+Phase 1C-B introduces contracts without migrating production call sites. `RouterOSClientInterface` exposes only the existing low-level `comm(string $command, array $params = []): array` operation. `RouterOSReadGatewayInterface` exposes only `read()`; its real implementation requires an explicitly supplied client and applies a fail-closed allowlist before delegating. It does not create a client, connection, factory, or default dependency.
+
+The null read gateway always fails explicitly, while test fakes live under `tests/` and are available only through Composer's development autoloader. Existing controllers and services still use their original `RouterOSApiClient` paths. No production write gateway exists in 1C-B.
+
 ## Write Safety boundary
 
 `src/app/Services/WriteSafetyGuard.php` is the central policy helper for guarded writes. It manages:
@@ -52,3 +56,5 @@ Guarded write flow:
 5. The attempt and outcome are recorded in the portal audit log.
 
 There is no distributed transaction between the portal database and RouterOS. Recovery and reconciliation must account for partial success.
+
+The current write flow remains controller-owned and guarded as documented above. A future write boundary must encode authorization and guard sequencing; it must not be implemented as an unrestricted `write()` wrapper that delegates directly to `comm()`.

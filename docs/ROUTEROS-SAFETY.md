@@ -11,6 +11,14 @@ S10.13 contains real RouterOS and User Manager write implementations. They are n
 - **WriteSafetyGuard:** evaluates portal-side gates and records dry-run/real attempts.
 - **Controller:** validates the requested target and constructs/executes the actual RouterOS command.
 
+## Phase 1C-B read boundary
+
+Phase 1C-B adds a read-only boundary but does not migrate production consumers. The boundary permits only the exact RouterOS read commands already found in the application and rejects every unknown command before the low-level client is called. Its known read actions are `print` and `monitor`; action-name matching alone is not sufficient because an unknown path ending in a read-looking action is still denied.
+
+`RealRouterOSReadGateway` receives `RouterOSClientInterface` explicitly and never constructs a client or connection. `NullRouterOSReadGateway` always throws a generic safe exception. Test fakes remain under `tests/Support` and cannot be selected through production environment configuration.
+
+Existing writes remain on the S10.13 controller path and continue to use `WriteSafetyGuard`. No write gateway was added. Designing a guarded write boundary is deferred; a raw `write()` pass-through to `RouterOSApiClient::comm()` is prohibited because it would make bypassing controller-side safety easier.
+
 Changing the portal database does not necessarily change RouterOS, and a successful RouterOS command does not guarantee all intended portal updates completed.
 
 ## Required guarded sequence
@@ -61,6 +69,8 @@ As inspected on 2026-07-22: RouterOS write was enabled, safe mode was off, dry-r
 - Reusing captured customer names, IDs, credentials, or audit payloads in fixtures.
 - Assuming a GET page is harmless when its controller performs RouterOS reads.
 - Enabling writes, disabling safe mode, or creating a fresh backup merely to make a test pass.
+- Treating a command as read-only solely because its final path segment says `print`, `get`, or `monitor`.
+- Adding a production write gateway that delegates unrestricted commands directly to `comm()`.
 
 ## Incident handling
 
