@@ -32,7 +32,7 @@ Future tests must not:
 4. Tests write/read synthetic data, reject operational paths, and remove database files/directories.
 5. A runtime assertion verifies that the container exposes only the loopback interface.
 
-`WriteSafetyGuard` is intentionally not exercised in Phase 1A. It depends directly on the static `Database` singleton and derives the backup directory from production `BASE_PATH`; reliably isolating both requires a production refactor or dependency seam, which is outside this phase.
+Phase 1B exercises `WriteSafetyGuard` through optional constructor dependencies for PDO, a clock callable, and a backup directory. Production construction with `new WriteSafetyGuard()` retains the original `Database` singleton, real clock, and `BASE_PATH`-derived backup location. Tests use only disposable SQLite, a temporary backup directory, and a fixed clock.
 
 ## Running the isolated suite
 

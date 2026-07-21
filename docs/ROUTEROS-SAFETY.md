@@ -30,6 +30,25 @@ Dry-run is a planning and audit mechanism; it is not proof that RouterOS will ac
 
 Safe defaults for development and tests are: no outbound connection, real writes disabled, safe mode enabled, synthetic targets, and disposable portal data. Never toggle the checked-in database settings to obtain test coverage.
 
+## WriteSafetyGuard decision table
+
+The order below reflects the current code exactly:
+
+| Method or step | Condition | Result |
+| --- | --- | --- |
+| `dryRunAllowed()` | `dry_run_required === 'true'` | `true`; every other value returns `false` |
+| `assertDryRunAllowed()` | dry-run is not allowed | Throws `Dry Run is disabled. Enable Dry Run Required from Write Safety.` |
+| `realWriteAllowed()` | write disabled, or confirmation setting is not exactly `true` | `false`; this method does not check safe mode or backups |
+| `assertRealWriteAllowed()` step 1 | `mikrotik_write_enabled !== 'true'` | Throws `Real MikroTik write is blocked because MikroTik Write Enabled is OFF.` |
+| step 2 | safe mode is `true` and option `allow_safe_mode` is not boolean `true` | Throws `Real MikroTik write is blocked because Safe Mode is ON.` |
+| step 3 | backup guard is `true` and no fresh backup exists | Throws `Real MikroTik write is blocked because no fresh backup was found in the last 24 hours.` |
+| step 4 | confirmation is required and option `confirmed` is not boolean `true` | Throws `Real MikroTik write requires explicit confirmation.` |
+| final | all applicable checks pass | Returns normally; no RouterOS command is executed by the guard itself |
+
+`latestBackup()` considers every regular file in the backup directory and selects the greatest filesystem modification time; it does not filter extensions or validate backup contents. `hasFreshBackup()` uses `current_time - file_mtime <= hours * 3600`, with a default of 24 hours. The exact boundary is fresh, and a future-dated file is also treated as fresh by the current formula.
+
+`preflight.ready_for_real_write` is calculated as `realWriteAllowed() && hasFreshBackup()`. Consequently it remains false without a fresh file even when `backup_guard_enabled` is false, although `assertRealWriteAllowed()` can permit that same configuration. This existing difference is preserved and covered by tests.
+
 ## Current non-secret configuration snapshot
 
 As inspected on 2026-07-22: RouterOS write was enabled, safe mode was off, dry-run and confirmation were required, backup guard was enabled, and the transaction queue was disabled. The newest repository backup was older than the guard's 24-hour freshness window. These values may change operationally; inspect them only with authorization and never modify them as a side effect of diagnostics.

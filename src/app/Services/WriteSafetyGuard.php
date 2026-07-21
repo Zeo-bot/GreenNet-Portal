@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace GreenNet\Services;
 
+use Closure;
 use GreenNet\Core\Database;
 use GreenNet\Models\AppLog;
 use PDO;
@@ -15,10 +16,25 @@ class WriteSafetyGuard
     private string $settingsTable = 'greennet_write_safety_settings';
     private string $queueTable = 'mikrotik_transaction_queue';
     private string $auditTable = 'api_audit_logs';
+    private ?PDO $databaseConnection;
+    private Closure $clock;
+    private ?string $backupDirectory;
+
+    public function __construct(
+        ?PDO $database = null,
+        ?callable $clock = null,
+        ?string $backupDirectory = null
+    ) {
+        $this->databaseConnection = $database;
+        $this->clock = $clock !== null
+            ? Closure::fromCallable($clock)
+            : static fn (): int => time();
+        $this->backupDirectory = $backupDirectory;
+    }
 
     public function ensureTables(): void
     {
-        Database::connection()->exec("
+        $this->database()->exec("
             CREATE TABLE IF NOT EXISTS {$this->settingsTable} (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 setting_key TEXT NOT NULL UNIQUE,
@@ -28,7 +44,7 @@ class WriteSafetyGuard
             )
         ");
 
-        Database::connection()->exec("
+        $this->database()->exec("
             CREATE TABLE IF NOT EXISTS {$this->queueTable} (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 action TEXT DEFAULT '',
@@ -43,7 +59,7 @@ class WriteSafetyGuard
             )
         ");
 
-        Database::connection()->exec("
+        $this->database()->exec("
             CREATE TABLE IF NOT EXISTS {$this->auditTable} (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 admin_username TEXT DEFAULT '',
@@ -68,8 +84,8 @@ class WriteSafetyGuard
         }
 
         try {
-            Database::connection()->exec("CREATE INDEX IF NOT EXISTS idx_api_audit_logs_created ON {$this->auditTable}(created_at)");
-            Database::connection()->exec("CREATE INDEX IF NOT EXISTS idx_mikrotik_queue_status ON {$this->queueTable}(status)");
+            $this->database()->exec("CREATE INDEX IF NOT EXISTS idx_api_audit_logs_created ON {$this->auditTable}(created_at)");
+            $this->database()->exec("CREATE INDEX IF NOT EXISTS idx_mikrotik_queue_status ON {$this->queueTable}(status)");
         } catch (Throwable) {
             // ignore
         }
@@ -82,7 +98,7 @@ class WriteSafetyGuard
         $settings = $this->defaults();
 
         try {
-            $stmt = Database::connection()->query("
+            $stmt = $this->database()->query("
                 SELECT setting_key, setting_value
                 FROM {$this->settingsTable}
             ");
@@ -159,12 +175,13 @@ class WriteSafetyGuard
             return false;
         }
 
-        return (time() - (int) $latest['time']) <= ($hours * 3600);
+        return ($this->now() - (int) $latest['time']) <= ($hours * 3600);
     }
 
     public function latestBackup(): ?array
     {
-        $dir = (defined('BASE_PATH') ? BASE_PATH : dirname(__DIR__, 2)) . '/storage/backups';
+        $dir = $this->backupDirectory
+            ?? (defined('BASE_PATH') ? BASE_PATH : dirname(__DIR__, 2)) . '/storage/backups';
 
         if (!is_dir($dir)) {
             return null;
@@ -234,7 +251,7 @@ class WriteSafetyGuard
     {
         $this->ensureTables();
 
-        $stmt = Database::connection()->prepare("
+        $stmt = $this->database()->prepare("
             INSERT INTO {$this->queueTable} (
                 action,
                 username,
@@ -259,7 +276,7 @@ class WriteSafetyGuard
             )
         ");
 
-        $now = date('Y-m-d H:i:s');
+        $now = date('Y-m-d H:i:s', $this->now());
 
         $stmt->execute([
             'action' => (string) ($data['action'] ?? ''),
@@ -271,7 +288,7 @@ class WriteSafetyGuard
             'updated_at' => $now,
         ]);
 
-        return (int) Database::connection()->lastInsertId();
+        return (int) $this->database()->lastInsertId();
     }
 
     public function preflight(): array
@@ -296,7 +313,7 @@ class WriteSafetyGuard
 
     private function recordAudit(array $row): int
     {
-        $stmt = Database::connection()->prepare("
+        $stmt = $this->database()->prepare("
             INSERT INTO {$this->auditTable} (
                 admin_username,
                 action,
@@ -339,16 +356,16 @@ class WriteSafetyGuard
             'success' => (int) ($row['success'] ?? 0),
             'router_response' => (string) ($row['router_response'] ?? ''),
             'ip_address' => (string) ($row['ip_address'] ?? ''),
-            'created_at' => date('Y-m-d H:i:s'),
+            'created_at' => date('Y-m-d H:i:s', $this->now()),
         ]);
 
-        return (int) Database::connection()->lastInsertId();
+        return (int) $this->database()->lastInsertId();
     }
 
     private function get(string $key, ?string $default = ''): ?string
     {
         try {
-            $stmt = Database::connection()->prepare("
+            $stmt = $this->database()->prepare("
                 SELECT setting_value
                 FROM {$this->settingsTable}
                 WHERE setting_key = :key
@@ -369,9 +386,9 @@ class WriteSafetyGuard
 
     private function set(string $key, string $value): void
     {
-        $now = date('Y-m-d H:i:s');
+        $now = date('Y-m-d H:i:s', $this->now());
 
-        $stmt = Database::connection()->prepare("
+        $stmt = $this->database()->prepare("
             INSERT INTO {$this->settingsTable} (
                 setting_key,
                 setting_value,
@@ -412,5 +429,15 @@ class WriteSafetyGuard
     private function json(mixed $value): string
     {
         return json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) ?: '{}';
+    }
+
+    private function database(): PDO
+    {
+        return $this->databaseConnection ?? Database::connection();
+    }
+
+    private function now(): int
+    {
+        return (int) ($this->clock)();
     }
 }
