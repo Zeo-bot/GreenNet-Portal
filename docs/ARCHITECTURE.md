@@ -26,6 +26,8 @@ Phase 1C-B introduces contracts without migrating production call sites. `Router
 
 The null read gateway always fails explicitly, while test fakes live under `tests/` and are available only through Composer's development autoloader. Existing controllers and services still use their original `RouterOSApiClient` paths. No production write gateway exists in 1C-B.
 
+Phase 1C-C1 migrates `AdminUserManagerPackagesController` as the first production read path. Its optional constructor dependency accepts `RouterOSReadGatewayInterface` for tests. With no injected gateway, the narrow `RouterOSReadGatewayFactory` creates a real gateway and client only when package discovery begins; socket connection remains lazy until the first allowed read. All other direct production `comm()` calls remain legacy migration targets. There is still no production write gateway.
+
 ## Write Safety boundary
 
 `src/app/Services/WriteSafetyGuard.php` is the central policy helper for guarded writes. It manages:

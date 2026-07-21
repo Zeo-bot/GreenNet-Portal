@@ -4,15 +4,21 @@ declare(strict_types=1);
 
 namespace GreenNet\Controllers;
 
+use GreenNet\Contracts\RouterOSReadGatewayInterface;
 use GreenNet\Core\Database;
 use GreenNet\Core\View;
 use GreenNet\Models\AppLog;
-use GreenNet\Services\RouterOS\RouterOSApiClient;
+use GreenNet\Services\RouterOS\RouterOSReadGatewayFactory;
 use PDO;
 use Throwable;
 
 class AdminUserManagerPackagesController
 {
+    public function __construct(
+        private readonly ?RouterOSReadGatewayInterface $routerOSReadGateway = null
+    ) {
+    }
+
     public function index(): string
     {
         Database::migrate();
@@ -142,36 +148,32 @@ class AdminUserManagerPackagesController
         ];
 
         try {
-            $client = new RouterOSApiClient([
+            $gateway = $this->routerOSReadGateway ?? RouterOSReadGatewayFactory::create([
                 'timeout' => 6,
             ]);
 
-            try {
-                $profiles = $this->readRows($client, '/user-manager/profile/print');
-                $limitations = $this->readRows($client, '/user-manager/limitation/print');
+            $profiles = $this->readRows($gateway, '/user-manager/profile/print');
+            $limitations = $this->readRows($gateway, '/user-manager/limitation/print');
 
-                $linkCommands = [
-                    '/user-manager/profile-limitation/print',
-                    '/user-manager/profile/limitation/print',
-                    '/user-manager/profile/limitations/print',
-                ];
+            $linkCommands = [
+                '/user-manager/profile-limitation/print',
+                '/user-manager/profile/limitation/print',
+                '/user-manager/profile/limitations/print',
+            ];
 
-                $linkResult = $this->emptyRead('profile-limitation discovery');
+            $linkResult = $this->emptyRead('profile-limitation discovery');
 
-                foreach ($linkCommands as $command) {
-                    $attempt = $this->readRows($client, $command);
-                    $result['link_attempts'][] = $attempt;
+            foreach ($linkCommands as $command) {
+                $attempt = $this->readRows($gateway, $command);
+                $result['link_attempts'][] = $attempt;
 
-                    if (!empty($attempt['ok'])) {
-                        $linkResult = $attempt;
+                if (!empty($attempt['ok'])) {
+                    $linkResult = $attempt;
 
-                        if ((int) ($attempt['rows_count'] ?? 0) > 0) {
-                            break;
-                        }
+                    if ((int) ($attempt['rows_count'] ?? 0) > 0) {
+                        break;
                     }
                 }
-            } finally {
-                $client->disconnect();
             }
 
             $profileRows = is_array($profiles['rows'] ?? null) ? $profiles['rows'] : [];
@@ -495,12 +497,12 @@ class AdminUserManagerPackagesController
         return null;
     }
 
-    private function readRows(RouterOSApiClient $client, string $command): array
+    private function readRows(RouterOSReadGatewayInterface $gateway, string $command): array
     {
         $result = $this->emptyRead($command);
 
         try {
-            $rows = $this->normalizeRows($client->comm($command));
+            $rows = $this->normalizeRows($gateway->read($command));
 
             $result['ok'] = true;
             $result['status'] = 'ok';
