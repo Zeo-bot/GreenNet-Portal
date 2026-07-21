@@ -51,7 +51,7 @@ The following non-secret values were read from `greennet_write_safety_settings`:
 ## Current risks and technical debt
 
 - Real RouterOS write code exists and the checked-in database has write enabled with safe mode off.
-- Live `.env` files, the portal SQLite database, and backup artifacts are currently tracked by Git. Ignore rules do not untrack them.
+- Live `.env` files, the portal SQLite database, and backup artifacts are no longer tracked by new commits after the local tracking cleanup. They remain present on the current workstation and their older versions remain in local Git history.
 - There is no automated test suite, Composer setup, CI pipeline, or isolated RouterOS fake.
 - The portal database mixes application state with operational/audit data.
 - Database schema creation occurs from application code rather than versioned migrations.
@@ -63,6 +63,7 @@ The following non-secret values were read from `greennet_write_safety_settings`:
 ## Proposed next stages
 
 1. Phase 1: add Composer/PHPUnit, disposable SQLite fixtures, and RouterOS fake/null clients; test routing and Write Safety denial paths without network access.
+   Phase 1 must also add an explicit database creation/restore mechanism for fresh clones, because runtime SQLite and backup files are no longer distributed through new commits.
 2. Phase 2: separate configuration from secrets and plan removal/rotation of already tracked secrets and operational data, with explicit owner approval.
 3. Phase 3: version database migrations and define backup/restore verification.
 4. Phase 4: review authentication, CSRF, production error handling, authorization, and write-flow idempotency.
@@ -71,3 +72,5 @@ The following non-secret values were read from `greennet_write_safety_settings`:
 ## Operating rule
 
 Treat this file as project context, not authorization. Starting containers, contacting RouterOS, changing Write Safety, handling tracked secrets, or performing Git publication always requires the user's explicit direction.
+
+Do not publish this repository to any remote until credentials have been rotated and sensitive files have been removed from Git history through a separately approved history-cleaning procedure. The local untracking commit does not erase older Git objects.

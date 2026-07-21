@@ -47,4 +47,8 @@ Portal application logs and `api_audit_logs` can contain operational metadata. I
 
 ## Git and release hygiene
 
-Ignore rules added in Phase 0 prevent new sensitive/runtime files from being added by default but do not untrack existing `.env`, SQLite, or backup files. Removing them from Git and rotating exposed credentials requires a separately approved migration plan. Do not use `git rm`, rewrite history, commit, or push as part of routine inspection.
+Ignore rules prevent new sensitive/runtime files from being added by default. The local tracking-cleanup commit removes `.env`, SQLite, and backup artifacts from new commits while leaving them on the current workstation. Their older versions still exist in local Git history.
+
+Do not publish this repository to any remote until all affected credentials have been rotated and sensitive files have been removed from Git history through a separately approved procedure. Do not rewrite history or push as part of routine inspection.
+
+Fresh clones will not receive the portal database or operational backups. Phase 1 must add an explicit, safe database creation/restore mechanism using schema or migrations and synthetic initial data; until then, provisioning a fresh clone is incomplete.
