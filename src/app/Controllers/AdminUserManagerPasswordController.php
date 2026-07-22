@@ -4,10 +4,15 @@ declare(strict_types=1);
 
 namespace GreenNet\Controllers;
 
+use GreenNet\Contracts\AuthorizedRouterOSWriterInterface;
+use GreenNet\Contracts\GuardedRouterOSWriteGatewayInterface;
+use GreenNet\Contracts\RouterOSReadGatewayInterface;
 use GreenNet\Core\Database;
 use GreenNet\Core\View;
+use GreenNet\DTO\RouterOS\RouterOSWriteCommand;
+use GreenNet\DTO\RouterOS\WriteExecutionRequest;
 use GreenNet\Models\AppLog;
-use GreenNet\Services\RouterOS\RouterOSApiClient;
+use GreenNet\Services\RouterOS\RouterOSGatewayBundleFactory;
 use GreenNet\Services\WriteSafetyGuard;
 use PDO;
 use RuntimeException;
@@ -15,6 +20,13 @@ use Throwable;
 
 class AdminUserManagerPasswordController
 {
+    public function __construct(
+        private ?RouterOSReadGatewayInterface $readGateway = null,
+        private ?GuardedRouterOSWriteGatewayInterface $writeGateway = null,
+        private ?PDO $databaseConnection = null
+    ) {
+    }
+
     public function index(): string
     {
         Database::migrate();
@@ -44,20 +56,14 @@ class AdminUserManagerPasswordController
             $guard->assertDryRunAllowed();
 
             $username = trim((string) ($_POST['username'] ?? ''));
-            $password = trim((string) ($_POST['password'] ?? ''));
 
             if ($username === '') {
                 throw new RuntimeException('اختر مستخدماً صحيحاً.');
             }
 
-            if ($password === '') {
-                throw new RuntimeException('كلمة المرور الجديدة مطلوبة.');
-            }
-
             $this->validateUsername($username);
-            $this->validatePassword($password);
 
-            $plan = $this->buildPasswordPlan($username, $password, false);
+            $plan = $this->buildPasswordPlan($username);
 
             $auditId = $guard->recordDryRun([
                 'action' => 'change_user_manager_password',
@@ -128,42 +134,14 @@ class AdminUserManagerPasswordController
                 throw new RuntimeException('آخر Dry Run لا يسمح بالتنفيذ.');
             }
 
-            $guard = new WriteSafetyGuard();
-            $guard->ensureTables();
-            $guard->assertRealWriteAllowed([
-                'confirmed' => true,
-            ]);
+            $execution = $this->executePasswordChange($username, $password, $lastPlan);
 
-            $freshPlan = $this->buildPasswordPlan($username, $password, true);
-
-            if (empty($freshPlan['can_execute_later'])) {
-                throw new RuntimeException((string) ($freshPlan['block_reason'] ?? 'الخطة لم تعد قابلة للتنفيذ.'));
-            }
-
-            $execution = $this->executePasswordPlan($freshPlan);
-
-            $afterPlan = $this->buildPasswordPlan($username, '', false);
+            $afterPlan = $lastPlan;
             $afterPlan['executed'] = true;
             $afterPlan['real_execution'] = true;
             $afterPlan['real_result'] = $execution;
 
             $_SESSION['um_password_result'] = $afterPlan;
-
-            $guard->recordRealAttempt([
-                'action' => 'change_user_manager_password',
-                'dataset' => 'user_manager_user',
-                'username' => $username,
-                'command' => '/user-manager/user/set',
-                'params' => [
-                    'username' => $username,
-                    'password' => '<hidden>',
-                    'dry_run_audit_id' => (int) ($lastPlan['audit_id'] ?? 0),
-                    'confirmed' => true,
-                ],
-                'executed' => 1,
-                'success' => !empty($execution['ok']) ? 1 : 0,
-                'router_response' => $this->jsonString($execution),
-            ]);
 
             if (empty($execution['ok'])) {
                 throw new RuntimeException((string) ($execution['message'] ?? 'فشل تغيير كلمة المرور.'));
@@ -194,7 +172,7 @@ class AdminUserManagerPasswordController
         exit;
     }
 
-    private function buildPasswordPlan(string $username, string $password, bool $realPassword): array
+    private function buildPasswordPlan(string $username): array
     {
         $customer = $this->findCustomer($username);
         $router = $this->readRouterUser($username);
@@ -210,7 +188,7 @@ class AdminUserManagerPasswordController
                 'command' => '/user-manager/user/set',
                 'params' => [
                     'numbers' => $userId,
-                    'password' => $realPassword ? $password : '<hidden>',
+                    'password' => '<hidden>',
                 ],
             ];
         }
@@ -248,66 +226,64 @@ class AdminUserManagerPasswordController
         ];
     }
 
-    private function executePasswordPlan(array $plan): array
+    private function executePasswordChange(string $username, string $password, array $lastPlan): array
     {
-        $operations = is_array($plan['operations'] ?? null) ? $plan['operations'] : [];
+        $expectedId = trim((string) ($lastPlan['router_user_id'] ?? ''));
+        $command = '/user-manager/user/set';
+        $verifiedId = '';
 
-        if (empty($operations)) {
-            return [
-                'ok' => false,
-                'message' => 'لا توجد عمليات للتنفيذ.',
-                'operations' => [],
-            ];
-        }
+        $result = $this->writeGateway()->execute(
+            new WriteExecutionRequest(
+                'change_user_manager_password',
+                'user_manager_user',
+                $username,
+                $command,
+                ['username' => $username, 'numbers' => $expectedId, 'password' => '<hidden>'],
+                (int) ($lastPlan['audit_id'] ?? 0),
+                true
+            ),
+            function (AuthorizedRouterOSWriterInterface $writer) use (
+                $username,
+                $password,
+                $expectedId,
+                $command,
+                &$verifiedId
+            ): array {
+                $before = $this->readRouterUser($username);
+                $beforeId = trim((string) ($before['user']['id'] ?? ''));
 
-        $executed = [];
-        $client = new RouterOSApiClient([
-            'timeout' => 6,
-        ]);
-
-        try {
-            foreach ($operations as $operation) {
-                if (!is_array($operation)) {
-                    continue;
+                if (empty($before['user']['found']) || $beforeId === '' || $beforeId !== $expectedId) {
+                    throw new RuntimeException('User Manager target changed after the password preview.');
                 }
 
-                $type = (string) ($operation['type'] ?? '');
-                $command = (string) ($operation['command'] ?? '');
-                $params = is_array($operation['params'] ?? null) ? $operation['params'] : [];
+                $writer->execute(new RouterOSWriteCommand($command, [
+                    'numbers' => $beforeId,
+                    'password' => $password,
+                ]));
 
-                if ($type !== 'router_change_user_password') {
-                    continue;
+                $after = $this->readRouterUser($username);
+                $verifiedId = trim((string) ($after['user']['id'] ?? ''));
+
+                if (empty($after['user']['found']) || $verifiedId !== $beforeId) {
+                    throw new RuntimeException('Password command completed, but target continuity verification failed.');
                 }
 
-                $response = $client->comm($command, $params);
-
-                $executed[] = [
-                    'type' => $type,
-                    'command' => $command,
-                    'params' => $this->maskSensitiveParams($params),
-                    'response' => $response,
-                    'ok' => true,
+                return [
+                    'verified_target_continuity' => true,
+                    'router_user_id' => $verifiedId,
                 ];
             }
-        } catch (Throwable $e) {
-            $executed[] = [
-                'ok' => false,
-                'error' => $e->getMessage(),
-            ];
-
-            return [
-                'ok' => false,
-                'message' => $e->getMessage(),
-                'operations' => $executed,
-            ];
-        } finally {
-            $client->disconnect();
-        }
+        );
 
         return [
-            'ok' => true,
-            'message' => 'تم تغيير كلمة المرور.',
-            'operations' => $executed,
+            'ok' => $result->ok,
+            'message' => 'Password command completed and target continuity was verified.',
+            'command' => $command,
+            'params' => ['numbers' => $verifiedId, 'password' => '<hidden>'],
+            'verified_target_continuity' => true,
+            'audit_recorded' => $result->auditRecorded,
+            'audit_id' => $result->auditId,
+            'audit_warning' => $result->auditWarning,
             'executed_at' => date('Y-m-d H:i:s'),
         ];
     }
@@ -323,12 +299,8 @@ class AdminUserManagerPasswordController
             ],
         ];
 
-        $client = new RouterOSApiClient([
-            'timeout' => 6,
-        ]);
-
         try {
-            $users = $this->normalizeRows($client->comm('/user-manager/user/print', [
+            $users = $this->normalizeRows($this->readGateway()->read('/user-manager/user/print', [
                 '?name' => $username,
             ]));
 
@@ -338,14 +310,12 @@ class AdminUserManagerPasswordController
                 $result['user'] = [
                     'found' => true,
                     'id' => (string) ($user['.id'] ?? ''),
-                    'row' => $this->sanitizeRowForDisplay($user),
+                    'row' => $this->projectRouterUser($user),
                     'error' => '',
                 ];
             }
         } catch (Throwable $e) {
             $result['user']['error'] = $e->getMessage();
-        } finally {
-            $client->disconnect();
         }
 
         return $result;
@@ -356,7 +326,7 @@ class AdminUserManagerPasswordController
         $this->ensureCustomersLocalColumns();
 
         try {
-            $stmt = Database::connection()->query("
+            $stmt = $this->database()->query("
                 SELECT *
                 FROM customers_local
                 ORDER BY username ASC
@@ -374,7 +344,7 @@ class AdminUserManagerPasswordController
     {
         $this->ensureCustomersLocalColumns();
 
-        $stmt = Database::connection()->prepare("
+        $stmt = $this->database()->prepare("
             SELECT *
             FROM customers_local
             WHERE username = :username
@@ -392,7 +362,7 @@ class AdminUserManagerPasswordController
 
     private function ensureCustomersLocalColumns(): void
     {
-        $pdo = Database::connection();
+        $pdo = $this->database();
 
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS customers_local (
@@ -428,7 +398,7 @@ class AdminUserManagerPasswordController
     private function columns(string $table): array
     {
         try {
-            $rows = Database::connection()->query("PRAGMA table_info(" . $table . ")")->fetchAll(PDO::FETCH_ASSOC);
+            $rows = $this->database()->query("PRAGMA table_info(" . $table . ")")->fetchAll(PDO::FETCH_ASSOC);
 
             $columns = [];
 
@@ -498,50 +468,13 @@ class AdminUserManagerPasswordController
         ];
     }
 
-    private function sanitizeRowForDisplay(array $row): array
+    private function projectRouterUser(array $row): array
     {
-        $hiddenKeys = [
-            'password',
-            'pass',
-            'secret',
-            'otp-secret',
-            'token',
-            'api-key',
-            'key',
+        return [
+            '.id' => (string) ($row['.id'] ?? ''),
+            'name' => (string) ($row['name'] ?? $row['username'] ?? ''),
+            'disabled' => (string) ($row['disabled'] ?? ''),
         ];
-
-        $clean = [];
-
-        foreach ($row as $key => $value) {
-            $keyString = (string) $key;
-            $lower = strtolower($keyString);
-
-            $hide = false;
-
-            foreach ($hiddenKeys as $hiddenKey) {
-                if ($lower === $hiddenKey || str_contains($lower, $hiddenKey)) {
-                    $hide = true;
-                    break;
-                }
-            }
-
-            $clean[$keyString] = $hide ? '<hidden>' : (string) $value;
-        }
-
-        return $clean;
-    }
-
-    private function maskSensitiveParams(array $params): array
-    {
-        foreach ($params as $key => $value) {
-            $lower = strtolower((string) $key);
-
-            if (str_contains($lower, 'password') || str_contains($lower, 'pass') || str_contains($lower, 'secret')) {
-                $params[$key] = '<hidden>';
-            }
-        }
-
-        return $params;
     }
 
     private function requireLastPlan(string $username): array
@@ -593,9 +526,34 @@ class AdminUserManagerPasswordController
         }
     }
 
-    private function jsonString(mixed $value): string
+    private function readGateway(): RouterOSReadGatewayInterface
     {
-        return json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) ?: '{}';
+        $this->resolveGateways();
+
+        return $this->readGateway;
+    }
+
+    private function writeGateway(): GuardedRouterOSWriteGatewayInterface
+    {
+        $this->resolveGateways();
+
+        return $this->writeGateway;
+    }
+
+    private function resolveGateways(): void
+    {
+        if ($this->readGateway !== null && $this->writeGateway !== null) {
+            return;
+        }
+
+        $bundle = RouterOSGatewayBundleFactory::create(['timeout' => 6]);
+        $this->readGateway ??= $bundle->read;
+        $this->writeGateway ??= $bundle->write;
+    }
+
+    private function database(): PDO
+    {
+        return $this->databaseConnection ??= Database::connection();
     }
 
     private function flash(string $message, string $type = 'success'): void

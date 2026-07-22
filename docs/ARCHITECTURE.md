@@ -68,3 +68,9 @@ Guarded write flow:
 There is no distributed transaction between the portal database and RouterOS. Recovery and reconciliation must account for partial success.
 
 The current write flow remains controller-owned and guarded as documented above. A future write boundary must encode authorization and guard sequencing; it must not be implemented as an unrestricted `write()` wrapper that delegates directly to `comm()`.
+
+## Phase 1D-D1 password-write migration
+
+`AdminUserManagerPasswordController` is the second production write path migrated to the guarded boundary. Its preview performs only the User Manager lookup through `RouterOSReadGatewayInterface` and stores the minimal `.id`, `name`, and `disabled` projection. It never accepts or persists the new password.
+
+The execute request receives and validates the password again, resolves the same lazy shared read/write bundle in production, and invokes `GuardedRouterOSWriteGatewayInterface::execute()`. Inside the authorized callback the flow is exactly read current user, require the previewed `.id`, execute one `/user-manager/user/set`, then read the user again and require the same `.id`. This verifies command completion and target continuity; RouterOS does not expose the password for comparison. No rollback is claimed after a successful command followed by a failed continuity read.

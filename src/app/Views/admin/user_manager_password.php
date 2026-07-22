@@ -259,7 +259,7 @@ $canExecute = $result !== null && !empty($result['can_execute_later']) && empty(
 
 <section class="gn-pass-box">
     <h3>Create Dry Run</h3>
-    <p>اختر مشتركاً موجوداً داخل MikroTik User Manager، ثم أدخل كلمة المرور الجديدة.</p>
+    <p>اختر مشتركاً موجوداً داخل MikroTik User Manager. ستُدخل كلمة المرور الجديدة عند التنفيذ فقط.</p>
 
     <?php if (empty($customers)): ?>
         <div class="gn-pass-alert">لا يوجد مشتركين داخل GreenNet.</div>
@@ -280,11 +280,6 @@ $canExecute = $result !== null && !empty($result['can_execute_later']) && empty(
                             </option>
                         <?php endforeach; ?>
                     </select>
-                </div>
-
-                <div class="gn-pass-field">
-                    <label>New User Manager Password</label>
-                    <input type="password" name="password" required autocomplete="new-password" placeholder="New password">
                 </div>
 
                 <button class="gn-btn gn-btn-primary gn-btn-lg" type="submit">

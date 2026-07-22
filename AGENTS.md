@@ -35,8 +35,12 @@
 - All RouterOS-derived data that will be persisted must pass through `RouterOSSensitiveDataRedactor`; `WriteSafetyGuard` is the defense-in-depth persistence boundary for dry-run audits, real-attempt audits, and queued payloads.
 - `RouterOSWriteRedactor` delegates to the centralized sensitive-data redactor. Do not introduce a second independent list of sensitive RouterOS keys.
 - Treat historical audit data as untrusted until it has been separately scanned and sanitized under explicit authorization.
-- The disable/enable production path has completed isolated coverage and an authorized Lab Router create/disable/enable/exact-ID-cleanup validation. The next guarded-write migration target is `AdminUserManagerPasswordController`.
-- Password-path validation must prove zero secret occurrences in sessions, audits, result DTOs, raw temporary SQLite bytes, and the authorized live Lab Router lifecycle before acceptance.
+- RouterOS passwords may exist only in final execute-request memory and scoped `RouterOSWriteCommand` memory. Preview flows must never accept or persist a plaintext password.
+- Never store RouterOS passwords in sessions, SQLite, audits, queues, logs, URLs, query strings, hidden inputs, HTML value attributes, DTO results, or exceptions.
+- Final password execution must require password entry and validation from the current request. Post-write verification may prove target continuity only; it must never retrieve or compare the password.
+- Password tests must use synthetic values only and must not include assertion output that could reveal those values.
+- The disable/enable production path has completed isolated coverage and an authorized Lab Router create/disable/enable/exact-ID-cleanup validation. `AdminUserManagerPasswordController` is migrated in isolated code and remains pending separately authorized live validation.
+- Password-path validation must prove zero secret occurrences in sessions, audits, result DTOs, raw temporary SQLite bytes, and the authorized live Lab Router lifecycle before final live acceptance.
 - Existing historical backups and old Git objects remain untrusted. Do not add a remote or publish until backup scanning, required credential rotation, and separately authorized Git-history cleanup are complete.
 - The current router is a lab router. Authorized testing is limited to GreenNet test users, packages, and sessions.
 - Never factory-reset or upgrade RouterOS, or change WAN, LAN, or firewall configuration, without a separate explicit request for that exact operation.

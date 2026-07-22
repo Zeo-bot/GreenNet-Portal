@@ -113,6 +113,12 @@ The order below reflects the current code exactly:
 
 As inspected on 2026-07-22: RouterOS write was enabled, safe mode was off, dry-run and confirmation were required, backup guard was enabled, and the transaction queue was disabled. The newest repository backup was older than the guard's 24-hour freshness window. These values may change operationally; inspect them only with authorization and never modify them as a side effect of diagnostics.
 
+## Password-change boundary
+
+The migrated password preview stores no plaintext, reversible substitute, hash, fingerprint, length metadata, or complete RouterOS row. The operator must enter the password in the final execute POST. Plaintext is permitted only in that request's memory and in the scoped `RouterOSWriteCommand` passed to the authorized writer callback.
+
+The guarded operation revalidates the current User Manager `.id`, sends exactly `/user-manager/user/set` with `numbers` and `password`, and re-reads the same user. Persisted plans, sessions, result DTOs, audit rows, queues, logs, views, and safe exceptions must contain only canonical redaction. Post-write lookup proves target continuity, not password readability; a continuity failure is a partial failure and does not trigger an automatic rollback.
+
 ## Prohibited shortcuts
 
 - Calling an execute route to test reachability.

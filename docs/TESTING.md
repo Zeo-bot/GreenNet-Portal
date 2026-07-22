@@ -48,6 +48,8 @@ The completed Phase 1D-C verification baseline is 162 tests and 449 assertions. 
 
 Do not preserve the temporary harness calculation that compared action names across create/cleanup dry-run and real rows; it produced a false duplicate flag unrelated to disable or enable. Future `AdminUserManagerPasswordController` coverage must explicitly verify zero password occurrences in session serialization, audit and queue fields, result DTOs, raw disposable SQLite bytes, and safe failures before any separately authorized live test.
 
+Phase 1D-D1 adds isolated coverage for the password-change path. Synthetic sentinels verify that preview performs no write, complete RouterOS rows become only `.id`/`name`/`disabled`, execute performs exact read-set-read continuity, guard denial makes no RouterOS or audit call, command and post-write failures retain non-partial/partial semantics, and an audit-storage failure remains a successful RouterOS result with a warning. Source-level assertions preserve password re-entry, the `PASSWORD` confirmation, plan checks, no hidden/value copy, lazy construction, and absence of direct client, `comm()`, guard assertion, or controller-owned real audit calls. Live Lab Router validation remains pending and requires separate authorization.
+
 ## Running the isolated suite
 
 Builds may use the public package network to download pinned Composer dependencies. Test runtime has no network:
