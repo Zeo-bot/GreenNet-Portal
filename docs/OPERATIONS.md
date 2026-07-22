@@ -35,6 +35,8 @@ Never use the live database for tests. SQLite `-wal`, `-shm`, and journal sideca
 
 Backup creation, restore, cleanup, and deletion are state-changing operations and require explicit approval. Do not use tracked backups as fixtures or publish them.
 
+The Phase 1D-C4 audit remediation retained a sensitive recovery copy at `src/storage/backups/quarantine/before-audit-sanitization-20260722T083738Z.sqlite`. It is intentionally ignored and local-only. Never stage, commit, publish, copy into fixtures, or use it as an ordinary operational backup. The live remediation sanitized 11 audit rows and replaced 28 raw-row structures without deleting audit rows or changing schema; the post-sanitization detector returned zero live findings.
+
 ## RouterOS operations
 
 RouterOS and User Manager are external operational systems. Opening certain admin diagnostics can initiate a connection. Before an authorized operation, establish whether the requested action is portal-only, RouterOS read, dry-run, or real RouterOS write.
@@ -49,6 +51,6 @@ Portal application logs and `api_audit_logs` can contain operational metadata. I
 
 Ignore rules prevent new sensitive/runtime files from being added by default. The local tracking-cleanup commit removes `.env`, SQLite, and backup artifacts from new commits while leaving them on the current workstation. Their older versions still exist in local Git history.
 
-Do not publish this repository to any remote until all affected credentials have been rotated and sensitive files have been removed from Git history through a separately approved procedure. Do not rewrite history or push as part of routine inspection.
+Do not publish this repository to any remote until historical backups have been scanned, affected credentials have been rotated where required, and sensitive files have been removed from Git history through a separately approved procedure. Existing backups and old Git objects remain untrusted. Do not rewrite history or push as part of routine inspection.
 
 Fresh clones will not receive the portal database or operational backups. Phase 1 must add an explicit, safe database creation/restore mechanism using schema or migrations and synthetic initial data; until then, provisioning a fresh clone is incomplete.

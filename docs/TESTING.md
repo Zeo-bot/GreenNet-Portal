@@ -44,6 +44,10 @@ Phase 1D-C1 adds focused coverage for the migrated User Manager disable/enable c
 
 Phase 1D-C3 adds regression coverage for the discovered preview/audit leak. Disable and enable previews use fake User Manager rows containing a generated synthetic sentinel, then verify that the session serialization, queried audit columns, and raw temporary SQLite bytes contain zero copies. Separate tests cover dry-run, real-attempt, and transaction-queue persistence; recursive sensitive-key variants; repeated secret values in otherwise safe strings; idempotence; and preservation of `.id`, `name`, and `disabled`. No real RouterOS connection or operational database is used.
 
+The completed Phase 1D-C verification baseline is 162 tests and 449 assertions. A separately authorized live lifecycle used temporary SQLite and session storage and evaluated six security checkpoints from creation through cleanup. At every checkpoint, exact-password, unredacted-sensitive-key, unsafe-raw-structure, redactor-delta, and projection-violation counters were zero. Temporary audits contained four dry runs and four successful real attempts, with no duplicate disable or enable real audit.
+
+Do not preserve the temporary harness calculation that compared action names across create/cleanup dry-run and real rows; it produced a false duplicate flag unrelated to disable or enable. Future `AdminUserManagerPasswordController` coverage must explicitly verify zero password occurrences in session serialization, audit and queue fields, result DTOs, raw disposable SQLite bytes, and safe failures before any separately authorized live test.
+
 ## Running the isolated suite
 
 Builds may use the public package network to download pinned Composer dependencies. Test runtime has no network:

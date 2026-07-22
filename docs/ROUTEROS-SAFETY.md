@@ -33,7 +33,7 @@ The authorized writer implementation is an anonymous class created only inside `
 
 User Manager disable/enable is the first production write path migrated to the guarded boundary. The existing `DISABLE`/`ENABLE` confirmation token and stored dry-run plan are validated before `confirmed=true` is placed in `WriteExecutionRequest`. `GuardedRouterOSWriteGateway` is the sole real-write authorization owner for this path and records its single real-attempt audit; the controller no longer calls `assertRealWriteAllowed()` or `recordRealAttempt()`.
 
-After authorization, the callback reads the current User Manager row, sends exactly one `/user-manager/user/set` with `numbers=<verified .id>` and `disabled=yes|no`, then reads the row again. A post-write verification mismatch is recorded as a partial failure because the set command already succeeded. No rollback is claimed. This path has isolated test coverage but has not yet received a live-router test.
+After authorization, the callback reads the current User Manager row, sends exactly one `/user-manager/user/set` with `numbers=<verified .id>` and `disabled=yes|no`, then reads the row again. A post-write verification mismatch is recorded as a partial failure because the set command already succeeded. No rollback is claimed. The path passes the 162-test/449-assertion isolated suite and the authorized Lab Router create/disable/enable/exact-ID-cleanup validation on identity `hAP`, RouterOS `7.23.1`, normalized model `hAP ax3`.
 
 ### Exact write policy
 
@@ -62,6 +62,14 @@ The isolated review found that the User Manager disable/enable preview carried t
 `RouterOSSensitiveDataRedactor` is the shared recursive persistence boundary. `WriteSafetyGuard` applies it before dry-run audit, real-attempt audit, or transaction-queue storage. Sensitive keys are matched case-insensitively after normalizing spaces, dots, underscores, and hyphens; values discovered under those keys are also removed when repeated elsewhere in nested results or serialized response text. `RouterOSWriteRedactor` reuses the same implementation so write execution and persistence do not maintain divergent sensitive-key rules.
 
 This protection applies to new records only. Historical local Git objects and pre-existing operational audit records are not rewritten by this phase and must be reviewed and sanitized before any remote is added or the repository is published.
+
+### Phase 1D-C live security evidence
+
+The live lifecycle produced four dry-run and four successful real-attempt audits in temporary SQLite, with exactly one disable and one enable real audit. Six checkpoints—after create, disable preview, disable execution, enable preview, enable execution, and cleanup—each reported zero exact password occurrences, unredacted sensitive keys, unsafe raw structures, redactor deltas, and projection violations. Exact-ID cleanup succeeded and the complete authorized RouterOS state snapshot was unchanged.
+
+The live audit database was separately remediated: 11 audit rows and 28 raw-row structures were sanitized without row deletion or schema change, and the post-remediation detector reports zero findings. Historical backups and old Git objects remain untrusted. The next write migration is `AdminUserManagerPasswordController`, whose acceptance gate must exercise password redaction across session state, audits, DTOs, temporary SQLite bytes, and authorized live validation.
+
+One temporary harness incorrectly counted expected create/cleanup dry-run and real-action pairs as duplicate disable/enable audits. Actual duplicate disable and enable real-attempt counts were zero. Do not reproduce that calculation in project tests.
 
 Changing the portal database does not necessarily change RouterOS, and a successful RouterOS command does not guarantee all intended portal updates completed.
 
