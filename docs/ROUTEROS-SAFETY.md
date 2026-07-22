@@ -119,6 +119,12 @@ The migrated password preview stores no plaintext, reversible substitute, hash, 
 
 The guarded operation revalidates the current User Manager `.id`, sends exactly `/user-manager/user/set` with `numbers` and `password`, and re-reads the same user. Persisted plans, sessions, result DTOs, audit rows, queues, logs, views, and safe exceptions must contain only canonical redaction. Post-write lookup proves target continuity, not password readability; a continuity failure is a partial failure and does not trigger an automatic rollback.
 
+## User-create boundary
+
+User-create preview contains no plaintext password and retains only safe user and profile projections. Final execution requires the current-request password and confirmation token `CREATE`. Before writing it requires no exact username match and one verified existing profile. It then performs only `/user-manager/user/add` followed by `/user-manager/user-profile/add`, and verifies one exact user and relation.
+
+If profile assignment or later verification fails after user creation, the result is a partial failure. The system does not claim rollback; cleanup requires separately verified exact relation and user identifiers. The authorized Lab Router smoke test completed exact-ID relation cleanup followed by exact-ID user cleanup without modifying the selected existing profile.
+
 ## Prohibited shortcuts
 
 - Calling an execute route to test reachability.

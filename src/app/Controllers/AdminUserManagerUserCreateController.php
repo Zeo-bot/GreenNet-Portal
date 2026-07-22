@@ -4,10 +4,15 @@ declare(strict_types=1);
 
 namespace GreenNet\Controllers;
 
+use GreenNet\Contracts\AuthorizedRouterOSWriterInterface;
+use GreenNet\Contracts\GuardedRouterOSWriteGatewayInterface;
+use GreenNet\Contracts\RouterOSReadGatewayInterface;
 use GreenNet\Core\Database;
 use GreenNet\Core\View;
+use GreenNet\DTO\RouterOS\RouterOSWriteCommand;
+use GreenNet\DTO\RouterOS\WriteExecutionRequest;
 use GreenNet\Models\AppLog;
-use GreenNet\Services\RouterOS\RouterOSApiClient;
+use GreenNet\Services\RouterOS\RouterOSGatewayBundleFactory;
 use GreenNet\Services\WriteSafetyGuard;
 use PDO;
 use RuntimeException;
@@ -15,6 +20,13 @@ use Throwable;
 
 class AdminUserManagerUserCreateController
 {
+    public function __construct(
+        private ?RouterOSReadGatewayInterface $readGateway = null,
+        private ?GuardedRouterOSWriteGatewayInterface $writeGateway = null,
+        private ?PDO $databaseConnection = null
+    ) {
+    }
+
     public function index(): string
     {
         Database::migrate();
@@ -45,15 +57,10 @@ class AdminUserManagerUserCreateController
             $guard->assertDryRunAllowed();
 
             $username = trim((string) ($_POST['username'] ?? ''));
-            $password = trim((string) ($_POST['password'] ?? ''));
             $packageId = (int) ($_POST['package_id'] ?? 0);
 
             if ($username === '') {
                 throw new RuntimeException('اختر مشتركاً صحيحاً.');
-            }
-
-            if ($password === '') {
-                throw new RuntimeException('كلمة مرور User Manager مطلوبة.');
             }
 
             if ($packageId <= 0) {
@@ -61,9 +68,8 @@ class AdminUserManagerUserCreateController
             }
 
             $this->validateUsername($username);
-            $this->validatePassword($password);
 
-            $plan = $this->buildCreatePlan($username, $password, $packageId, false);
+            $plan = $this->buildCreatePlan($username, $packageId);
 
             $auditId = $guard->recordDryRun([
                 'action' => 'create_user_manager_user',
@@ -141,44 +147,20 @@ class AdminUserManagerUserCreateController
                 throw new RuntimeException('آخر Dry Run لا يسمح بالتنفيذ.');
             }
 
-            $guard = new WriteSafetyGuard();
-            $guard->ensureTables();
-            $guard->assertRealWriteAllowed([
-                'confirmed' => true,
-            ]);
+            $execution = $this->executeCreate(
+                $username,
+                $password,
+                $packageId,
+                (string) ($lastPlan['router_profile_name'] ?? ''),
+                $lastPlan
+            );
 
-            $freshPlan = $this->buildCreatePlan($username, $password, $packageId, true);
-
-            if (empty($freshPlan['can_execute_later'])) {
-                throw new RuntimeException((string) ($freshPlan['block_reason'] ?? 'الخطة لم تعد قابلة للتنفيذ.'));
-            }
-
-            $execution = $this->executeCreatePlan($freshPlan);
-
-            $afterPlan = $this->buildCreatePlan($username, '', $packageId, false);
+            $afterPlan = $lastPlan;
             $afterPlan['executed'] = true;
             $afterPlan['real_execution'] = true;
             $afterPlan['real_result'] = $execution;
 
             $_SESSION['um_user_create_result'] = $afterPlan;
-
-            $guard->recordRealAttempt([
-                'action' => 'create_user_manager_user',
-                'dataset' => 'user_manager_user',
-                'username' => $username,
-                'command' => '/user-manager/user/add + /user-manager/user-profile/add',
-                'params' => [
-                    'username' => $username,
-                    'password' => '<hidden>',
-                    'package_id' => $packageId,
-                    'profile_name' => (string) ($freshPlan['router_profile_name'] ?? ''),
-                    'dry_run_audit_id' => (int) ($lastPlan['audit_id'] ?? 0),
-                    'confirmed' => true,
-                ],
-                'executed' => 1,
-                'success' => !empty($execution['ok']) ? 1 : 0,
-                'router_response' => $this->jsonString($execution),
-            ]);
 
             if (empty($execution['ok'])) {
                 throw new RuntimeException((string) ($execution['message'] ?? 'فشل إنشاء المستخدم.'));
@@ -210,7 +192,7 @@ class AdminUserManagerUserCreateController
         exit;
     }
 
-    private function buildCreatePlan(string $username, string $password, int $packageId, bool $realPassword): array
+    private function buildCreatePlan(string $username, int $packageId): array
     {
         $customer = $this->findCustomer($username);
         $package = $this->findPackage($packageId);
@@ -244,7 +226,7 @@ class AdminUserManagerUserCreateController
                 'command' => '/user-manager/user/add',
                 'params' => [
                     'name' => $username,
-                    'password' => $realPassword ? $password : '<hidden>',
+                    'password' => '<hidden>',
                 ],
             ];
 
@@ -308,83 +290,106 @@ class AdminUserManagerUserCreateController
         ];
     }
 
-    private function executeCreatePlan(array $plan): array
-    {
-        $operations = is_array($plan['operations'] ?? null) ? $plan['operations'] : [];
-        $executed = [];
+    private function executeCreate(
+        string $username,
+        string $password,
+        int $packageId,
+        string $profileName,
+        array $lastPlan
+    ): array {
+        $expectedProfileId = (string) ($lastPlan['router']['profile']['id'] ?? '');
+        $createdUserId = '';
+        $createdRelationId = '';
 
-        if (empty($operations)) {
-            return [
-                'ok' => false,
-                'message' => 'لا توجد عمليات للتنفيذ.',
-                'operations' => [],
-            ];
-        }
+        $result = $this->writeGateway()->execute(
+            new WriteExecutionRequest(
+                'create_user_manager_user',
+                'user_manager_user',
+                $username,
+                '/user-manager/user/add + /user-manager/user-profile/add',
+                [
+                    'username' => $username,
+                    'password' => '<hidden>',
+                    'package_id' => $packageId,
+                    'profile_name' => $profileName,
+                ],
+                (int) ($lastPlan['audit_id'] ?? 0),
+                true
+            ),
+            function (AuthorizedRouterOSWriterInterface $writer) use (
+                $username,
+                $password,
+                $packageId,
+                $profileName,
+                $expectedProfileId,
+                $lastPlan,
+                &$createdUserId,
+                &$createdRelationId
+            ): array {
+                $before = $this->readRouterState($username, $profileName);
+                $currentProfileId = (string) ($before['profile']['id'] ?? '');
 
-        $client = new RouterOSApiClient([
-            'timeout' => 6,
-        ]);
-
-        try {
-            foreach ($operations as $operation) {
-                if (!is_array($operation)) {
-                    continue;
+                if (!empty($before['user']['found'])) {
+                    throw new RuntimeException('User Manager user already exists.');
                 }
 
-                $type = (string) ($operation['type'] ?? '');
-                $command = (string) ($operation['command'] ?? '');
-                $params = is_array($operation['params'] ?? null) ? $operation['params'] : [];
-
-                if ($type === 'router_create_user_manager_user' || $type === 'router_add_user_profile') {
-                    $response = $client->comm($command, $params);
-
-                    $executed[] = [
-                        'type' => $type,
-                        'command' => $command,
-                        'params' => $this->maskSensitiveParams($params),
-                        'response' => $response,
-                        'ok' => true,
-                    ];
-
-                    continue;
+                if (empty($before['profile']['found']) || $currentProfileId === '') {
+                    throw new RuntimeException('User Manager profile no longer exists.');
                 }
 
-                if ($type === 'local_update_customer_package') {
-                    $this->updateLocalCustomerPackage(
-                        (string) ($params['username'] ?? ''),
-                        (int) ($params['package_id'] ?? 0)
-                    );
-
-                    $executed[] = [
-                        'type' => $type,
-                        'command' => $command,
-                        'params' => $params,
-                        'response' => 'local SQLite updated',
-                        'ok' => true,
-                    ];
-
-                    continue;
+                if ($expectedProfileId !== '' && $currentProfileId !== $expectedProfileId) {
+                    throw new RuntimeException('User Manager profile changed after preview.');
                 }
+
+                $writer->execute(new RouterOSWriteCommand('/user-manager/user/add', [
+                    'name' => $username,
+                    'password' => $password,
+                ]));
+
+                $writer->execute(new RouterOSWriteCommand('/user-manager/user-profile/add', [
+                    'user' => $username,
+                    'profile' => $profileName,
+                ]));
+
+                $after = $this->readRouterState($username, $profileName);
+                $createdUserId = (string) ($after['user']['id'] ?? '');
+                $relation = $this->readUserProfileRelation($username, $profileName);
+                $createdRelationId = (string) ($relation['id'] ?? '');
+
+                if (empty($after['user']['found']) || $createdUserId === '') {
+                    throw new RuntimeException('Created User Manager user verification failed.');
+                }
+
+                if (empty($relation['found']) || $createdRelationId === '') {
+                    throw new RuntimeException('Created User Manager profile relation verification failed.');
+                }
+
+                if (!empty($lastPlan['local_needs_update'])) {
+                    $this->updateLocalCustomerPackage($username, $packageId);
+                }
+
+                return [
+                    'user_id' => $createdUserId,
+                    'relation_id' => $createdRelationId,
+                    'profile_name' => $profileName,
+                    'verified' => true,
+                ];
             }
-        } catch (Throwable $e) {
-            $executed[] = [
-                'ok' => false,
-                'error' => $e->getMessage(),
-            ];
-
-            return [
-                'ok' => false,
-                'message' => $e->getMessage(),
-                'operations' => $executed,
-            ];
-        } finally {
-            $client->disconnect();
-        }
+        );
 
         return [
-            'ok' => true,
+            'ok' => $result->ok,
             'message' => 'تم إنشاء المستخدم وربطه بالباقـة.',
-            'operations' => $executed,
+            'operations' => array_map(
+                static fn ($call): array => $call->toArray(),
+                $result->calls
+            ),
+            'router_user_id' => $createdUserId,
+            'router_user_profile_id' => $createdRelationId,
+            'verified' => true,
+            'audit_recorded' => $result->auditRecorded,
+            'audit_id' => $result->auditId,
+            'audit_warning' => $result->auditWarning,
             'executed_at' => date('Y-m-d H:i:s'),
         ];
     }
@@ -406,13 +411,8 @@ class AdminUserManagerUserCreateController
             ],
         ];
 
-        $client = new RouterOSApiClient([
-            'timeout' => 6,
-        ]);
-
         try {
-            try {
-                $users = $this->normalizeRows($client->comm('/user-manager/user/print', [
+                $users = $this->normalizeRows($this->readGateway()->read('/user-manager/user/print', [
                     '?name' => $username,
                 ]));
 
@@ -422,37 +422,56 @@ class AdminUserManagerUserCreateController
                     $result['user'] = [
                         'found' => true,
                         'id' => (string) ($user['.id'] ?? ''),
-                        'row' => $this->sanitizeRowForDisplay($user),
+                        'row' => $this->projectUser($user),
                         'error' => '',
                     ];
                 }
-            } catch (Throwable $e) {
-                $result['user']['error'] = $e->getMessage();
+        } catch (Throwable $e) {
+            $result['user']['error'] = $e->getMessage();
+        }
+
+        try {
+            $profiles = $this->normalizeRows($this->readGateway()->read('/user-manager/profile/print', [
+                '?name' => $profileName,
+            ]));
+
+            $profile = $this->findRowByName($profiles, $profileName);
+
+            if ($profile !== null) {
+                $result['profile'] = [
+                    'found' => true,
+                    'id' => (string) ($profile['.id'] ?? ''),
+                    'row' => $this->projectProfile($profile),
+                    'error' => '',
+                ];
             }
-
-            try {
-                $profiles = $this->normalizeRows($client->comm('/user-manager/profile/print', [
-                    '?name' => $profileName,
-                ]));
-
-                $profile = $this->findRowByName($profiles, $profileName);
-
-                if ($profile !== null) {
-                    $result['profile'] = [
-                        'found' => true,
-                        'id' => (string) ($profile['.id'] ?? ''),
-                        'row' => $this->sanitizeRowForDisplay($profile),
-                        'error' => '',
-                    ];
-                }
-            } catch (Throwable $e) {
-                $result['profile']['error'] = $e->getMessage();
-            }
-        } finally {
-            $client->disconnect();
+        } catch (Throwable $e) {
+            $result['profile']['error'] = $e->getMessage();
         }
 
         return $result;
+    }
+
+    private function readUserProfileRelation(string $username, string $profileName): array
+    {
+        $rows = $this->normalizeRows($this->readGateway()->read('/user-manager/user-profile/print', [
+            '?user' => $username,
+        ]));
+        $matches = array_values(array_filter($rows, static fn (array $row): bool =>
+            (string) ($row['user'] ?? '') === $username
+            && (string) ($row['profile'] ?? '') === $profileName
+        ));
+
+        if (count($matches) !== 1) {
+            return ['found' => false, 'id' => '', 'row' => []];
+        }
+
+        $row = $matches[0];
+        return [
+            'found' => true,
+            'id' => (string) ($row['.id'] ?? ''),
+            'row' => $this->projectRelation($row),
+        ];
     }
 
     private function localCustomers(): array
@@ -460,7 +479,7 @@ class AdminUserManagerUserCreateController
         $this->ensureCustomersLocalColumns();
 
         try {
-            $stmt = Database::connection()->query("
+            $stmt = $this->database()->query("
                 SELECT *
                 FROM customers_local
                 ORDER BY username ASC
@@ -479,7 +498,7 @@ class AdminUserManagerUserCreateController
         $this->ensureServicePackagesTable();
 
         try {
-            $stmt = Database::connection()->query("
+            $stmt = $this->database()->query("
                 SELECT *
                 FROM service_packages
                 WHERE COALESCE(is_active, 1) = 1
@@ -498,7 +517,7 @@ class AdminUserManagerUserCreateController
     {
         $this->ensureCustomersLocalColumns();
 
-        $stmt = Database::connection()->prepare("
+        $stmt = $this->database()->prepare("
             SELECT *
             FROM customers_local
             WHERE username = :username
@@ -518,7 +537,7 @@ class AdminUserManagerUserCreateController
     {
         $this->ensureServicePackagesTable();
 
-        $stmt = Database::connection()->prepare("
+        $stmt = $this->database()->prepare("
             SELECT *
             FROM service_packages
             WHERE id = :id
@@ -544,7 +563,7 @@ class AdminUserManagerUserCreateController
 
         $this->ensureCustomersLocalColumns();
 
-        $stmt = Database::connection()->prepare("
+        $stmt = $this->database()->prepare("
             UPDATE customers_local
             SET
                 package_id = :package_id,
@@ -561,7 +580,7 @@ class AdminUserManagerUserCreateController
 
     private function ensureCustomersLocalColumns(): void
     {
-        $pdo = Database::connection();
+        $pdo = $this->database();
 
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS customers_local (
@@ -596,7 +615,7 @@ class AdminUserManagerUserCreateController
 
     private function ensureServicePackagesTable(): void
     {
-        $pdo = Database::connection();
+        $pdo = $this->database();
 
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS service_packages (
@@ -644,7 +663,7 @@ class AdminUserManagerUserCreateController
     private function columns(string $table): array
     {
         try {
-            $rows = Database::connection()->query("PRAGMA table_info(" . $table . ")")->fetchAll(PDO::FETCH_ASSOC);
+            $rows = $this->database()->query("PRAGMA table_info(" . $table . ")")->fetchAll(PDO::FETCH_ASSOC);
 
             $columns = [];
 
@@ -773,50 +792,30 @@ class AdminUserManagerUserCreateController
         ];
     }
 
-    private function sanitizeRowForDisplay(array $row): array
+    private function projectUser(array $row): array
     {
-        $hiddenKeys = [
-            'password',
-            'pass',
-            'secret',
-            'otp-secret',
-            'token',
-            'api-key',
-            'key',
+        return [
+            '.id' => (string) ($row['.id'] ?? ''),
+            'name' => (string) ($row['name'] ?? $row['username'] ?? ''),
+            'disabled' => (string) ($row['disabled'] ?? ''),
         ];
-
-        $clean = [];
-
-        foreach ($row as $key => $value) {
-            $keyString = (string) $key;
-            $lower = strtolower($keyString);
-
-            $hide = false;
-
-            foreach ($hiddenKeys as $hiddenKey) {
-                if ($lower === $hiddenKey || str_contains($lower, $hiddenKey)) {
-                    $hide = true;
-                    break;
-                }
-            }
-
-            $clean[$keyString] = $hide ? '<hidden>' : (string) $value;
-        }
-
-        return $clean;
     }
 
-    private function maskSensitiveParams(array $params): array
+    private function projectProfile(array $row): array
     {
-        foreach ($params as $key => $value) {
-            $lower = strtolower((string) $key);
+        return [
+            '.id' => (string) ($row['.id'] ?? ''),
+            'name' => (string) ($row['name'] ?? ''),
+        ];
+    }
 
-            if (str_contains($lower, 'password') || str_contains($lower, 'pass') || str_contains($lower, 'secret')) {
-                $params[$key] = '<hidden>';
-            }
-        }
-
-        return $params;
+    private function projectRelation(array $row): array
+    {
+        return [
+            '.id' => (string) ($row['.id'] ?? ''),
+            'user' => (string) ($row['user'] ?? ''),
+            'profile' => (string) ($row['profile'] ?? ''),
+        ];
     }
 
     private function requireLastPlan(string $username, int $packageId): array
@@ -872,9 +871,31 @@ class AdminUserManagerUserCreateController
         }
     }
 
-    private function jsonString(mixed $value): string
+    private function readGateway(): RouterOSReadGatewayInterface
     {
-        return json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) ?: '{}';
+        $this->resolveGateways();
+        return $this->readGateway;
+    }
+
+    private function writeGateway(): GuardedRouterOSWriteGatewayInterface
+    {
+        $this->resolveGateways();
+        return $this->writeGateway;
+    }
+
+    private function resolveGateways(): void
+    {
+        if ($this->readGateway !== null && $this->writeGateway !== null) {
+            return;
+        }
+        $bundle = RouterOSGatewayBundleFactory::create(['timeout' => 6]);
+        $this->readGateway ??= $bundle->read;
+        $this->writeGateway ??= $bundle->write;
+    }
+
+    private function database(): PDO
+    {
+        return $this->databaseConnection ??= Database::connection();
     }
 
     private function flash(string $message, string $type = 'success'): void

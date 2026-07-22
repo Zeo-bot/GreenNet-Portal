@@ -50,6 +50,10 @@ Do not preserve the temporary harness calculation that compared action names acr
 
 Phase 1D-D1 adds isolated coverage for the password-change path. Synthetic sentinels verify that preview performs no write, complete RouterOS rows become only `.id`/`name`/`disabled`, execute performs exact read-set-read continuity, guard denial makes no RouterOS or audit call, command and post-write failures retain non-partial/partial semantics, and an audit-storage failure remains a successful RouterOS result with a warning. Source-level assertions preserve password re-entry, the `PASSWORD` confirmation, plan checks, no hidden/value copy, lazy construction, and absence of direct client, `comm()`, guard assertion, or controller-owned real audit calls. Live Lab Router validation remains pending and requires separate authorization.
 
+Phase 1D-E adds isolated coverage for guarded User Manager creation. Coverage includes password-free preview, current-request password validation, `CREATE` confirmation, missing-profile and existing-user rejection, exact user-add then user-profile-add ordering, safe projections, post-write user/relation verification, first-command failure, second-command partial failure, post-write partial failure, one gateway-owned audit, zero sentinel persistence, and lazy fake construction without sockets. The complete suite passes with 181 tests and 594 assertions under `network_mode: none`.
+
+The authorized Lab Router smoke test selected an existing profile without modifying it, ran the actual preview and execute methods, observed one successful create real audit, found no generated password in new session/audit records, and removed the exact created relation before removing the exact created user.
+
 ## Running the isolated suite
 
 Builds may use the public package network to download pinned Composer dependencies. Test runtime has no network:

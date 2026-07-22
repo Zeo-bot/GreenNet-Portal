@@ -41,6 +41,8 @@
 - Password tests must use synthetic values only and must not include assertion output that could reveal those values.
 - The disable/enable production path has completed isolated coverage and an authorized Lab Router create/disable/enable/exact-ID-cleanup validation. `AdminUserManagerPasswordController` is migrated in isolated code and remains pending separately authorized live validation.
 - Password-path validation must prove zero secret occurrences in sessions, audits, result DTOs, raw temporary SQLite bytes, and the authorized live Lab Router lifecycle before final live acceptance.
+- AdminUserManagerUserCreateController is a guarded production path. Its preview must not accept a password; final execution must re-enter it and use the guarded gateway for exact user creation followed by profile assignment.
+- User creation must verify a missing exact username and an existing profile before writing, then verify exactly one created user and relation. A failed profile assignment after user creation is a partial failure and must never be described as rolled back.
 - Existing historical backups and old Git objects remain untrusted. Do not add a remote or publish until backup scanning, required credential rotation, and separately authorized Git-history cleanup are complete.
 - The current router is a lab router. Authorized testing is limited to GreenNet test users, packages, and sessions.
 - Never factory-reset or upgrade RouterOS, or change WAN, LAN, or firewall configuration, without a separate explicit request for that exact operation.

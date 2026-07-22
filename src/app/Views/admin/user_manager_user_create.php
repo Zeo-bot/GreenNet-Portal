@@ -263,7 +263,7 @@ $canExecute = $result !== null && !empty($result['can_execute_later']) && empty(
 
 <section class="gn-um-create-box">
     <h3>Create Dry Run</h3>
-    <p>اختر مشتركاً موجوداً داخل GreenNet. إذا لم يكن موجوداً، أنشئه أولاً من صفحة Customers.</p>
+    <p>اختر مشتركاً وباقة. ستُدخل كلمة مرور User Manager عند التنفيذ النهائي فقط.</p>
 
     <?php if (empty($customers)): ?>
         <div class="gn-um-create-alert">لا يوجد مشتركين داخل GreenNet.</div>
@@ -316,10 +316,6 @@ $canExecute = $result !== null && !empty($result['can_execute_later']) && empty(
                     </select>
                 </div>
 
-                <div class="gn-um-create-field">
-                    <label>User Manager Password</label>
-                    <input type="password" name="password" required autocomplete="new-password" placeholder="Password">
-                </div>
             </div>
 
             <button class="gn-btn gn-btn-primary gn-btn-lg" type="submit" style="margin-top:14px;">

@@ -74,3 +74,9 @@ The current write flow remains controller-owned and guarded as documented above.
 `AdminUserManagerPasswordController` is the second production write path migrated to the guarded boundary. Its preview performs only the User Manager lookup through `RouterOSReadGatewayInterface` and stores the minimal `.id`, `name`, and `disabled` projection. It never accepts or persists the new password.
 
 The execute request receives and validates the password again, resolves the same lazy shared read/write bundle in production, and invokes `GuardedRouterOSWriteGatewayInterface::execute()`. Inside the authorized callback the flow is exactly read current user, require the previewed `.id`, execute one `/user-manager/user/set`, then read the user again and require the same `.id`. This verifies command completion and target continuity; RouterOS does not expose the password for comparison. No rollback is claimed after a successful command followed by a failed continuity read.
+
+## Phase 1D-E user-create migration
+
+`AdminUserManagerUserCreateController` now uses the shared lazy bundle for all RouterOS reads and guarded writes. Preview reads only the exact username and selected profile, stores safe user/profile projections, and never accepts a password. Final execution re-enters the password and runs the exact ordered commands `/user-manager/user/add` and `/user-manager/user-profile/add` inside one authorized callback.
+
+The callback verifies the user is absent and profile exists before writing, then requires exactly one matching user and user-profile relation after writing. The existing local customer-package update remains ordered after RouterOS verification. Failure of the second command or post-write verification after user creation is reported as partial failure; no RouterOS rollback is claimed.
