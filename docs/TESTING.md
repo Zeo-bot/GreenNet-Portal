@@ -38,6 +38,8 @@ Phase 1C-B tests a read-only RouterOS boundary. A fake low-level client proves e
 
 Production routes, controllers, `MikroTikService`, and other consumers have not yet migrated to this boundary. Existing controller-guarded writes remain unchanged. Testing a future write boundary is deferred until its contract enforces safety rather than forwarding arbitrary writes to `comm()`.
 
+Phase 1D-B tests the guarded write boundary without migrating controllers or contacting RouterOS. Coverage includes every allowed command and its current parameter shape, fail-closed validation, all Write Safety denial branches, zero-command success, ordered response chaining, first-call and partial failure, callback failure, writer expiry, re-entrant execution, one audit attempt, audit-storage failure, and end-to-end password/secret/token redaction from callback results, command calls, safe exceptions, and SQLite audit rows. Architectural tests verify that the writer implementation is anonymous and gateway-scoped, no named production writer or write factory exists, and the guarded gateway exposes no raw `comm()` or `write()` method. The suite uses `FakeRouterOSClient` only under `tests/Support`, disposable SQLite, a fixed clock, and temporary synthetic backup files.
+
 ## Running the isolated suite
 
 Builds may use the public package network to download pinned Composer dependencies. Test runtime has no network:

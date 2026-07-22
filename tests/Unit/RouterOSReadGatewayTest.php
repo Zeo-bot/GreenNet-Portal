@@ -174,7 +174,7 @@ final class RouterOSReadGatewayTest extends TestCase
         }
     }
 
-    public function testProductionSourceDoesNotReferenceTestFakesOrWriteGateway(): void
+    public function testProductionSourceDoesNotReferenceTestFakesOrUnguardedWriteGateway(): void
     {
         $sourceRoot = GRENNET_TEST_ROOT . '/src';
         $references = [];
@@ -189,7 +189,8 @@ final class RouterOSReadGatewayTest extends TestCase
             if ($contents !== false && (
                 str_contains($contents, 'GreenNet\\Tests')
                 || str_contains($contents, 'FakeRouterOS')
-                || str_contains($contents, 'RouterOSWriteGateway')
+                || str_contains($contents, 'RealRouterOSWriteGateway')
+                || str_contains($contents, 'RouterOSGatewayInterface')
             )) {
                 $references[] = $file->getPathname();
             }

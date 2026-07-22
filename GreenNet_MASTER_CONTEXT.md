@@ -69,6 +69,7 @@ Completed foundation:
 - Phase 1B: `WriteSafetyGuard` has injectable test seams and its current decision behavior is covered by isolated tests.
 - Phase 1C-B: `RouterOSClientInterface` and a fail-closed read-only gateway, null implementation, policy, and test fakes are complete. Production routes, controllers, and services have not migrated to this boundary yet.
 - Phase 1C-C1: `AdminUserManagerPackagesController` is the first production read path migrated to the gateway. The migrated commands are `/user-manager/profile/print`, `/user-manager/limitation/print`, `/user-manager/profile-limitation/print`, `/user-manager/profile/limitation/print`, and `/user-manager/profile/limitations/print`. The isolated suite passes with 60 tests and 144 assertions, including lazy factory construction without a socket connection.
+- Phase 1D-B: a fail-closed `GuardedRouterOSWriteGateway` boundary, exact 13-command policy, gateway-scoped anonymous writer, centralized redaction, result DTOs, and audit/partial-failure handling are implemented and isolated. No production controller or route uses the boundary yet, and no production write factory exists. The isolated suite passes with 138 tests and 319 assertions.
 
 Current RouterOS writes remain on the existing S10.13 controller paths and are guarded by `WriteSafetyGuard`. The current router is dedicated to lab testing and contains no real customer users; permitted test scope is GreenNet test users, packages, and sessions. Factory reset, RouterOS upgrades, and WAN, LAN, or firewall changes require a separate explicit request.
 
@@ -76,7 +77,7 @@ Next stages:
 
 1. Run a separately authorized live read-only smoke test for the migrated package discovery path against the lab router.
 2. Continue migrating production reads gradually to `RouterOSReadGatewayInterface`, preserving responses and failure behavior.
-3. Design a guarded write boundary that cannot become a raw pass-through to `comm()`.
+3. Migrate the disable/enable path in `AdminMikroTikDryRunController` as the first production user of the guarded write boundary, preserving its read-after-write verification and interface messages.
 4. Add an explicit database creation/restore mechanism for fresh clones, because runtime SQLite and backup files are not distributed through new commits.
 5. Separate configuration from secrets and plan rotation/history cleanup with explicit owner approval.
 6. Version database migrations and define backup/restore verification.

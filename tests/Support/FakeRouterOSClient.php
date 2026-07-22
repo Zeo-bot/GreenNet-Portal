@@ -12,14 +12,19 @@ final class FakeRouterOSClient implements RouterOSClientInterface
     /** @var list<array{command: string, params: array}> */
     public array $calls = [];
 
-    /** @var list<array> */
-    private array $responses = [];
+    /** @var list<array|Throwable> */
+    private array $outcomes = [];
 
     private ?Throwable $failure = null;
 
     public function queueResponse(array $response): void
     {
-        $this->responses[] = $response;
+        $this->outcomes[] = $response;
+    }
+
+    public function queueFailure(Throwable $failure): void
+    {
+        $this->outcomes[] = $failure;
     }
 
     public function failWith(Throwable $failure): void
@@ -35,6 +40,12 @@ final class FakeRouterOSClient implements RouterOSClientInterface
             throw $this->failure;
         }
 
-        return array_shift($this->responses) ?? [];
+        $outcome = array_shift($this->outcomes) ?? [];
+
+        if ($outcome instanceof Throwable) {
+            throw $outcome;
+        }
+
+        return $outcome;
     }
 }

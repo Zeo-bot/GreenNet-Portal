@@ -17,7 +17,37 @@ Phase 1C-B adds a read-only boundary but does not migrate production consumers. 
 
 `RealRouterOSReadGateway` receives `RouterOSClientInterface` explicitly and never constructs a client or connection. `NullRouterOSReadGateway` always throws a generic safe exception. Test fakes remain under `tests/Support` and cannot be selected through production environment configuration.
 
-Existing writes remain on the S10.13 controller path and continue to use `WriteSafetyGuard`. No write gateway was added. Designing a guarded write boundary is deferred; a raw `write()` pass-through to `RouterOSApiClient::comm()` is prohibited because it would make bypassing controller-side safety easier.
+Existing writes remain on the S10.13 controller path and continue to use `WriteSafetyGuard`; no controller has migrated to the guarded boundary described below. A raw `write()` pass-through to `RouterOSApiClient::comm()` remains prohibited because it would make bypassing safety easier.
+
+## Phase 1D-B guarded write boundary
+
+The guarded boundary now exists and is covered by isolated unit tests, but production controllers have not migrated to it. It has no public raw `comm()` or `write()` method and no production factory. `WriteSafetyGuard::assertRealWriteAllowed()` runs inside the boundary before an authorized writer is created or the client is called.
+
+The write policy permits only the 13 exact add/set/remove commands already used by S10.13 and validates required, allowed, and non-empty identity parameters. Read commands, reset-counters, unknown commands, missing parameters, and unexpected parameters fail closed before the client. Passwords, secrets, tokens, responses, errors, DTO results, and serialized audit details pass through centralized redaction.
+
+Commands run in order and stop at the first failure. A failure after one or more successful calls is marked as partial; prior calls are not rolled back. One audit attempt is made after every guard-authorized operation. Guard denial retains the existing behavior of producing no real-attempt audit. If audit storage fails, the operation result remains distinct from the audit warning.
+
+The authorized writer implementation is an anonymous class created only inside `GuardedRouterOSWriteGateway::execute()`. Production code cannot name or construct it directly. The callback receives only `AuthorizedRouterOSWriterInterface`, and the instance is invalidated when the callback ends.
+
+### Exact write policy
+
+| Command | Required parameters | Allowed parameters | Redacted fields |
+| --- | --- | --- | --- |
+| `/user-manager/user/set` | `numbers` and exactly one of `disabled` or `password` | `numbers`, and exactly one of `disabled` or `password` | `password` |
+| `/user-manager/limitation/set` | `numbers` | `numbers`, `transfer-limit`, `uptime-limit`, `rate-limit-rx`, `rate-limit-tx` | Sensitive-key values if introduced in nested responses |
+| `/user-manager/limitation/add` | `name` | `name`, `transfer-limit`, `uptime-limit`, `rate-limit-rx`, `rate-limit-tx` | Sensitive-key values if introduced in nested responses |
+| `/user-manager/profile/set` | `numbers` | `numbers`, `name-for-users`, `starts-when`, `validity`, `price` | Sensitive-key values if introduced in nested responses |
+| `/user-manager/profile/add` | `name` | `name`, `name-for-users`, `starts-when`, `validity`, `price` | Sensitive-key values if introduced in nested responses |
+| `/user-manager/profile-limitation/add` | `profile`, `limitation` | `profile`, `limitation` | Sensitive-key values if introduced in nested responses |
+| `/user-manager/user-profile/remove` | `numbers` | `numbers` | Sensitive-key values if introduced in nested responses |
+| `/user-manager/user-profile/add` | `user`, `profile` | `user`, `profile` | Sensitive-key values if introduced in nested responses |
+| `/user-manager/user/add` | `name`, `password` | `name`, `password` | `password` |
+| `/user-manager/session/remove` | `numbers` | `numbers` | Sensitive-key values if introduced in nested responses |
+| `/user-manager/user/remove` | `numbers` | `numbers` | Sensitive-key values if introduced in nested responses |
+| `/ip/hotspot/active/remove` | `numbers` | `numbers` | Sensitive-key values if introduced in nested responses |
+| `/ppp/active/remove` | `numbers` | `numbers` | Sensitive-key values if introduced in nested responses |
+
+Central redaction treats keys containing password, pass, secret, token, API key, or the exact key `key` as sensitive. It also removes known sensitive values when echoed in callback results, call responses, audit JSON, or safe exception messages. No actual values are documented or logged by this table.
 
 Changing the portal database does not necessarily change RouterOS, and a successful RouterOS command does not guarantee all intended portal updates completed.
 

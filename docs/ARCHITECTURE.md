@@ -28,6 +28,10 @@ The null read gateway always fails explicitly, while test fakes live under `test
 
 Phase 1C-C1 migrates `AdminUserManagerPackagesController` as the first production read path. Its optional constructor dependency accepts `RouterOSReadGatewayInterface` for tests. With no injected gateway, the narrow `RouterOSReadGatewayFactory` creates a real gateway and client only when package discovery begins; socket connection remains lazy until the first allowed read. All other direct production `comm()` calls remain legacy migration targets. There is still no production write gateway.
 
+Phase 1D-B adds `GuardedRouterOSWriteGateway` as a tested boundary, but no controller uses it yet and there is no production write factory. The boundary receives the low-level client, `WriteSafetyGuard`, exact command policy, and redactor explicitly. Its public API exposes one scoped `execute(request, operation)` method; only the callback receives a short-lived authorized writer after the guard succeeds. The writer is invalidated when the callback ends, nested execution is denied, and no constructor opens a connection.
+
+The boundary records one redacted real-attempt audit for each guard-authorized operation, including zero-command callbacks, command failures, callback failures, and partial failures. Audit failure is reported separately and does not turn a successful RouterOS result into an operation failure. No rollback is claimed. Existing controller write paths remain legacy and unchanged; disable/enable is the intended first migration.
+
 ## Write Safety boundary
 
 `src/app/Services/WriteSafetyGuard.php` is the central policy helper for guarded writes. It manages:
