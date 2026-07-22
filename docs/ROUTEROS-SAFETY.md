@@ -29,6 +29,12 @@ Commands run in order and stop at the first failure. A failure after one or more
 
 The authorized writer implementation is an anonymous class created only inside `GuardedRouterOSWriteGateway::execute()`. Production code cannot name or construct it directly. The callback receives only `AuthorizedRouterOSWriterInterface`, and the instance is invalidated when the callback ends.
 
+### Phase 1D-C1 production migration
+
+User Manager disable/enable is the first production write path migrated to the guarded boundary. The existing `DISABLE`/`ENABLE` confirmation token and stored dry-run plan are validated before `confirmed=true` is placed in `WriteExecutionRequest`. `GuardedRouterOSWriteGateway` is the sole real-write authorization owner for this path and records its single real-attempt audit; the controller no longer calls `assertRealWriteAllowed()` or `recordRealAttempt()`.
+
+After authorization, the callback reads the current User Manager row, sends exactly one `/user-manager/user/set` with `numbers=<verified .id>` and `disabled=yes|no`, then reads the row again. A post-write verification mismatch is recorded as a partial failure because the set command already succeeded. No rollback is claimed. This path has isolated test coverage but has not yet received a live-router test.
+
 ### Exact write policy
 
 | Command | Required parameters | Allowed parameters | Redacted fields |

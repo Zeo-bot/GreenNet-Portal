@@ -26,8 +26,11 @@
 - Do not create a write gateway that forwards raw commands directly to `comm()`. A future write boundary must preserve and enforce guarded authorization.
 - Never construct or inject an authorized RouterOS writer outside `GuardedRouterOSWriteGateway`; its implementation must remain gateway-scoped.
 - New write paths must not call `RouterOSClientInterface::comm()` directly. Every new write must use `execute(request, callback)` on the guarded gateway.
-- No production write factory exists yet. Do not add one as an incidental dependency shortcut.
-- Existing direct write paths are legacy and must be migrated incrementally without weakening their current safety checks.
+- `RouterOSGatewayBundleFactory` is the narrow production factory for real read and guarded-write gateways. It must never import, select, or expose test fakes.
+- The bundle factory creates one shared lazy `RouterOSApiClient`; factory and gateway construction must not open a socket. Only an authorized gateway operation may trigger the client's lazy connection.
+- Every new RouterOS write path must use `GuardedRouterOSWriteGateway::execute(request, callback)`; do not expose a raw write or `comm()` shortcut.
+- New controllers must not receive `RouterOSClientInterface` or call `comm()` directly. Inject the appropriate read or guarded-write gateway contract instead.
+- Existing direct write paths are legacy and remain scheduled for incremental migration without weakening their current safety checks.
 - The current router is a lab router. Authorized testing is limited to GreenNet test users, packages, and sessions.
 - Never factory-reset or upgrade RouterOS, or change WAN, LAN, or firewall configuration, without a separate explicit request for that exact operation.
 

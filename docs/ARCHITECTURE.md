@@ -30,6 +30,10 @@ Phase 1C-C1 migrates `AdminUserManagerPackagesController` as the first productio
 
 Phase 1D-B adds `GuardedRouterOSWriteGateway` as a tested boundary, but no controller uses it yet and there is no production write factory. The boundary receives the low-level client, `WriteSafetyGuard`, exact command policy, and redactor explicitly. Its public API exposes one scoped `execute(request, operation)` method; only the callback receives a short-lived authorized writer after the guard succeeds. The writer is invalidated when the callback ends, nested execution is denied, and no constructor opens a connection.
 
+Phase 1D-C1 migrates the User Manager disable/enable flow in `AdminMikroTikDryRunController` as the first production write consumer. The controller accepts explicit read and guarded-write gateways for tests and lazily resolves a small `RouterOSGatewayBundle` for no-argument production construction. The bundle shares one lazy `RouterOSApiClient` between `RealRouterOSReadGateway` and `GuardedRouterOSWriteGateway`; constructing the controller or bundle does not open a socket. No general service container or environment-selectable fake was added.
+
+For this migrated flow, current-state lookup, the single `/user-manager/user/set` command, and post-write lookup execute in that order inside the guard-authorized callback. The existing `create_greennet_baseline` Portal operation remains outside the write gateway and unchanged in responsibility. Other production write controllers remain legacy paths.
+
 The boundary records one redacted real-attempt audit for each guard-authorized operation, including zero-command callbacks, command failures, callback failures, and partial failures. Audit failure is reported separately and does not turn a successful RouterOS result into an operation failure. No rollback is claimed. Existing controller write paths remain legacy and unchanged; disable/enable is the intended first migration.
 
 ## Write Safety boundary

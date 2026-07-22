@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace GreenNet\Tests\Support;
 
+use Closure;
 use GreenNet\Contracts\RouterOSClientInterface;
 use Throwable;
 
@@ -16,6 +17,12 @@ final class FakeRouterOSClient implements RouterOSClientInterface
     private array $outcomes = [];
 
     private ?Throwable $failure = null;
+    private ?Closure $onCall;
+
+    public function __construct(?callable $onCall = null)
+    {
+        $this->onCall = $onCall !== null ? Closure::fromCallable($onCall) : null;
+    }
 
     public function queueResponse(array $response): void
     {
@@ -35,6 +42,7 @@ final class FakeRouterOSClient implements RouterOSClientInterface
     public function comm(string $command, array $params = []): array
     {
         $this->calls[] = ['command' => $command, 'params' => $params];
+        ($this->onCall ?? static fn (): null => null)($command, $params);
 
         if ($this->failure !== null) {
             throw $this->failure;

@@ -4,11 +4,17 @@ declare(strict_types=1);
 
 namespace GreenNet\Controllers;
 
+use GreenNet\Contracts\AuthorizedRouterOSWriterInterface;
+use GreenNet\Contracts\GuardedRouterOSWriteGatewayInterface;
+use GreenNet\Contracts\RouterOSReadGatewayInterface;
 use GreenNet\Core\Database;
 use GreenNet\Core\View;
+use GreenNet\DTO\RouterOS\RouterOSWriteCommand;
+use GreenNet\DTO\RouterOS\WriteExecutionRequest;
+use GreenNet\Exceptions\GuardedWriteExecutionException;
 use GreenNet\Models\AppLog;
 use GreenNet\Services\GreenNetUsageBaselineService;
-use GreenNet\Services\RouterOS\RouterOSApiClient;
+use GreenNet\Services\RouterOS\RouterOSGatewayBundleFactory;
 use GreenNet\Services\WriteSafetyGuard;
 use PDO;
 use RuntimeException;
@@ -16,6 +22,12 @@ use Throwable;
 
 class AdminMikroTikDryRunController
 {
+    public function __construct(
+        private ?RouterOSReadGatewayInterface $readGateway = null,
+        private ?GuardedRouterOSWriteGatewayInterface $writeGateway = null
+    ) {
+    }
+
     public function index(): string
     {
         Database::migrate();
@@ -206,25 +218,13 @@ class AdminMikroTikDryRunController
             throw new RuntimeException('للتنفيذ اكتب ' . $requiredConfirm . ' في خانة التأكيد.');
         }
 
-        $guard = new WriteSafetyGuard();
-        $guard->ensureTables();
-        $guard->assertRealWriteAllowed([
-            'confirmed' => true,
-        ]);
-
         $lastPlan = $this->requireLastPlan($username, $action);
 
         if (empty($lastPlan['can_execute_later'])) {
             throw new RuntimeException('آخر Dry Run لا يسمح بالتنفيذ.');
         }
 
-        $freshPlan = $this->buildSetDisabledPlan($username, $desiredDisabled);
-
-        if (empty($freshPlan['can_execute_later'])) {
-            throw new RuntimeException((string) ($freshPlan['block_reason'] ?? 'العملية لم تعد قابلة للتنفيذ.'));
-        }
-
-        $userId = trim((string) ($freshPlan['user_manager_id'] ?? ''));
+        $userId = trim((string) ($lastPlan['user_manager_id'] ?? ''));
 
         if ($userId === '') {
             throw new RuntimeException('لم يتم تحديد .id للمستخدم داخل User Manager.');
@@ -236,43 +236,121 @@ class AdminMikroTikDryRunController
             'disabled' => $desiredDisabled ? 'yes' : 'no',
         ];
 
-        $client = new RouterOSApiClient([
-            'timeout' => 5,
-        ]);
+        $afterPlan = null;
+        $afterDisabled = !$desiredDisabled;
+        $routerResponse = [];
 
         try {
-            $routerResponse = $client->comm($command, $params);
-        } finally {
-            $client->disconnect();
+            $writeResult = $this->writeGateway()->execute(
+                new WriteExecutionRequest(
+                    $desiredDisabled ? 'user_manager_disable_user' : 'user_manager_enable_user',
+                    'user_manager_user',
+                    $username,
+                    $command,
+                    [
+                        'username' => $username,
+                        'numbers' => $userId,
+                        'disabled' => $params['disabled'],
+                    ],
+                    (int) ($lastPlan['audit_id'] ?? 0),
+                    true
+                ),
+                function (AuthorizedRouterOSWriterInterface $writer) use (
+                    $command,
+                    $username,
+                    $desiredDisabled,
+                    &$userId,
+                    &$params,
+                    &$routerResponse,
+                    &$afterPlan,
+                    &$afterDisabled
+                ): array {
+                    $freshPlan = $this->buildSetDisabledPlan($username, $desiredDisabled);
+
+                    if (empty($freshPlan['can_execute_later'])) {
+                        throw new RuntimeException((string) ($freshPlan['block_reason'] ?? 'العملية لم تعد قابلة للتنفيذ.'));
+                    }
+
+                    $userId = trim((string) ($freshPlan['user_manager_id'] ?? ''));
+
+                    if ($userId === '') {
+                        throw new RuntimeException('لم يتم تحديد .id للمستخدم داخل User Manager.');
+                    }
+
+                    $params = [
+                        'numbers' => $userId,
+                        'disabled' => $desiredDisabled ? 'yes' : 'no',
+                    ];
+                    $routerResponse = $writer->execute(new RouterOSWriteCommand($command, $params));
+                    $afterPlan = $this->buildSetDisabledPlan($username, $desiredDisabled);
+                    $afterDisabled = (bool) ($afterPlan['current_disabled_bool'] ?? !$desiredDisabled);
+
+                    if ($afterDisabled !== $desiredDisabled) {
+                        throw new RuntimeException('تم إرسال الأمر لكن التحقق بعد التنفيذ لم يطابق الحالة المطلوبة.');
+                    }
+
+                    return [
+                        'response' => $routerResponse,
+                        'verified_disabled' => $afterDisabled,
+                        'desired_disabled' => $desiredDisabled,
+                    ];
+                }
+            );
+        } catch (GuardedWriteExecutionException $exception) {
+            if (is_array($afterPlan)) {
+                $this->storeSetDisabledResult(
+                    $afterPlan,
+                    $command,
+                    $params,
+                    $username,
+                    $userId,
+                    $desiredDisabled,
+                    $afterDisabled,
+                    $routerResponse
+                );
+            }
+
+            throw $exception;
         }
 
-        $afterPlan = $this->buildSetDisabledPlan($username, $desiredDisabled);
-        $afterDisabled = (bool) ($afterPlan['current_disabled_bool'] ?? !$desiredDisabled);
-        $success = $afterDisabled === $desiredDisabled;
+        if (!is_array($afterPlan)) {
+            throw new RuntimeException('RouterOS verification result is unavailable.');
+        }
 
-        $guard->recordRealAttempt([
-            'action' => $desiredDisabled ? 'user_manager_disable_user' : 'user_manager_enable_user',
-            'dataset' => 'user_manager_user',
-            'username' => $username,
-            'command' => $command,
-            'params' => [
-                'username' => $username,
-                'numbers' => $userId,
-                'disabled' => $params['disabled'],
-                'dry_run_audit_id' => (int) ($lastPlan['audit_id'] ?? 0),
-                'confirmed' => true,
-            ],
-            'executed' => 1,
-            'success' => $success ? 1 : 0,
-            'router_response' => $this->jsonString([
-                'response' => $routerResponse,
-                'verified_disabled' => $afterDisabled,
-                'desired_disabled' => $desiredDisabled,
-            ]),
-        ]);
+        $success = $writeResult->ok && $afterDisabled === $desiredDisabled;
 
+        $this->storeSetDisabledResult(
+            $afterPlan,
+            $command,
+            $params,
+            $username,
+            $userId,
+            $desiredDisabled,
+            $afterDisabled,
+            $routerResponse
+        );
+
+        if (!$success) {
+            throw new RuntimeException('تم إرسال الأمر لكن التحقق بعد التنفيذ لم يطابق الحالة المطلوبة.');
+        }
+
+        $this->flash($desiredDisabled ? 'تم تعطيل المستخدم بنجاح.' : 'تم تفعيل المستخدم بنجاح.', 'success');
+
+        $this->redirectAfterSetDisabled();
+    }
+
+    private function storeSetDisabledResult(
+        array &$afterPlan,
+        string $command,
+        array $params,
+        string $username,
+        string $userId,
+        bool $desiredDisabled,
+        bool $afterDisabled,
+        array $routerResponse
+    ): void {
         $afterPlan['real_result'] = [
-            'success' => $success,
+            'success' => $afterDisabled === $desiredDisabled,
             'command' => $command,
             'params' => $params,
             'username' => $username,
@@ -287,13 +365,10 @@ class AdminMikroTikDryRunController
         $afterPlan['real_execution'] = true;
 
         $_SESSION['mikrotik_dry_run_result'] = $afterPlan;
+    }
 
-        if (!$success) {
-            throw new RuntimeException('تم إرسال الأمر لكن التحقق بعد التنفيذ لم يطابق الحالة المطلوبة.');
-        }
-
-        $this->flash($desiredDisabled ? 'تم تعطيل المستخدم بنجاح.' : 'تم تفعيل المستخدم بنجاح.', 'success');
-
+    protected function redirectAfterSetDisabled(): void
+    {
         header('Location: /admin/mikrotik-dry-run');
         exit;
     }
@@ -428,17 +503,9 @@ class AdminMikroTikDryRunController
         ];
 
         try {
-            $client = new RouterOSApiClient([
-                'timeout' => 4,
-            ]);
-
-            try {
-                $rows = $this->normalizeRows($client->comm('/user-manager/user/print', [
-                    '?name' => $username,
-                ]));
-            } finally {
-                $client->disconnect();
-            }
+            $rows = $this->normalizeRows($this->readGateway()->read('/user-manager/user/print', [
+                '?name' => $username,
+            ]));
 
             $matched = $this->findMatchingRow($rows, $username, ['name', 'username']);
 
@@ -481,10 +548,6 @@ class AdminMikroTikDryRunController
             'active_sessions' => 0,
         ];
 
-        $client = new RouterOSApiClient([
-            'timeout' => 5,
-        ]);
-
         try {
             $attempts = [];
 
@@ -504,7 +567,10 @@ class AdminMikroTikDryRunController
 
             foreach ($attempts as $params) {
                 try {
-                    $rows = $this->normalizeRows($client->comm('/user-manager/user/monitor', $params));
+                    $rows = $this->normalizeRows($this->readGateway()->read(
+                        '/user-manager/user/monitor',
+                        $params
+                    ));
 
                     if (count($rows) === 0) {
                         continue;
@@ -568,9 +634,34 @@ class AdminMikroTikDryRunController
             $summary['error'] = $e->getMessage();
 
             return $summary;
-        } finally {
-            $client->disconnect();
         }
+    }
+
+    private function readGateway(): RouterOSReadGatewayInterface
+    {
+        $this->resolveGatewayBundle();
+
+        return $this->readGateway;
+    }
+
+    private function writeGateway(): GuardedRouterOSWriteGatewayInterface
+    {
+        $this->resolveGatewayBundle();
+
+        return $this->writeGateway;
+    }
+
+    private function resolveGatewayBundle(): void
+    {
+        if ($this->readGateway !== null && $this->writeGateway !== null) {
+            return;
+        }
+
+        $bundle = RouterOSGatewayBundleFactory::create([
+            'timeout' => 5,
+        ]);
+        $this->readGateway ??= $bundle->read;
+        $this->writeGateway ??= $bundle->write;
     }
 
     private function latestBaseline(string $username): array
