@@ -4,10 +4,15 @@ declare(strict_types=1);
 
 namespace GreenNet\Controllers;
 
+use GreenNet\Contracts\AuthorizedRouterOSWriterInterface;
+use GreenNet\Contracts\GuardedRouterOSWriteGatewayInterface;
+use GreenNet\Contracts\RouterOSReadGatewayInterface;
 use GreenNet\Core\Database;
 use GreenNet\Core\View;
+use GreenNet\DTO\RouterOS\RouterOSWriteCommand;
+use GreenNet\DTO\RouterOS\WriteExecutionRequest;
 use GreenNet\Models\AppLog;
-use GreenNet\Services\RouterOS\RouterOSApiClient;
+use GreenNet\Services\RouterOS\RouterOSGatewayBundleFactory;
 use GreenNet\Services\WriteSafetyGuard;
 use PDO;
 use RuntimeException;
@@ -15,6 +20,13 @@ use Throwable;
 
 class AdminUserManagerUserDeleteController
 {
+    public function __construct(
+        private ?RouterOSReadGatewayInterface $readGateway = null,
+        private ?GuardedRouterOSWriteGatewayInterface $writeGateway = null,
+        private ?PDO $databaseConnection = null
+    ) {
+    }
+
     public function index(): string
     {
         Database::migrate();
@@ -117,41 +129,14 @@ class AdminUserManagerUserDeleteController
                 throw new RuntimeException('آخر Dry Run لا يسمح بالتنفيذ.');
             }
 
-            $guard = new WriteSafetyGuard();
-            $guard->ensureTables();
-            $guard->assertRealWriteAllowed([
-                'confirmed' => true,
-            ]);
+            $execution = $this->executeDelete($username, $lastPlan);
 
-            $freshPlan = $this->buildDeletePlan($username);
-
-            if (empty($freshPlan['can_execute_later'])) {
-                throw new RuntimeException((string) ($freshPlan['block_reason'] ?? 'الخطة لم تعد قابلة للتنفيذ.'));
-            }
-
-            $execution = $this->executeDeletePlan($freshPlan);
-
-            $afterPlan = $this->buildDeletePlan($username);
+            $afterPlan = $lastPlan;
             $afterPlan['executed'] = true;
             $afterPlan['real_execution'] = true;
             $afterPlan['real_result'] = $execution;
 
             $_SESSION['um_user_delete_result'] = $afterPlan;
-
-            $guard->recordRealAttempt([
-                'action' => 'delete_user_manager_user',
-                'dataset' => 'user_manager_user',
-                'username' => $username,
-                'command' => '/user-manager/session/remove + /user-manager/user-profile/remove + /user-manager/user/remove',
-                'params' => [
-                    'username' => $username,
-                    'dry_run_audit_id' => (int) ($lastPlan['audit_id'] ?? 0),
-                    'confirmed' => true,
-                ],
-                'executed' => 1,
-                'success' => !empty($execution['ok']) ? 1 : 0,
-                'router_response' => $this->jsonString($execution),
-            ]);
 
             if (empty($execution['ok'])) {
                 throw new RuntimeException((string) ($execution['message'] ?? 'فشل حذف مستخدم User Manager.'));
@@ -190,12 +175,12 @@ class AdminUserManagerUserDeleteController
         $userFound = !empty($router['user']['found']);
         $userId = (string) ($router['user']['id'] ?? '');
 
-        $userProfiles = is_array($router['user_profiles']['raw_rows'] ?? null)
-            ? $router['user_profiles']['raw_rows']
+        $userProfiles = is_array($router['user_profiles']['id_rows'] ?? null)
+            ? $router['user_profiles']['id_rows']
             : [];
 
-        $sessions = is_array($router['sessions']['raw_rows'] ?? null)
-            ? $router['sessions']['raw_rows']
+        $sessions = is_array($router['sessions']['id_rows'] ?? null)
+            ? $router['sessions']['id_rows']
             : [];
 
         $operations = [];
@@ -292,70 +277,68 @@ class AdminUserManagerUserDeleteController
         ];
     }
 
-    private function executeDeletePlan(array $plan): array
+    private function executeDelete(string $username, array $plan): array
     {
         $operations = is_array($plan['operations'] ?? null) ? $plan['operations'] : [];
-
-        if (empty($operations)) {
-            return [
-                'ok' => false,
-                'message' => 'لا توجد عمليات للتنفيذ.',
-                'operations' => [],
-            ];
-        }
-
-        $executed = [];
-        $client = new RouterOSApiClient([
-            'timeout' => 6,
-        ]);
-
-        try {
-            foreach ($operations as $operation) {
-                if (!is_array($operation)) {
-                    continue;
+        $expectedUserId = (string) ($plan['router_user_id'] ?? '');
+        $result = $this->writeGateway()->execute(
+            new WriteExecutionRequest(
+                'delete_user_manager_user',
+                'user_manager_user',
+                $username,
+                '/user-manager/session/remove + /user-manager/user-profile/remove + /user-manager/user/remove',
+                ['username' => $username, 'user_id' => $expectedUserId],
+                (int) ($plan['audit_id'] ?? 0),
+                true
+            ),
+            function (AuthorizedRouterOSWriterInterface $writer) use ($username, $operations, $expectedUserId): array {
+                $current = $this->readRouterState($username);
+                $currentUserId = (string) ($current['user']['id'] ?? '');
+                if (empty($current['user']['found']) || $currentUserId === '' || $currentUserId !== $expectedUserId) {
+                    throw new RuntimeException('User Manager delete target changed after preview.');
                 }
 
-                $type = (string) ($operation['type'] ?? '');
-                $command = (string) ($operation['command'] ?? '');
-                $params = is_array($operation['params'] ?? null) ? $operation['params'] : [];
-
-                if (!in_array($type, [
-                    'router_remove_user_session',
-                    'router_remove_user_profile',
-                    'router_remove_user',
-                ], true)) {
-                    continue;
+                $currentIds = [];
+                foreach (array_merge(
+                    $current['sessions']['id_rows'] ?? [],
+                    $current['user_profiles']['id_rows'] ?? []
+                ) as $row) {
+                    $currentIds[(string) ($row['.id'] ?? '')] = true;
                 }
 
-                $response = $client->comm($command, $params);
+                foreach ($operations as $operation) {
+                    $command = (string) ($operation['command'] ?? '');
+                    $id = (string) ($operation['params']['numbers'] ?? '');
+                    if ($id === '') {
+                        throw new RuntimeException('RouterOS delete operation has no exact identifier.');
+                    }
+                    if ($command !== '/user-manager/user/remove' && empty($currentIds[$id])) {
+                        throw new RuntimeException('RouterOS delete child target changed after preview.');
+                    }
+                    if ($command === '/user-manager/user/remove' && $id !== $currentUserId) {
+                        throw new RuntimeException('RouterOS delete user identifier mismatch.');
+                    }
+                    $writer->execute(new RouterOSWriteCommand($command, ['numbers' => $id]));
+                }
 
-                $executed[] = [
-                    'type' => $type,
-                    'command' => $command,
-                    'params' => $params,
-                    'response' => $response,
-                    'ok' => true,
-                ];
+                $after = $this->readRouterState($username);
+                if (!empty($after['user']['found'])
+                    || (int) ($after['sessions']['rows_count'] ?? 0) !== 0
+                    || (int) ($after['user_profiles']['rows_count'] ?? 0) !== 0) {
+                    throw new RuntimeException('User Manager delete verification failed.');
+                }
+                return ['verified_absent' => true, 'user_id' => $currentUserId];
             }
-        } catch (Throwable $e) {
-            $executed[] = [
-                'ok' => false,
-                'error' => $e->getMessage(),
-            ];
-
-            return [
-                'ok' => false,
-                'message' => $e->getMessage(),
-                'operations' => $executed,
-            ];
-        } finally {
-            $client->disconnect();
-        }
+        );
 
         return [
-            'ok' => true,
+            'ok' => $result->ok,
             'message' => 'تم حذف المستخدم من MikroTik User Manager.',
-            'operations' => $executed,
+            'operations' => array_map(static fn ($call): array => $call->toArray(), $result->calls),
+            'verified_absent' => true,
+            'audit_recorded' => $result->auditRecorded,
+            'audit_id' => $result->auditId,
+            'audit_warning' => $result->auditWarning,
             'executed_at' => date('Y-m-d H:i:s'),
         ];
     }
@@ -371,25 +354,20 @@ class AdminUserManagerUserDeleteController
             ],
             'user_profiles' => [
                 'rows' => [],
-                'raw_rows' => [],
+                'id_rows' => [],
                 'rows_count' => 0,
                 'error' => '',
             ],
             'sessions' => [
                 'rows' => [],
-                'raw_rows' => [],
+                'id_rows' => [],
                 'rows_count' => 0,
                 'error' => '',
             ],
         ];
 
-        $client = new RouterOSApiClient([
-            'timeout' => 6,
-        ]);
-
         try {
-            try {
-                $users = $this->normalizeRows($client->comm('/user-manager/user/print', [
+                $users = $this->normalizeRows($this->readGateway()->read('/user-manager/user/print', [
                     '?name' => $username,
                 ]));
 
@@ -399,7 +377,7 @@ class AdminUserManagerUserDeleteController
                     $result['user'] = [
                         'found' => true,
                         'id' => (string) ($user['.id'] ?? ''),
-                        'row' => $this->sanitizeRowForDisplay($user),
+                        'row' => $this->projectUser($user),
                         'error' => '',
                     ];
                 }
@@ -408,15 +386,15 @@ class AdminUserManagerUserDeleteController
             }
 
             try {
-                $profiles = $this->normalizeRows($client->comm('/user-manager/user-profile/print', [
+                $profiles = $this->normalizeRows($this->readGateway()->read('/user-manager/user-profile/print', [
                     '?user' => $username,
                 ]));
 
                 $profiles = $this->filterRowsForUsername($profiles, $username);
 
                 $result['user_profiles'] = [
-                    'rows' => $this->sanitizeRows($profiles),
-                    'raw_rows' => $profiles,
+                    'rows' => $this->projectRelations($profiles),
+                    'id_rows' => $this->projectRelations($profiles),
                     'rows_count' => count($profiles),
                     'error' => '',
                 ];
@@ -425,30 +403,26 @@ class AdminUserManagerUserDeleteController
             }
 
             try {
-                $sessions = $this->normalizeRows($client->comm('/user-manager/session/print', [
+                $sessions = $this->normalizeRows($this->readGateway()->read('/user-manager/session/print', [
                     '?user' => $username,
                 ]));
 
                 $sessions = $this->filterRowsForUsername($sessions, $username);
 
                 if (count($sessions) === 0) {
-                    $allSessions = $this->normalizeRows($client->comm('/user-manager/session/print'));
+                    $allSessions = $this->normalizeRows($this->readGateway()->read('/user-manager/session/print'));
                     $sessions = $this->filterRowsForUsername($allSessions, $username);
                 }
 
                 $result['sessions'] = [
-                    'rows' => $this->sanitizeRows($sessions),
-                    'raw_rows' => $sessions,
+                    'rows' => $this->projectSessions($sessions),
+                    'id_rows' => $this->projectSessions($sessions),
                     'rows_count' => count($sessions),
                     'error' => '',
                 ];
             } catch (Throwable $e) {
                 $result['sessions']['error'] = $e->getMessage();
             }
-        } finally {
-            $client->disconnect();
-        }
-
         return $result;
     }
 
@@ -487,7 +461,7 @@ class AdminUserManagerUserDeleteController
         $this->ensureCustomersLocalColumns();
 
         try {
-            $stmt = Database::connection()->query("
+            $stmt = $this->database()->query("
                 SELECT *
                 FROM customers_local
                 ORDER BY username ASC
@@ -505,7 +479,7 @@ class AdminUserManagerUserDeleteController
     {
         $this->ensureCustomersLocalColumns();
 
-        $stmt = Database::connection()->prepare("
+        $stmt = $this->database()->prepare("
             SELECT *
             FROM customers_local
             WHERE username = :username
@@ -523,7 +497,7 @@ class AdminUserManagerUserDeleteController
 
     private function ensureCustomersLocalColumns(): void
     {
-        $pdo = Database::connection();
+        $pdo = $this->database();
 
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS customers_local (
@@ -559,7 +533,7 @@ class AdminUserManagerUserDeleteController
     private function columns(string $table): array
     {
         try {
-            $rows = Database::connection()->query("PRAGMA table_info(" . $table . ")")->fetchAll(PDO::FETCH_ASSOC);
+            $rows = $this->database()->query("PRAGMA table_info(" . $table . ")")->fetchAll(PDO::FETCH_ASSOC);
 
             $columns = [];
 
@@ -617,16 +591,32 @@ class AdminUserManagerUserDeleteController
         return null;
     }
 
-    private function sanitizeRows(array $rows): array
+    private function projectRelations(array $rows): array
     {
         $out = [];
-
         foreach ($rows as $row) {
             if (is_array($row)) {
-                $out[] = $this->sanitizeRowForDisplay($row);
+                $out[] = [
+                    '.id' => (string) ($row['.id'] ?? ''),
+                    'user' => (string) ($row['user'] ?? ''),
+                    'profile' => (string) ($row['profile'] ?? ''),
+                ];
             }
         }
+        return $out;
+    }
 
+    private function projectSessions(array $rows): array
+    {
+        $out = [];
+        foreach ($rows as $row) {
+            if (is_array($row)) {
+                $out[] = [
+                    '.id' => (string) ($row['.id'] ?? ''),
+                    'user' => (string) ($row['user'] ?? $row['username'] ?? ''),
+                ];
+            }
+        }
         return $out;
     }
 
@@ -642,37 +632,13 @@ class AdminUserManagerUserDeleteController
         ];
     }
 
-    private function sanitizeRowForDisplay(array $row): array
+    private function projectUser(array $row): array
     {
-        $hiddenKeys = [
-            'password',
-            'pass',
-            'secret',
-            'otp-secret',
-            'token',
-            'api-key',
-            'key',
+        return [
+            '.id' => (string) ($row['.id'] ?? ''),
+            'name' => (string) ($row['name'] ?? $row['username'] ?? ''),
+            'disabled' => (string) ($row['disabled'] ?? ''),
         ];
-
-        $clean = [];
-
-        foreach ($row as $key => $value) {
-            $keyString = (string) $key;
-            $lower = strtolower($keyString);
-
-            $hide = false;
-
-            foreach ($hiddenKeys as $hiddenKey) {
-                if ($lower === $hiddenKey || str_contains($lower, $hiddenKey)) {
-                    $hide = true;
-                    break;
-                }
-            }
-
-            $clean[$keyString] = $hide ? '<hidden>' : (string) $value;
-        }
-
-        return $clean;
     }
 
     private function sessionDisplay(array $session): array
@@ -690,14 +656,6 @@ class AdminUserManagerUserDeleteController
 
     private function sanitizeRouterStateForSession(array $router): array
     {
-        if (isset($router['user_profiles']['raw_rows'])) {
-            unset($router['user_profiles']['raw_rows']);
-        }
-
-        if (isset($router['sessions']['raw_rows'])) {
-            unset($router['sessions']['raw_rows']);
-        }
-
         return $router;
     }
 
@@ -735,9 +693,31 @@ class AdminUserManagerUserDeleteController
         }
     }
 
-    private function jsonString(mixed $value): string
+    private function readGateway(): RouterOSReadGatewayInterface
     {
-        return json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) ?: '{}';
+        $this->resolveGateways();
+        return $this->readGateway;
+    }
+
+    private function writeGateway(): GuardedRouterOSWriteGatewayInterface
+    {
+        $this->resolveGateways();
+        return $this->writeGateway;
+    }
+
+    private function resolveGateways(): void
+    {
+        if ($this->readGateway !== null && $this->writeGateway !== null) {
+            return;
+        }
+        $bundle = RouterOSGatewayBundleFactory::create(['timeout' => 6]);
+        $this->readGateway ??= $bundle->read;
+        $this->writeGateway ??= $bundle->write;
+    }
+
+    private function database(): PDO
+    {
+        return $this->databaseConnection ??= Database::connection();
     }
 
     private function flash(string $message, string $type = 'success'): void

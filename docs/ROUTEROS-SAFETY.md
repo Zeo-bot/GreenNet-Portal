@@ -125,6 +125,12 @@ User-create preview contains no plaintext password and retains only safe user an
 
 If profile assignment or later verification fails after user creation, the result is a partial failure. The system does not claim rollback; cleanup requires separately verified exact relation and user identifiers. The authorized Lab Router smoke test completed exact-ID relation cleanup followed by exact-ID user cleanup without modifying the selected existing profile.
 
+## User-delete boundary
+
+User-delete preview retains only safe projections and exact `.id` values. Before execution, the controller re-reads the exact username, requires the previewed user `.id`, and confirms that every planned session and user-profile relation `.id` still belongs to the current target.
+
+One guarded callback removes current sessions, then current user-profile relations, then the user. Every `/user-manager/session/remove`, `/user-manager/user-profile/remove`, and `/user-manager/user/remove` command uses an exact `numbers` identifier from the current pre-write read. Wildcards and username-only deletion are prohibited. Processing stops at the first failure; if an earlier removal succeeded, the result is a partial failure and no rollback is claimed. The authorized Lab Router smoke test created one isolated test user through the migrated create path, deleted its exact relation and user through the migrated delete path, observed one delete real audit, and verified no unrelated user or profile change.
+
 ## Prohibited shortcuts
 
 - Calling an execute route to test reachability.

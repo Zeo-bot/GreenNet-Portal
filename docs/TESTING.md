@@ -54,6 +54,10 @@ Phase 1D-E adds isolated coverage for guarded User Manager creation. Coverage in
 
 The authorized Lab Router smoke test selected an existing profile without modifying it, ran the actual preview and execute methods, observed one successful create real audit, found no generated password in new session/audit records, and removed the exact created relation before removing the exact created user.
 
+Phase 1D-F adds isolated coverage for guarded User Manager deletion. Tests cover non-writing preview, `DELETE` confirmation and plan checks, exact current user-ID revalidation, no-child and multiple-child cases, exact session-relation-user command ordering, failures at each removal stage, partial-failure counts, post-delete verification failure, safe projections, one gateway-owned audit without duplication, absence of legacy client access, and lazy fakes without sockets. The complete suite passes with 188 tests and 629 assertions under `network_mode: none`.
+
+The authorized Lab Router validation used the migrated create flow to create one uniquely named test user and exact profile relation, then used the actual migrated delete preview and execute flow. The exact relation and user were absent afterward, exactly one successful delete real audit was recorded, and unrelated users and profiles were unchanged.
+
 ## Running the isolated suite
 
 Builds may use the public package network to download pinned Composer dependencies. Test runtime has no network:

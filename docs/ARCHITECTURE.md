@@ -80,3 +80,9 @@ The execute request receives and validates the password again, resolves the same
 `AdminUserManagerUserCreateController` now uses the shared lazy bundle for all RouterOS reads and guarded writes. Preview reads only the exact username and selected profile, stores safe user/profile projections, and never accepts a password. Final execution re-enters the password and runs the exact ordered commands `/user-manager/user/add` and `/user-manager/user-profile/add` inside one authorized callback.
 
 The callback verifies the user is absent and profile exists before writing, then requires exactly one matching user and user-profile relation after writing. The existing local customer-package update remains ordered after RouterOS verification. Failure of the second command or post-write verification after user creation is reported as partial failure; no RouterOS rollback is claimed.
+
+## Phase 1D-F user-delete migration
+
+`AdminUserManagerUserDeleteController` now resolves the shared lazy read/guarded-write bundle and no longer constructs a RouterOS client, calls `comm()`, or owns the real-attempt audit. Preview stores only safe projections and exact identifiers for the matched user, associated sessions, and user-profile relations.
+
+Execution re-reads and verifies the exact user `.id` and current child `.id` set before entering one guarded callback. The callback removes verified sessions first, verified user-profile relations second, and the verified user last; every command uses `numbers=<current exact .id>`. It stops on the first command failure, reports partial failure when any earlier removal succeeded, claims no rollback, and verifies that the user and associated children are absent afterward.
