@@ -55,6 +55,14 @@ After authorization, the callback reads the current User Manager row, sends exac
 
 Central redaction treats keys containing password, pass, secret, token, API key, or the exact key `key` as sensitive. It also removes known sensitive values when echoed in callback results, call responses, audit JSON, or safe exception messages. No actual values are documented or logged by this table.
 
+### Phase 1D-C3 persistence redaction
+
+The isolated review found that the User Manager disable/enable preview carried the complete matched RouterOS row under `backend_lookup.user_manager.matched_raw_row`. That row could reach the preview session and the `api_audit_logs.params` and `router_response` fields. The controller now keeps only the proven-safe `.id`, `name`, and `disabled` projection.
+
+`RouterOSSensitiveDataRedactor` is the shared recursive persistence boundary. `WriteSafetyGuard` applies it before dry-run audit, real-attempt audit, or transaction-queue storage. Sensitive keys are matched case-insensitively after normalizing spaces, dots, underscores, and hyphens; values discovered under those keys are also removed when repeated elsewhere in nested results or serialized response text. `RouterOSWriteRedactor` reuses the same implementation so write execution and persistence do not maintain divergent sensitive-key rules.
+
+This protection applies to new records only. Historical local Git objects and pre-existing operational audit records are not rewritten by this phase and must be reviewed and sanitized before any remote is added or the repository is published.
+
 Changing the portal database does not necessarily change RouterOS, and a successful RouterOS command does not guarantee all intended portal updates completed.
 
 ## Required guarded sequence

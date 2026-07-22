@@ -7,6 +7,7 @@ namespace GreenNet\Services;
 use Closure;
 use GreenNet\Core\Database;
 use GreenNet\Models\AppLog;
+use GreenNet\Services\RouterOS\RouterOSSensitiveDataRedactor;
 use PDO;
 use RuntimeException;
 use Throwable;
@@ -19,17 +20,20 @@ class WriteSafetyGuard
     private ?PDO $databaseConnection;
     private Closure $clock;
     private ?string $backupDirectory;
+    private RouterOSSensitiveDataRedactor $redactor;
 
     public function __construct(
         ?PDO $database = null,
         ?callable $clock = null,
-        ?string $backupDirectory = null
+        ?string $backupDirectory = null,
+        ?RouterOSSensitiveDataRedactor $redactor = null
     ) {
         $this->databaseConnection = $database;
         $this->clock = $clock !== null
             ? Closure::fromCallable($clock)
             : static fn (): int => time();
         $this->backupDirectory = $backupDirectory;
+        $this->redactor = $redactor ?? new RouterOSSensitiveDataRedactor();
     }
 
     public function ensureTables(): void
@@ -212,6 +216,7 @@ class WriteSafetyGuard
     public function recordDryRun(array $data): int
     {
         $this->ensureTables();
+        $data = $this->redactor->redact($data);
 
         return $this->recordAudit([
             'admin_username' => (string) ($_SESSION['admin_username'] ?? 'admin'),
@@ -231,6 +236,7 @@ class WriteSafetyGuard
     public function recordRealAttempt(array $data): int
     {
         $this->ensureTables();
+        $data = $this->redactor->redact($data);
 
         return $this->recordAudit([
             'admin_username' => (string) ($_SESSION['admin_username'] ?? 'admin'),
@@ -250,6 +256,7 @@ class WriteSafetyGuard
     public function queue(array $data): int
     {
         $this->ensureTables();
+        $data = $this->redactor->redact($data);
 
         $stmt = $this->database()->prepare("
             INSERT INTO {$this->queueTable} (
@@ -428,7 +435,7 @@ class WriteSafetyGuard
 
     private function json(mixed $value): string
     {
-        return json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) ?: '{}';
+        return $this->redactor->json($value);
     }
 
     private function database(): PDO

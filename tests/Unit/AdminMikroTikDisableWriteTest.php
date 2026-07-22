@@ -137,6 +137,62 @@ final class AdminMikroTikDisableWriteTest extends TestCase
         self::assertStringNotContainsString('writeGateway()', $source);
     }
 
+    #[DataProvider('previewStateCases')]
+    public function testDisableAndEnablePreviewNeverPersistTheCompleteUserRowOrSecret(
+        bool $desiredDisabled,
+        string $currentDisabled
+    ): void {
+        $secret = 'synthetic-preview-value-' . bin2hex(random_bytes(8));
+        $read = new FakeRouterOSReadGateway();
+        $read->queueResponse([[
+            '.id' => '*synthetic-user',
+            'name' => 'synthetic-user',
+            'disabled' => $currentDisabled,
+            'password' => $secret,
+            'comment' => 'repeated ' . $secret,
+        ]]);
+        $client = new FakeRouterOSClient();
+        $controller = $this->controller($read, $client);
+        $reflection = new ReflectionClass(AdminMikroTikDryRunController::class);
+        $plan = $reflection->getMethod('buildSetDisabledPlan')
+            ->invoke($controller, 'synthetic-user', $desiredDisabled);
+
+        $_SESSION['mikrotik_dry_run_result'] = $plan;
+        $routerResponse = $reflection->getMethod('auditResponseFromPlan')->invoke($controller, $plan);
+        $guard = new WriteSafetyGuard(
+            $this->database->connection(),
+            static fn (): int => self::NOW,
+            $this->backupDirectory
+        );
+        $guard->recordDryRun([
+            'action' => $plan['action'],
+            'dataset' => $plan['dataset'],
+            'username' => $plan['username'],
+            'command' => $plan['command'],
+            'params' => $plan,
+            'router_response' => $routerResponse,
+        ]);
+
+        self::assertArrayNotHasKey('matched_raw_row', $plan['backend_lookup']['user_manager']);
+        self::assertSame([
+            '.id' => '*synthetic-user',
+            'name' => 'synthetic-user',
+            'disabled' => $currentDisabled,
+        ], $plan['backend_lookup']['user_manager']['matched_row']);
+        self::assertSame([], $client->calls);
+        self::assertStringNotContainsString($secret, serialize($_SESSION));
+        self::assertStringNotContainsString($secret, json_encode($this->latestAudit(), JSON_UNESCAPED_SLASHES));
+        self::assertStringNotContainsString($secret, (string) file_get_contents($this->database->path()));
+    }
+
+    public static function previewStateCases(): array
+    {
+        return [
+            'disable preview' => [true, 'false'],
+            'enable preview' => [false, 'true'],
+        ];
+    }
+
     public function testConfirmationMismatchAndMissingOrInvalidPlansMakeNoCalls(): void
     {
         foreach ([

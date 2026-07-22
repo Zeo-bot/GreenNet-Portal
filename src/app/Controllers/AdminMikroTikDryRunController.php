@@ -426,7 +426,7 @@ class AdminMikroTikDryRunController
         $userId = '';
 
         if ($found) {
-            $row = is_array($lookup['matched_raw_row'] ?? null) ? $lookup['matched_raw_row'] : [];
+            $row = is_array($lookup['matched_row'] ?? null) ? $lookup['matched_row'] : [];
             $userId = trim((string) ($row['.id'] ?? ''));
             $currentDisabledRaw = (string) ($row['disabled'] ?? 'false');
             $currentDisabled = $this->routerBool($currentDisabledRaw);
@@ -498,7 +498,6 @@ class AdminMikroTikDryRunController
             'rows_count' => 0,
             'matched_id' => '',
             'matched_row' => null,
-            'matched_raw_row' => null,
             'error' => '',
         ];
 
@@ -514,8 +513,7 @@ class AdminMikroTikDryRunController
             $result['status'] = $matched !== null ? 'found' : 'not_found';
             $result['found'] = $matched !== null;
             $result['rows_count'] = count($rows);
-            $result['matched_raw_row'] = $matched;
-            $result['matched_row'] = is_array($matched) ? $this->sanitizeRowForDisplay($matched) : null;
+            $result['matched_row'] = is_array($matched) ? $this->projectUserManagerUser($matched) : null;
             $result['matched_id'] = is_array($matched) ? (string) ($matched['.id'] ?? '') : '';
 
             return $result;
@@ -907,6 +905,19 @@ class AdminMikroTikDryRunController
         }
 
         return $clean;
+    }
+
+    private function projectUserManagerUser(array $row): array
+    {
+        $projection = [];
+
+        foreach (['.id', 'name', 'disabled'] as $key) {
+            if (array_key_exists($key, $row)) {
+                $projection[$key] = (string) $row[$key];
+            }
+        }
+
+        return $projection;
     }
 
     private function routerBool(string $value): bool

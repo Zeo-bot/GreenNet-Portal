@@ -70,17 +70,19 @@ Completed foundation:
 - Phase 1C-B: `RouterOSClientInterface` and a fail-closed read-only gateway, null implementation, policy, and test fakes are complete. Production routes, controllers, and services have not migrated to this boundary yet.
 - Phase 1C-C1: `AdminUserManagerPackagesController` is the first production read path migrated to the gateway. The migrated commands are `/user-manager/profile/print`, `/user-manager/limitation/print`, `/user-manager/profile-limitation/print`, `/user-manager/profile/limitation/print`, and `/user-manager/profile/limitations/print`. The isolated suite passes with 60 tests and 144 assertions, including lazy factory construction without a socket connection.
 - Phase 1D-B: a fail-closed `GuardedRouterOSWriteGateway` boundary, exact 13-command policy, gateway-scoped anonymous writer, centralized redaction, result DTOs, and audit/partial-failure handling are implemented and isolated. No production controller or route uses the boundary yet, and no production write factory exists. The isolated suite passes with 138 tests and 319 assertions.
-- Phase 1D-C1: the User Manager disable/enable flow in `AdminMikroTikDryRunController` is the first production write path migrated to the guarded boundary. Reads use `RouterOSReadGatewayInterface`; the single set uses `GuardedRouterOSWriteGatewayInterface`; production resolves both lazily through a small bundle sharing one real client. The existing dry-run, stored-plan, `DISABLE`/`ENABLE`, session result, redirects, and Portal-only baseline behavior remain in place. The isolated suite passes with 149 tests and 412 assertions. This migration has not yet received a live-router test.
+- Phase 1D-C1: the User Manager disable/enable flow in `AdminMikroTikDryRunController` is the first production write path migrated to the guarded boundary. Reads use `RouterOSReadGatewayInterface`; the single set uses `GuardedRouterOSWriteGatewayInterface`; production resolves both lazily through a small bundle sharing one real client. The existing dry-run, stored-plan, `DISABLE`/`ENABLE`, session result, redirects, and Portal-only baseline behavior remain in place. The isolated suite passed with 149 tests and 412 assertions at migration time.
+- Phase 1D-C2: the separately authorized lab validation completed the create, disable, enable, and cleanup sequence, and the test user was removed so the router returned to its pre-test state. No production application file was changed by that operational validation.
+- Phase 1D-C3: the disable/enable preview was found to carry a complete User Manager row into session/audit payloads. The controller now retains only `.id`, `name`, and `disabled`; a shared recursive redactor protects dry-run audits, real-attempt audits, and queued payloads, including repeated secret values. This protects future persistence but does not rewrite historical audit rows or older Git history.
 
 Current RouterOS writes remain on the existing S10.13 controller paths and are guarded by `WriteSafetyGuard`. The current router is dedicated to lab testing and contains no real customer users; permitted test scope is GreenNet test users, packages, and sessions. Factory reset, RouterOS upgrades, and WAN, LAN, or firewall changes require a separate explicit request.
 
 Next stages:
 
-1. Run a separately authorized live read-only smoke test for the migrated package discovery path against the lab router.
-2. Continue migrating production reads gradually to `RouterOSReadGatewayInterface`, preserving responses and failure behavior.
-3. Migrate the disable/enable path in `AdminMikroTikDryRunController` as the first production user of the guarded write boundary, preserving its read-after-write verification and interface messages.
+1. Continue migrating production reads gradually to `RouterOSReadGatewayInterface`, preserving responses and failure behavior.
+2. Migrate the remaining legacy write controllers to the guarded boundary in small independently tested batches.
+3. Review and sanitize historical operational audit data and clean sensitive Git history before any remote or publication; this requires explicit owner approval.
 4. Add an explicit database creation/restore mechanism for fresh clones, because runtime SQLite and backup files are not distributed through new commits.
-5. Separate configuration from secrets and plan rotation/history cleanup with explicit owner approval.
+5. Separate configuration from secrets and plan credential rotation with explicit owner approval.
 6. Version database migrations and define backup/restore verification.
 7. Review authentication, CSRF, production error handling, authorization, and write-flow idempotency.
 8. Enable CI using only synthetic data and blocked outbound RouterOS access.

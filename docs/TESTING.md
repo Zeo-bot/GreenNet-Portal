@@ -42,6 +42,8 @@ Phase 1D-B tests the guarded write boundary without migrating controllers or con
 
 Phase 1D-C1 adds focused coverage for the migrated User Manager disable/enable controller path: preview remains non-writing; `DISABLE` and `ENABLE` preserve their exact command parameters; read-before-write and read-after-write ordering is verified; invalid confirmations and plans fail before gateway calls; guard denial makes zero RouterOS calls; set and verification failures retain distinct non-partial/partial results; and audit success, failure, and single-row ownership are verified. Tests inject gateways explicitly and use only fake RouterOS transports, disposable SQLite, a fixed clock, and temporary synthetic backup artifacts under the system temporary directory.
 
+Phase 1D-C3 adds regression coverage for the discovered preview/audit leak. Disable and enable previews use fake User Manager rows containing a generated synthetic sentinel, then verify that the session serialization, queried audit columns, and raw temporary SQLite bytes contain zero copies. Separate tests cover dry-run, real-attempt, and transaction-queue persistence; recursive sensitive-key variants; repeated secret values in otherwise safe strings; idempotence; and preservation of `.id`, `name`, and `disabled`. No real RouterOS connection or operational database is used.
+
 ## Running the isolated suite
 
 Builds may use the public package network to download pinned Composer dependencies. Test runtime has no network:

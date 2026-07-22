@@ -31,6 +31,10 @@
 - Every new RouterOS write path must use `GuardedRouterOSWriteGateway::execute(request, callback)`; do not expose a raw write or `comm()` shortcut.
 - New controllers must not receive `RouterOSClientInterface` or call `comm()` directly. Inject the appropriate read or guarded-write gateway contract instead.
 - Existing direct write paths are legacy and remain scheduled for incremental migration without weakening their current safety checks.
+- Never persist raw RouterOS rows or responses in sessions, audit rows, queues, or logs. Persist only the smallest safe projection required by later execution.
+- All RouterOS-derived data that will be persisted must pass through `RouterOSSensitiveDataRedactor`; `WriteSafetyGuard` is the defense-in-depth persistence boundary for dry-run audits, real-attempt audits, and queued payloads.
+- `RouterOSWriteRedactor` delegates to the centralized sensitive-data redactor. Do not introduce a second independent list of sensitive RouterOS keys.
+- Treat historical audit data as untrusted until it has been separately scanned and sanitized under explicit authorization.
 - The current router is a lab router. Authorized testing is limited to GreenNet test users, packages, and sessions.
 - Never factory-reset or upgrade RouterOS, or change WAN, LAN, or firewall configuration, without a separate explicit request for that exact operation.
 

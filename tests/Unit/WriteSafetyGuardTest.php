@@ -245,6 +245,44 @@ final class WriteSafetyGuardTest extends TestCase
         self::assertFalse($preflight['ready_for_real_write']);
     }
 
+    public function testAllPersistenceBoundariesRecursivelyRedactSecretsAndRepeatedValues(): void
+    {
+        $secret = 'synthetic-persistence-value-' . bin2hex(random_bytes(8));
+        $safe = ['.id' => '*synthetic', 'name' => 'synthetic-user', 'disabled' => 'false'];
+        $nested = $safe + [
+            'credentials' => ['API_Key' => $secret],
+            'repeated' => 'Router response repeated ' . $secret,
+        ];
+
+        $this->guard->recordDryRun([
+            'action' => 'synthetic_dry_run',
+            'params' => $nested,
+            'router_response' => json_encode($nested, JSON_UNESCAPED_SLASHES),
+        ]);
+        $this->guard->recordRealAttempt([
+            'action' => 'synthetic_real_attempt',
+            'params' => ['private-key' => $secret, 'safe' => $safe],
+            'router_response' => 'Synthetic response ' . $secret,
+        ]);
+        $this->guard->queue([
+            'action' => 'synthetic_queue',
+            'payload' => ['Authorization' => $secret, 'safe' => $safe, 'copy' => $secret],
+        ]);
+
+        $auditRows = $this->pdo()->query('SELECT params, router_response FROM api_audit_logs')
+            ->fetchAll(PDO::FETCH_ASSOC);
+        $queueRows = $this->pdo()->query('SELECT payload FROM mikrotik_transaction_queue')
+            ->fetchAll(PDO::FETCH_ASSOC);
+        $serialized = json_encode([$auditRows, $queueRows], JSON_UNESCAPED_SLASHES);
+
+        self::assertIsString($serialized);
+        self::assertStringNotContainsString($secret, $serialized);
+        self::assertStringContainsString('<hidden>', $serialized);
+        self::assertStringContainsString('*synthetic', $serialized);
+        self::assertStringContainsString('synthetic-user', $serialized);
+        self::assertStringNotContainsString($secret, (string) file_get_contents($this->database->path()));
+    }
+
     private function setSettings(array $settings): void
     {
         foreach ($settings as $key => $value) {
