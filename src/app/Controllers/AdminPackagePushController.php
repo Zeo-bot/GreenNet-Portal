@@ -4,10 +4,15 @@ declare(strict_types=1);
 
 namespace GreenNet\Controllers;
 
+use GreenNet\Contracts\AuthorizedRouterOSWriterInterface;
+use GreenNet\Contracts\GuardedRouterOSWriteGatewayInterface;
+use GreenNet\Contracts\RouterOSReadGatewayInterface;
 use GreenNet\Core\Database;
 use GreenNet\Core\View;
+use GreenNet\DTO\RouterOS\RouterOSWriteCommand;
+use GreenNet\DTO\RouterOS\WriteExecutionRequest;
 use GreenNet\Models\AppLog;
-use GreenNet\Services\RouterOS\RouterOSApiClient;
+use GreenNet\Services\RouterOS\RouterOSGatewayBundleFactory;
 use GreenNet\Services\WriteSafetyGuard;
 use PDO;
 use RuntimeException;
@@ -15,6 +20,12 @@ use Throwable;
 
 class AdminPackagePushController
 {
+    public function __construct(
+        private ?RouterOSReadGatewayInterface $readGateway = null,
+        private ?GuardedRouterOSWriteGatewayInterface $writeGateway = null
+    ) {
+    }
+
     public function index(): string
     {
         Database::migrate();
@@ -113,19 +124,13 @@ class AdminPackagePushController
                 throw new RuntimeException('آخر Dry Run لا يسمح بالتنفيذ.');
             }
 
-            $guard = new WriteSafetyGuard();
-            $guard->ensureTables();
-            $guard->assertRealWriteAllowed([
-                'confirmed' => true,
-            ]);
-
-            $freshPlan = $this->buildPushPlan($packageId);
+            $freshPlan = $lastPlan;
 
             if (empty($freshPlan['can_execute_later'])) {
                 throw new RuntimeException((string) ($freshPlan['block_reason'] ?? 'الخطة لم تعد قابلة للتنفيذ.'));
             }
 
-            $execution = $this->executePushPlan($freshPlan);
+            $execution = $this->executePushPlan($packageId, $lastPlan);
 
             $afterPlan = $this->buildPushPlan($packageId);
             $afterPlan['executed'] = true;
@@ -133,24 +138,6 @@ class AdminPackagePushController
             $afterPlan['real_result'] = $execution;
 
             $_SESSION['package_push_result'] = $afterPlan;
-
-            $guard->recordRealAttempt([
-                'action' => 'push_package_to_mikrotik',
-                'dataset' => 'user_manager_package',
-                'username' => '',
-                'command' => 'package push execute',
-                'params' => [
-                    'package_id' => $packageId,
-                    'package_name' => (string) ($freshPlan['package']['name'] ?? ''),
-                    'profile_name' => (string) ($freshPlan['router_names']['profile_name'] ?? ''),
-                    'limitation_name' => (string) ($freshPlan['router_names']['limitation_name'] ?? ''),
-                    'dry_run_audit_id' => (int) ($lastPlan['audit_id'] ?? 0),
-                    'confirmed' => true,
-                ],
-                'executed' => 1,
-                'success' => !empty($execution['ok']) ? 1 : 0,
-                'router_response' => $this->jsonString($execution),
-            ]);
 
             if (empty($execution['ok'])) {
                 throw new RuntimeException((string) ($execution['message'] ?? 'فشل تنفيذ Push.'));
@@ -332,8 +319,9 @@ class AdminPackagePushController
         ];
     }
 
-    private function executePushPlan(array $plan): array
+    private function executePushPlan(int $packageId, array $lastPlan): array
     {
+        $plan = $lastPlan;
         $operations = is_array($plan['operations'] ?? null) ? $plan['operations'] : [];
 
         if (empty($operations)) {
@@ -345,11 +333,27 @@ class AdminPackagePushController
         }
 
         $executed = [];
-        $client = new RouterOSApiClient([
-            'timeout' => 6,
-        ]);
-
-        try {
+        $result = $this->writeGateway()->execute(
+            new WriteExecutionRequest(
+                'push_package_to_mikrotik',
+                'user_manager_package',
+                '',
+                'package push execute',
+                [
+                    'package_id' => $packageId,
+                    'package_name' => (string) ($plan['package']['name'] ?? ''),
+                    'profile_name' => (string) ($plan['router_names']['profile_name'] ?? ''),
+                    'limitation_name' => (string) ($plan['router_names']['limitation_name'] ?? ''),
+                ],
+                (int) ($lastPlan['audit_id'] ?? 0),
+                true
+            ),
+            function (AuthorizedRouterOSWriterInterface $writer) use ($packageId, &$executed): array {
+            $plan = $this->buildPushPlan($packageId);
+            $operations = is_array($plan['operations'] ?? null) ? $plan['operations'] : [];
+            if (empty($plan['can_execute_later']) || empty($operations)) {
+                throw new RuntimeException('RouterOS package push is no longer executable.');
+            }
             foreach ($operations as $operation) {
                 if (!is_array($operation)) {
                     continue;
@@ -362,7 +366,7 @@ class AdminPackagePushController
                     continue;
                 }
 
-                $response = $client->comm($command, $params);
+                $response = $writer->execute(new RouterOSWriteCommand($command, $params));
 
                 $executed[] = [
                     'type' => (string) ($operation['type'] ?? ''),
@@ -372,25 +376,28 @@ class AdminPackagePushController
                     'ok' => true,
                 ];
             }
-        } catch (Throwable $e) {
-            $executed[] = [
-                'ok' => false,
-                'error' => $e->getMessage(),
-            ];
 
-            return [
-                'ok' => false,
-                'message' => $e->getMessage(),
-                'operations' => $executed,
-            ];
-        } finally {
-            $client->disconnect();
-        }
+                $after = $this->readExistingRouterPackage(
+                    (string) ($plan['router_names']['profile_name'] ?? ''),
+                    (string) ($plan['router_names']['limitation_name'] ?? '')
+                );
+                if (empty($after['profile']['found'])
+                    || empty($after['limitation']['found'])
+                    || empty($after['profile_limitation']['found'])) {
+                    throw new RuntimeException('RouterOS package push verification failed.');
+                }
+
+                return ['operations' => $executed, 'verified' => true];
+            }
+        );
 
         return [
-            'ok' => true,
+            'ok' => $result->ok,
             'message' => 'تم تنفيذ العمليات على MikroTik.',
-            'operations' => $executed,
+            'operations' => array_map(static fn ($call): array => $call->toArray(), $result->calls),
+            'audit_recorded' => $result->auditRecorded,
+            'audit_id' => $result->auditId,
+            'audit_warning' => $result->auditWarning,
             'executed_at' => date('Y-m-d H:i:s'),
         ];
     }
@@ -418,12 +425,8 @@ class AdminPackagePushController
             ],
         ];
 
-        $client = new RouterOSApiClient([
-            'timeout' => 5,
-        ]);
-
         try {
-            $profiles = $this->normalizeRows($client->comm('/user-manager/profile/print', [
+            $profiles = $this->normalizeRows($this->readGateway()->read('/user-manager/profile/print', [
                 '?name' => $profileName,
             ]));
 
@@ -442,7 +445,7 @@ class AdminPackagePushController
         }
 
         try {
-            $limitations = $this->normalizeRows($client->comm('/user-manager/limitation/print', [
+            $limitations = $this->normalizeRows($this->readGateway()->read('/user-manager/limitation/print', [
                 '?name' => $limitationName,
             ]));
 
@@ -461,7 +464,7 @@ class AdminPackagePushController
         }
 
         try {
-            $links = $this->normalizeRows($client->comm('/user-manager/profile-limitation/print'));
+            $links = $this->normalizeRows($this->readGateway()->read('/user-manager/profile-limitation/print'));
             $link = $this->findProfileLimitationLink($links, $profileName, $limitationName);
 
             if ($link !== null) {
@@ -474,8 +477,6 @@ class AdminPackagePushController
             }
         } catch (Throwable $e) {
             $result['profile_limitation']['error'] = $e->getMessage();
-        } finally {
-            $client->disconnect();
         }
 
         return $result;
@@ -867,6 +868,33 @@ class AdminPackagePushController
     private function jsonString(mixed $value): string
     {
         return json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) ?: '{}';
+    }
+
+    private function readGateway(): RouterOSReadGatewayInterface
+    {
+        if ($this->readGateway === null) {
+            $this->resolveGateways();
+        }
+        return $this->readGateway;
+    }
+
+    private function writeGateway(): GuardedRouterOSWriteGatewayInterface
+    {
+        if ($this->writeGateway === null) {
+            $this->resolveGateways();
+        }
+        return $this->writeGateway;
+    }
+
+    private function resolveGateways(): void
+    {
+        if ($this->readGateway !== null && $this->writeGateway !== null) {
+            return;
+        }
+
+        $bundle = RouterOSGatewayBundleFactory::create(['timeout' => 6]);
+        $this->readGateway ??= $bundle->read;
+        $this->writeGateway ??= $bundle->write;
     }
 
     private function flash(string $message, string $type = 'success'): void

@@ -45,6 +45,9 @@
 - User creation must verify a missing exact username and an existing profile before writing, then verify exactly one created user and relation. A failed profile assignment after user creation is a partial failure and must never be described as rolled back.
 - `AdminUserManagerUserDeleteController` is a guarded production path. It must revalidate the exact current user `.id`, collect current session and user-profile relation `.id` values, and remove only those exact identifiers inside one guarded callback.
 - User deletion must stop on the first failed remove, report partial failure after any prior successful removal, never delete by wildcard or username alone, and never claim rollback.
+- Package assignment/replacement, package push, and active-session disconnect are guarded production paths. They must use exact current identifiers, one gateway-owned real audit per logical operation, fail-closed command schemas, and post-write verification inside the guarded callback.
+- `AdminUserManagerControlController` is read-gateway-only. No operational User Manager, Hotspot, or PPP Controller may instantiate a RouterOS client or call `comm()` directly.
+- Session disconnect may remove only exact current User Manager session, Hotspot active, or PPP active `.id` values. A missing live session is a safe no-op preview, never a reason to manufacture network state.
 - Existing historical backups and old Git objects remain untrusted. Do not add a remote or publish until backup scanning, required credential rotation, and separately authorized Git-history cleanup are complete.
 - The current router is a lab router. Authorized testing is limited to GreenNet test users, packages, and sessions.
 - Never factory-reset or upgrade RouterOS, or change WAN, LAN, or firewall configuration, without a separate explicit request for that exact operation.

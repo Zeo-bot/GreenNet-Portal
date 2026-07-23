@@ -4,10 +4,15 @@ declare(strict_types=1);
 
 namespace GreenNet\Controllers;
 
+use GreenNet\Contracts\AuthorizedRouterOSWriterInterface;
+use GreenNet\Contracts\GuardedRouterOSWriteGatewayInterface;
+use GreenNet\Contracts\RouterOSReadGatewayInterface;
 use GreenNet\Core\Database;
 use GreenNet\Core\View;
+use GreenNet\DTO\RouterOS\RouterOSWriteCommand;
+use GreenNet\DTO\RouterOS\WriteExecutionRequest;
 use GreenNet\Models\AppLog;
-use GreenNet\Services\RouterOS\RouterOSApiClient;
+use GreenNet\Services\RouterOS\RouterOSGatewayBundleFactory;
 use GreenNet\Services\WriteSafetyGuard;
 use PDO;
 use RuntimeException;
@@ -15,6 +20,13 @@ use Throwable;
 
 class AdminPackageAssignController
 {
+    public function __construct(
+        private ?RouterOSReadGatewayInterface $readGateway = null,
+        private ?GuardedRouterOSWriteGatewayInterface $writeGateway = null,
+        private ?PDO $databaseConnection = null
+    ) {
+    }
+
     public function index(): string
     {
         Database::migrate();
@@ -143,19 +155,13 @@ class AdminPackageAssignController
                 throw new RuntimeException('آخر Dry Run لا يسمح بالتنفيذ.');
             }
 
-            $guard = new WriteSafetyGuard();
-            $guard->ensureTables();
-            $guard->assertRealWriteAllowed([
-                'confirmed' => true,
-            ]);
-
-            $freshPlan = $this->buildAssignPlan($username, $packageId, $mode);
+            $freshPlan = $lastPlan;
 
             if (empty($freshPlan['can_execute_later'])) {
                 throw new RuntimeException((string) ($freshPlan['block_reason'] ?? 'الخطة لم تعد قابلة للتنفيذ.'));
             }
 
-            $execution = $this->executeAssignPlan($freshPlan);
+            $execution = $this->executeAssignPlan($username, $packageId, $mode, $lastPlan);
 
             $afterPlan = $this->buildAssignPlan($username, $packageId, $mode);
             $afterPlan['executed'] = true;
@@ -163,28 +169,6 @@ class AdminPackageAssignController
             $afterPlan['real_result'] = $execution;
 
             $_SESSION['package_assign_result'] = $afterPlan;
-
-            $guard->recordRealAttempt([
-                'action' => $mode === 'replace'
-                    ? 'replace_user_manager_user_package'
-                    : 'assign_package_to_user_manager_user',
-                'dataset' => 'user_manager_user_profile',
-                'username' => $username,
-                'command' => $mode === 'replace'
-                    ? '/user-manager/user-profile/remove + /user-manager/user-profile/add'
-                    : '/user-manager/user-profile/add',
-                'params' => [
-                    'mode' => $mode,
-                    'username' => $username,
-                    'package_id' => $packageId,
-                    'profile_name' => (string) ($freshPlan['router_profile_name'] ?? ''),
-                    'dry_run_audit_id' => (int) ($lastPlan['audit_id'] ?? 0),
-                    'confirmed' => true,
-                ],
-                'executed' => 1,
-                'success' => !empty($execution['ok']) ? 1 : 0,
-                'router_response' => $this->jsonString($execution),
-            ]);
 
             if (empty($execution['ok'])) {
                 throw new RuntimeException((string) ($execution['message'] ?? 'فشل تنفيذ العملية.'));
@@ -248,7 +232,7 @@ class AdminPackageAssignController
         $userFound = !empty($router['user']['found']);
         $profileFound = !empty($router['profile']['found']);
         $alreadyAssigned = !empty($router['assignment']['already_assigned']);
-        $rawRows = is_array($router['assignment']['raw_rows'] ?? null) ? $router['assignment']['raw_rows'] : [];
+        $rawRows = is_array($router['assignment']['id_rows'] ?? null) ? $router['assignment']['id_rows'] : [];
 
         $localPackageId = (int) ($customer['package_id'] ?? 0);
         $localNeedsUpdate = $localPackageId !== $packageId;
@@ -362,8 +346,9 @@ class AdminPackageAssignController
         ];
     }
 
-    private function executeAssignPlan(array $plan): array
+    private function executeAssignPlan(string $username, int $packageId, string $mode, array $lastPlan): array
     {
+        $plan = $lastPlan;
         $operations = is_array($plan['operations'] ?? null) ? $plan['operations'] : [];
         $executed = [];
 
@@ -375,11 +360,29 @@ class AdminPackageAssignController
             ];
         }
 
-        $client = new RouterOSApiClient([
-            'timeout' => 6,
-        ]);
-
-        try {
+        $result = $this->writeGateway()->execute(
+            new WriteExecutionRequest(
+                $mode === 'replace' ? 'replace_user_manager_user_package' : 'assign_package_to_user_manager_user',
+                'user_manager_user_profile',
+                $username,
+                $mode === 'replace'
+                    ? '/user-manager/user-profile/remove + /user-manager/user-profile/add'
+                    : '/user-manager/user-profile/add',
+                [
+                    'mode' => $mode,
+                    'username' => $username,
+                    'package_id' => $packageId,
+                    'profile_name' => (string) ($plan['router_profile_name'] ?? ''),
+                ],
+                (int) ($lastPlan['audit_id'] ?? 0),
+                true
+            ),
+            function (AuthorizedRouterOSWriterInterface $writer) use ($username, $packageId, $mode, &$executed): array {
+            $plan = $this->buildAssignPlan($username, $packageId, $mode);
+            $operations = is_array($plan['operations'] ?? null) ? $plan['operations'] : [];
+            if (empty($plan['can_execute_later']) || empty($operations)) {
+                throw new RuntimeException('User Manager package assignment is no longer executable.');
+            }
             foreach ($operations as $operation) {
                 if (!is_array($operation)) {
                     continue;
@@ -390,7 +393,7 @@ class AdminPackageAssignController
                 $params = is_array($operation['params'] ?? null) ? $operation['params'] : [];
 
                 if ($type === 'router_remove_user_profile' || $type === 'router_add_user_profile') {
-                    $response = $client->comm($command, $params);
+                    $response = $writer->execute(new RouterOSWriteCommand($command, $params));
 
                     $executed[] = [
                         'type' => $type,
@@ -420,25 +423,28 @@ class AdminPackageAssignController
                     continue;
                 }
             }
-        } catch (Throwable $e) {
-            $executed[] = [
-                'ok' => false,
-                'error' => $e->getMessage(),
-            ];
 
-            return [
-                'ok' => false,
-                'message' => $e->getMessage(),
-                'operations' => $executed,
-            ];
-        } finally {
-            $client->disconnect();
-        }
+                $after = $this->readRouterState(
+                    $username,
+                    (string) ($plan['router_profile_name'] ?? '')
+                );
+                if (empty($after['user']['found'])
+                    || empty($after['profile']['found'])
+                    || empty($after['assignment']['already_assigned'])) {
+                    throw new RuntimeException('User Manager package assignment verification failed.');
+                }
+
+                return ['operations' => $executed, 'verified' => true];
+            }
+        );
 
         return [
-            'ok' => true,
+            'ok' => $result->ok,
             'message' => 'تم تنفيذ العملية.',
-            'operations' => $executed,
+            'operations' => array_map(static fn ($call): array => $call->toArray(), $result->calls),
+            'audit_recorded' => $result->auditRecorded,
+            'audit_id' => $result->auditId,
+            'audit_warning' => $result->auditWarning,
             'executed_at' => date('Y-m-d H:i:s'),
         ];
     }
@@ -460,7 +466,7 @@ class AdminPackageAssignController
             ],
             'assignment' => [
                 'rows' => [],
-                'raw_rows' => [],
+                'id_rows' => [],
                 'rows_count' => 0,
                 'current_profiles' => [],
                 'already_assigned' => false,
@@ -469,13 +475,8 @@ class AdminPackageAssignController
             ],
         ];
 
-        $client = new RouterOSApiClient([
-            'timeout' => 6,
-        ]);
-
         try {
-            try {
-                $users = $this->normalizeRows($client->comm('/user-manager/user/print', [
+                $users = $this->normalizeRows($this->readGateway()->read('/user-manager/user/print', [
                     '?name' => $username,
                 ]));
 
@@ -493,8 +494,8 @@ class AdminPackageAssignController
                 $result['user']['error'] = $e->getMessage();
             }
 
-            try {
-                $profiles = $this->normalizeRows($client->comm('/user-manager/profile/print', [
+        try {
+                $profiles = $this->normalizeRows($this->readGateway()->read('/user-manager/profile/print', [
                     '?name' => $profileName,
                 ]));
 
@@ -512,8 +513,8 @@ class AdminPackageAssignController
                 $result['profile']['error'] = $e->getMessage();
             }
 
-            try {
-                $assignments = $this->normalizeRows($client->comm('/user-manager/user-profile/print', [
+        try {
+                $assignments = $this->normalizeRows($this->readGateway()->read('/user-manager/user-profile/print', [
                     '?user' => $username,
                 ]));
 
@@ -528,7 +529,13 @@ class AdminPackageAssignController
                         continue;
                     }
 
-                    $rawRows[] = $row;
+                    $rawRows[] = [
+                        '.id' => (string) ($row['.id'] ?? ''),
+                        'user' => (string) ($row['user'] ?? ''),
+                        'profile' => (string) ($row['profile'] ?? ''),
+                        'state' => (string) ($row['state'] ?? ''),
+                        'end-time' => (string) ($row['end-time'] ?? ''),
+                    ];
                     $cleanRow = $this->sanitizeRowForDisplay($row);
                     $cleanRows[] = $cleanRow;
 
@@ -551,18 +558,15 @@ class AdminPackageAssignController
 
                 $result['assignment'] = [
                     'rows' => $cleanRows,
-                    'raw_rows' => $rawRows,
+                    'id_rows' => $rawRows,
                     'rows_count' => count($cleanRows),
                     'current_profiles' => $currentProfiles,
                     'already_assigned' => $alreadyAssigned,
                     'matching_rows' => $matchingRows,
                     'error' => '',
                 ];
-            } catch (Throwable $e) {
-                $result['assignment']['error'] = $e->getMessage();
-            }
-        } finally {
-            $client->disconnect();
+        } catch (Throwable $e) {
+            $result['assignment']['error'] = $e->getMessage();
         }
 
         return $result;
@@ -570,10 +574,6 @@ class AdminPackageAssignController
 
     private function sanitizeRouterStateForSession(array $router): array
     {
-        if (isset($router['assignment']['raw_rows'])) {
-            unset($router['assignment']['raw_rows']);
-        }
-
         return $router;
     }
 
@@ -980,6 +980,33 @@ class AdminPackageAssignController
         if (preg_match('/[\r\n\t]/', $username)) {
             throw new RuntimeException('اسم المستخدم يحتوي رموز غير مسموحة.');
         }
+    }
+
+    private function readGateway(): RouterOSReadGatewayInterface
+    {
+        if ($this->readGateway === null) {
+            $this->resolveGateways();
+        }
+        return $this->readGateway;
+    }
+
+    private function writeGateway(): GuardedRouterOSWriteGatewayInterface
+    {
+        if ($this->writeGateway === null) {
+            $this->resolveGateways();
+        }
+        return $this->writeGateway;
+    }
+
+    private function resolveGateways(): void
+    {
+        if ($this->readGateway !== null && $this->writeGateway !== null) {
+            return;
+        }
+
+        $bundle = RouterOSGatewayBundleFactory::create(['timeout' => 6]);
+        $this->readGateway ??= $bundle->read;
+        $this->writeGateway ??= $bundle->write;
     }
 
     private function jsonString(mixed $value): string

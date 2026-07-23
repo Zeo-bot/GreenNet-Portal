@@ -131,6 +131,14 @@ User-delete preview retains only safe projections and exact `.id` values. Before
 
 One guarded callback removes current sessions, then current user-profile relations, then the user. Every `/user-manager/session/remove`, `/user-manager/user-profile/remove`, and `/user-manager/user/remove` command uses an exact `numbers` identifier from the current pre-write read. Wildcards and username-only deletion are prohibited. Processing stops at the first failure; if an earlier removal succeeded, the result is a partial failure and no rollback is claimed. The authorized Lab Router smoke test created one isolated test user through the migrated create path, deleted its exact relation and user through the migrated delete path, observed one delete real audit, and verified no unrelated user or profile change.
 
+## Phase 1E assignment, push, and disconnect boundaries
+
+ASSIGN verifies the exact User Manager user and profile, then adds the intended relation. REPLACE removes only current exact relation `.id` values before adding the verified profile. Package push deterministically creates or updates the exact limitation, creates or updates the exact profile, adds the exact mapping when missing, and verifies all three objects before audit completion. Neither operation claims rollback after partial success.
+
+Disconnect preview retains only exact `.id` projections for User Manager sessions, Hotspot active sessions, and PPP active sessions. Execution re-reads current targets and removes only `/user-manager/session/remove`, `/ip/hotspot/active/remove`, or `/ppp/active/remove` with `numbers=<exact current .id>`, then verifies those IDs are absent. Unknown commands and extra parameters fail before the client.
+
+The authorized Lab Router run passed create, ASSIGN, REPLACE, package push, delete, and exact cleanup with one real audit per executed logical operation and zero generated-secret persistence. No natural active test session existed, so the live disconnect path ended safely without a write; isolated tests cover all three remove command schemas and failure behavior.
+
 ## Prohibited shortcuts
 
 - Calling an execute route to test reachability.

@@ -58,6 +58,10 @@ Phase 1D-F adds isolated coverage for guarded User Manager deletion. Tests cover
 
 The authorized Lab Router validation used the migrated create flow to create one uniquely named test user and exact profile relation, then used the actual migrated delete preview and execute flow. The exact relation and user were absent afterward, exactly one successful delete real audit was recorded, and unrelated users and profiles were unchanged.
 
+Phase 1E adds architectural and behavior checks for the completed operational Controller boundary. Coverage verifies that the four newly migrated Controllers contain no direct client, `comm()`, real-write assertion, controller-owned real audit, or production fake reference; constructors stay lazy; guard denial occurs before current-state reads; control-center reads use the read gateway; disconnect projections discard synthetic secrets; all User Manager/Hotspot/PPP write schemas accept only exact parameters; unknown and extra parameters fail closed; and assignment, push, and disconnect verification remains inside guarded execution. The complete isolated suite passes with 197 tests and 1281 assertions under `network_mode: none`.
+
+The integrated Lab Router run on identity `hAP` passed migrated creation, profile A assignment, replacement with profile B, unique limitation/profile/mapping push, migrated deletion, exact cleanup, and zero generated-secret occurrences in temporary persistence. Each executed logical operation produced exactly one real-attempt audit. No natural test session was available, so disconnect produced the expected no-session result and no disconnect audit; unit coverage remains the acceptance evidence for the three exact remove commands.
+
 ## Running the isolated suite
 
 Builds may use the public package network to download pinned Composer dependencies. Test runtime has no network:

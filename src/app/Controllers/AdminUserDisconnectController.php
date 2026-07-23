@@ -4,10 +4,15 @@ declare(strict_types=1);
 
 namespace GreenNet\Controllers;
 
+use GreenNet\Contracts\AuthorizedRouterOSWriterInterface;
+use GreenNet\Contracts\GuardedRouterOSWriteGatewayInterface;
+use GreenNet\Contracts\RouterOSReadGatewayInterface;
 use GreenNet\Core\Database;
 use GreenNet\Core\View;
+use GreenNet\DTO\RouterOS\RouterOSWriteCommand;
+use GreenNet\DTO\RouterOS\WriteExecutionRequest;
 use GreenNet\Models\AppLog;
-use GreenNet\Services\RouterOS\RouterOSApiClient;
+use GreenNet\Services\RouterOS\RouterOSGatewayBundleFactory;
 use GreenNet\Services\WriteSafetyGuard;
 use PDO;
 use RuntimeException;
@@ -15,6 +20,12 @@ use Throwable;
 
 class AdminUserDisconnectController
 {
+    public function __construct(
+        private ?RouterOSReadGatewayInterface $readGateway = null,
+        private ?GuardedRouterOSWriteGatewayInterface $writeGateway = null
+    ) {
+    }
+
     public function index(): string
     {
         Database::migrate();
@@ -116,19 +127,13 @@ class AdminUserDisconnectController
                 throw new RuntimeException('آخر Dry Run لا يسمح بالتنفيذ.');
             }
 
-            $guard = new WriteSafetyGuard();
-            $guard->ensureTables();
-            $guard->assertRealWriteAllowed([
-                'confirmed' => true,
-            ]);
-
-            $freshPlan = $this->buildDisconnectPlan($username);
+            $freshPlan = $lastPlan;
 
             if (empty($freshPlan['can_execute_later'])) {
                 throw new RuntimeException((string) ($freshPlan['block_reason'] ?? 'لا توجد جلسات نشطة حالياً.'));
             }
 
-            $execution = $this->executeDisconnectPlan($freshPlan);
+            $execution = $this->executeDisconnectPlan($username, $lastPlan);
 
             $afterPlan = $this->buildDisconnectPlan($username);
             $afterPlan['executed'] = true;
@@ -136,21 +141,6 @@ class AdminUserDisconnectController
             $afterPlan['real_result'] = $execution;
 
             $_SESSION['user_disconnect_result'] = $afterPlan;
-
-            $guard->recordRealAttempt([
-                'action' => 'disconnect_active_sessions',
-                'dataset' => 'router_active_sessions',
-                'username' => $username,
-                'command' => '/ip/hotspot/active/remove + /ppp/active/remove',
-                'params' => [
-                    'username' => $username,
-                    'dry_run_audit_id' => (int) ($lastPlan['audit_id'] ?? 0),
-                    'confirmed' => true,
-                ],
-                'executed' => 1,
-                'success' => !empty($execution['ok']) ? 1 : 0,
-                'router_response' => $this->jsonString($execution),
-            ]);
 
             if (empty($execution['ok'])) {
                 throw new RuntimeException((string) ($execution['message'] ?? 'فشل فصل الجلسات.'));
@@ -186,12 +176,16 @@ class AdminUserDisconnectController
         $customer = $this->findCustomer($username);
         $router = $this->readRouterSessions($username);
 
-        $hotspotRows = is_array($router['hotspot_active']['raw_rows'] ?? null)
-            ? $router['hotspot_active']['raw_rows']
+        $hotspotRows = is_array($router['hotspot_active']['id_rows'] ?? null)
+            ? $router['hotspot_active']['id_rows']
             : [];
 
-        $pppRows = is_array($router['ppp_active']['raw_rows'] ?? null)
-            ? $router['ppp_active']['raw_rows']
+        $pppRows = is_array($router['ppp_active']['id_rows'] ?? null)
+            ? $router['ppp_active']['id_rows']
+            : [];
+
+        $userManagerRows = is_array($router['user_manager_sessions']['id_rows'] ?? null)
+            ? $router['user_manager_sessions']['id_rows']
             : [];
 
         $operations = [];
@@ -238,6 +232,18 @@ class AdminUserDisconnectController
             ];
         }
 
+        foreach ($userManagerRows as $row) {
+            $id = (string) ($row['.id'] ?? '');
+            if ($id !== '') {
+                $operations[] = [
+                    'type' => 'router_remove_user_manager_session',
+                    'command' => '/user-manager/session/remove',
+                    'params' => ['numbers' => $id],
+                    'display' => ['id' => $id],
+                ];
+            }
+        }
+
         $blockReason = '';
 
         if (count($operations) === 0) {
@@ -252,7 +258,7 @@ class AdminUserDisconnectController
             'router' => $this->sanitizeRouterStateForSession($router),
             'hotspot_active_count' => count($hotspotRows),
             'ppp_active_count' => count($pppRows),
-            'user_manager_sessions_count' => (int) ($router['user_manager_sessions']['rows_count'] ?? 0),
+            'user_manager_sessions_count' => count($userManagerRows),
             'operations' => $operations,
             'operations_count' => count($operations),
             'can_execute_later' => count($operations) > 0,
@@ -268,8 +274,9 @@ class AdminUserDisconnectController
         ];
     }
 
-    private function executeDisconnectPlan(array $plan): array
+    private function executeDisconnectPlan(string $username, array $lastPlan): array
     {
+        $plan = $lastPlan;
         $operations = is_array($plan['operations'] ?? null) ? $plan['operations'] : [];
 
         if (empty($operations)) {
@@ -281,11 +288,22 @@ class AdminUserDisconnectController
         }
 
         $executed = [];
-        $client = new RouterOSApiClient([
-            'timeout' => 6,
-        ]);
-
-        try {
+        $result = $this->writeGateway()->execute(
+            new WriteExecutionRequest(
+                'disconnect_active_sessions',
+                'router_active_sessions',
+                $username,
+                '/user-manager/session/remove + /ip/hotspot/active/remove + /ppp/active/remove',
+                ['username' => $username],
+                (int) ($lastPlan['audit_id'] ?? 0),
+                true
+            ),
+            function (AuthorizedRouterOSWriterInterface $writer) use ($username, &$executed): array {
+            $plan = $this->buildDisconnectPlan($username);
+            $operations = is_array($plan['operations'] ?? null) ? $plan['operations'] : [];
+            if (empty($plan['can_execute_later']) || empty($operations)) {
+                throw new RuntimeException('RouterOS session disconnect is no longer executable.');
+            }
             foreach ($operations as $operation) {
                 if (!is_array($operation)) {
                     continue;
@@ -296,13 +314,14 @@ class AdminUserDisconnectController
                 $params = is_array($operation['params'] ?? null) ? $operation['params'] : [];
 
                 if (!in_array($type, [
+                    'router_remove_user_manager_session',
                     'router_remove_hotspot_active',
                     'router_remove_ppp_active',
                 ], true)) {
                     continue;
                 }
 
-                $response = $client->comm($command, $params);
+                $response = $writer->execute(new RouterOSWriteCommand($command, $params));
 
                 $executed[] = [
                     'type' => $type,
@@ -312,25 +331,32 @@ class AdminUserDisconnectController
                     'ok' => true,
                 ];
             }
-        } catch (Throwable $e) {
-            $executed[] = [
-                'ok' => false,
-                'error' => $e->getMessage(),
-            ];
 
-            return [
-                'ok' => false,
-                'message' => $e->getMessage(),
-                'operations' => $executed,
-            ];
-        } finally {
-            $client->disconnect();
-        }
+                $after = $this->readRouterSessions($username);
+                $remainingIds = [];
+                foreach (['hotspot_active', 'ppp_active', 'user_manager_sessions'] as $group) {
+                    foreach (($after[$group]['id_rows'] ?? []) as $row) {
+                        $remainingIds[(string) ($row['.id'] ?? '')] = true;
+                    }
+                }
+                foreach ($operations as $operation) {
+                    $id = (string) ($operation['params']['numbers'] ?? '');
+                    if ($id !== '' && isset($remainingIds[$id])) {
+                        throw new RuntimeException('RouterOS session disconnect verification failed.');
+                    }
+                }
+
+                return ['operations' => $executed, 'verified_absent' => true];
+            }
+        );
 
         return [
-            'ok' => true,
+            'ok' => $result->ok,
             'message' => 'تم فصل الجلسات النشطة.',
-            'operations' => $executed,
+            'operations' => array_map(static fn ($call): array => $call->toArray(), $result->calls),
+            'audit_recorded' => $result->auditRecorded,
+            'audit_id' => $result->auditId,
+            'audit_warning' => $result->auditWarning,
             'executed_at' => date('Y-m-d H:i:s'),
         ];
     }
@@ -340,31 +366,26 @@ class AdminUserDisconnectController
         $result = [
             'hotspot_active' => [
                 'rows' => [],
-                'raw_rows' => [],
+                'id_rows' => [],
                 'rows_count' => 0,
                 'error' => '',
             ],
             'ppp_active' => [
                 'rows' => [],
-                'raw_rows' => [],
+                'id_rows' => [],
                 'rows_count' => 0,
                 'error' => '',
             ],
             'user_manager_sessions' => [
                 'rows' => [],
-                'raw_rows' => [],
+                'id_rows' => [],
                 'rows_count' => 0,
                 'error' => '',
             ],
         ];
 
-        $client = new RouterOSApiClient([
-            'timeout' => 6,
-        ]);
-
         try {
-            try {
-                $hotspot = $this->normalizeRows($client->comm('/ip/hotspot/active/print', [
+                $hotspot = $this->normalizeRows($this->readGateway()->read('/ip/hotspot/active/print', [
                     '?user' => $username,
                 ]));
 
@@ -372,7 +393,7 @@ class AdminUserDisconnectController
 
                 $result['hotspot_active'] = [
                     'rows' => $this->sanitizeRows($hotspot),
-                    'raw_rows' => $hotspot,
+                    'id_rows' => $this->projectSessionIds($hotspot),
                     'rows_count' => count($hotspot),
                     'error' => '',
                 ];
@@ -380,8 +401,8 @@ class AdminUserDisconnectController
                 $result['hotspot_active']['error'] = $e->getMessage();
             }
 
-            try {
-                $ppp = $this->normalizeRows($client->comm('/ppp/active/print', [
+        try {
+                $ppp = $this->normalizeRows($this->readGateway()->read('/ppp/active/print', [
                     '?name' => $username,
                 ]));
 
@@ -389,7 +410,7 @@ class AdminUserDisconnectController
 
                 $result['ppp_active'] = [
                     'rows' => $this->sanitizeRows($ppp),
-                    'raw_rows' => $ppp,
+                    'id_rows' => $this->projectSessionIds($ppp),
                     'rows_count' => count($ppp),
                     'error' => '',
                 ];
@@ -397,29 +418,26 @@ class AdminUserDisconnectController
                 $result['ppp_active']['error'] = $e->getMessage();
             }
 
-            try {
-                $sessions = $this->normalizeRows($client->comm('/user-manager/session/print', [
+        try {
+                $sessions = $this->normalizeRows($this->readGateway()->read('/user-manager/session/print', [
                     '?user' => $username,
                 ]));
 
                 $sessions = $this->filterRowsForUsername($sessions, $username);
 
                 if (count($sessions) === 0) {
-                    $allSessions = $this->normalizeRows($client->comm('/user-manager/session/print'));
+                    $allSessions = $this->normalizeRows($this->readGateway()->read('/user-manager/session/print'));
                     $sessions = $this->filterRowsForUsername($allSessions, $username);
                 }
 
                 $result['user_manager_sessions'] = [
                     'rows' => $this->sanitizeRows($sessions),
-                    'raw_rows' => $sessions,
+                    'id_rows' => $this->projectSessionIds($sessions),
                     'rows_count' => count($sessions),
                     'error' => '',
                 ];
-            } catch (Throwable $e) {
-                $result['user_manager_sessions']['error'] = $e->getMessage();
-            }
-        } finally {
-            $client->disconnect();
+        } catch (Throwable $e) {
+            $result['user_manager_sessions']['error'] = $e->getMessage();
         }
 
         return $result;
@@ -583,6 +601,20 @@ class AdminUserDisconnectController
         return $out;
     }
 
+    private function projectSessionIds(array $rows): array
+    {
+        $out = [];
+        foreach ($rows as $row) {
+            if (is_array($row) && (string) ($row['.id'] ?? '') !== '') {
+                $out[] = [
+                    '.id' => (string) $row['.id'],
+                    'user' => (string) ($row['user'] ?? $row['name'] ?? ''),
+                ];
+            }
+        }
+        return $out;
+    }
+
     private function sanitizeRowForDisplay(array $row): array
     {
         $hiddenKeys = [
@@ -656,18 +688,6 @@ class AdminUserDisconnectController
 
     private function sanitizeRouterStateForSession(array $router): array
     {
-        if (isset($router['hotspot_active']['raw_rows'])) {
-            unset($router['hotspot_active']['raw_rows']);
-        }
-
-        if (isset($router['ppp_active']['raw_rows'])) {
-            unset($router['ppp_active']['raw_rows']);
-        }
-
-        if (isset($router['user_manager_sessions']['raw_rows'])) {
-            unset($router['user_manager_sessions']['raw_rows']);
-        }
-
         return $router;
     }
 
@@ -708,6 +728,33 @@ class AdminUserDisconnectController
     private function jsonString(mixed $value): string
     {
         return json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) ?: '{}';
+    }
+
+    private function readGateway(): RouterOSReadGatewayInterface
+    {
+        if ($this->readGateway === null) {
+            $this->resolveGateways();
+        }
+        return $this->readGateway;
+    }
+
+    private function writeGateway(): GuardedRouterOSWriteGatewayInterface
+    {
+        if ($this->writeGateway === null) {
+            $this->resolveGateways();
+        }
+        return $this->writeGateway;
+    }
+
+    private function resolveGateways(): void
+    {
+        if ($this->readGateway !== null && $this->writeGateway !== null) {
+            return;
+        }
+
+        $bundle = RouterOSGatewayBundleFactory::create(['timeout' => 6]);
+        $this->readGateway ??= $bundle->read;
+        $this->writeGateway ??= $bundle->write;
     }
 
     private function flash(string $message, string $type = 'success'): void

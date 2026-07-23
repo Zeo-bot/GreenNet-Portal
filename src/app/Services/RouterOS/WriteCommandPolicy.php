@@ -31,10 +31,6 @@ final class WriteCommandPolicy implements RouterOSWriteCommandPolicyInterface
             'required' => ['profile', 'limitation'],
             'allowed' => ['profile', 'limitation'],
         ],
-        '/user-manager/user-profile/remove' => [
-            'required' => ['numbers'],
-            'allowed' => ['numbers'],
-        ],
         '/user-manager/user-profile/add' => [
             'required' => ['user', 'profile'],
             'allowed' => ['user', 'profile'],

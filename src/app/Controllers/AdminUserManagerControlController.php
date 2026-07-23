@@ -4,14 +4,19 @@ declare(strict_types=1);
 
 namespace GreenNet\Controllers;
 
+use GreenNet\Contracts\RouterOSReadGatewayInterface;
 use GreenNet\Core\Database;
 use GreenNet\Core\View;
-use GreenNet\Services\RouterOS\RouterOSApiClient;
+use GreenNet\Services\RouterOS\RouterOSReadGatewayFactory;
 use PDO;
 use Throwable;
 
 class AdminUserManagerControlController
 {
+    public function __construct(private ?RouterOSReadGatewayInterface $readGateway = null)
+    {
+    }
+
     public function index(): string
     {
         Database::migrate();
@@ -91,13 +96,8 @@ class AdminUserManagerControlController
             ],
         ];
 
-        $client = new RouterOSApiClient([
-            'timeout' => 6,
-        ]);
-
         try {
-            try {
-                $users = $this->normalizeRows($client->comm('/user-manager/user/print', [
+                $users = $this->normalizeRows($this->readGateway()->read('/user-manager/user/print', [
                     '?name' => $username,
                 ]));
 
@@ -112,15 +112,15 @@ class AdminUserManagerControlController
                         'error' => '',
                     ];
                 }
-            } catch (Throwable $e) {
-                $result['user']['error'] = $e->getMessage();
-            }
+        } catch (Throwable $e) {
+            $result['user']['error'] = $e->getMessage();
+        }
 
-            try {
+        try {
                 $userId = (string) ($result['user']['id'] ?? '');
 
                 if ($userId !== '') {
-                    $monitor = $this->normalizeRows($client->comm('/user-manager/user/monitor', [
+                    $monitor = $this->normalizeRows($this->readGateway()->read('/user-manager/user/monitor', [
                         'numbers' => $userId,
                         'once' => '',
                     ]));
@@ -133,12 +133,12 @@ class AdminUserManagerControlController
                         ];
                     }
                 }
-            } catch (Throwable $e) {
-                $result['monitor']['error'] = $e->getMessage();
-            }
+        } catch (Throwable $e) {
+            $result['monitor']['error'] = $e->getMessage();
+        }
 
-            try {
-                $profiles = $this->normalizeRows($client->comm('/user-manager/user-profile/print', [
+        try {
+                $profiles = $this->normalizeRows($this->readGateway()->read('/user-manager/user-profile/print', [
                     '?user' => $username,
                 ]));
 
@@ -149,12 +149,12 @@ class AdminUserManagerControlController
                     'rows_count' => count($profiles),
                     'error' => '',
                 ];
-            } catch (Throwable $e) {
-                $result['user_profiles']['error'] = $e->getMessage();
-            }
+        } catch (Throwable $e) {
+            $result['user_profiles']['error'] = $e->getMessage();
+        }
 
-            try {
-                $hotspot = $this->normalizeRows($client->comm('/ip/hotspot/active/print', [
+        try {
+                $hotspot = $this->normalizeRows($this->readGateway()->read('/ip/hotspot/active/print', [
                     '?user' => $username,
                 ]));
 
@@ -165,12 +165,12 @@ class AdminUserManagerControlController
                     'rows_count' => count($hotspot),
                     'error' => '',
                 ];
-            } catch (Throwable $e) {
-                $result['hotspot_active']['error'] = $e->getMessage();
-            }
+        } catch (Throwable $e) {
+            $result['hotspot_active']['error'] = $e->getMessage();
+        }
 
-            try {
-                $ppp = $this->normalizeRows($client->comm('/ppp/active/print', [
+        try {
+                $ppp = $this->normalizeRows($this->readGateway()->read('/ppp/active/print', [
                     '?name' => $username,
                 ]));
 
@@ -181,19 +181,19 @@ class AdminUserManagerControlController
                     'rows_count' => count($ppp),
                     'error' => '',
                 ];
-            } catch (Throwable $e) {
-                $result['ppp_active']['error'] = $e->getMessage();
-            }
+        } catch (Throwable $e) {
+            $result['ppp_active']['error'] = $e->getMessage();
+        }
 
-            try {
-                $sessions = $this->normalizeRows($client->comm('/user-manager/session/print', [
+        try {
+                $sessions = $this->normalizeRows($this->readGateway()->read('/user-manager/session/print', [
                     '?user' => $username,
                 ]));
 
                 $sessions = $this->filterRowsForUsername($sessions, $username);
 
                 if (count($sessions) === 0) {
-                    $allSessions = $this->normalizeRows($client->comm('/user-manager/session/print'));
+                    $allSessions = $this->normalizeRows($this->readGateway()->read('/user-manager/session/print'));
                     $sessions = $this->filterRowsForUsername($allSessions, $username);
                 }
 
@@ -202,14 +202,16 @@ class AdminUserManagerControlController
                     'rows_count' => count($sessions),
                     'error' => '',
                 ];
-            } catch (Throwable $e) {
-                $result['user_manager_sessions']['error'] = $e->getMessage();
-            }
-        } finally {
-            $client->disconnect();
+        } catch (Throwable $e) {
+            $result['user_manager_sessions']['error'] = $e->getMessage();
         }
 
         return $result;
+    }
+
+    private function readGateway(): RouterOSReadGatewayInterface
+    {
+        return $this->readGateway ??= RouterOSReadGatewayFactory::create(['timeout' => 6]);
     }
 
     private function localCustomers(): array

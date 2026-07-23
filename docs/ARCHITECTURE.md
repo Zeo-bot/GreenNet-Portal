@@ -86,3 +86,16 @@ The callback verifies the user is absent and profile exists before writing, then
 `AdminUserManagerUserDeleteController` now resolves the shared lazy read/guarded-write bundle and no longer constructs a RouterOS client, calls `comm()`, or owns the real-attempt audit. Preview stores only safe projections and exact identifiers for the matched user, associated sessions, and user-profile relations.
 
 Execution re-reads and verifies the exact user `.id` and current child `.id` set before entering one guarded callback. The callback removes verified sessions first, verified user-profile relations second, and the verified user last; every command uses `numbers=<current exact .id>`. It stops on the first command failure, reports partial failure when any earlier removal succeeded, claims no rollback, and verifies that the user and associated children are absent afterward.
+
+## Phase 1E operational boundary completion
+
+The remaining operational Controllers now use the shared lazy boundaries:
+
+- `AdminPackageAssignController`: User Manager user/profile/relation reads plus guarded ASSIGN and REPLACE.
+- `AdminPackagePushController`: limitation, profile, and profile-limitation reads plus one guarded create/update/mapping operation.
+- `AdminUserDisconnectController`: User Manager session, Hotspot active, and PPP active reads plus exact-ID guarded removal.
+- `AdminUserManagerControlController`: read gateway only for its User Manager, Hotspot, and PPP snapshot.
+
+Each write operation builds its current exact plan only inside the authorized callback, uses the exact command policy, stops on the first failure, reports partial success through the gateway, verifies final RouterOS state before the single real-attempt audit is finalized, and persists only safe projections.
+
+Intentionally excluded legacy paths are non-Controller infrastructure and system/network diagnostics: `RouterSettingsService`, `MikroTikService`, `GreenNetUsageBaselineService`, and `CustomerDashboardService`. They remain scheduled separately because their responsibilities include system identity/resource data or broader service APIs; network, firewall, interfaces, routing, RouterOS upgrades, packages, system users, and factory-reset operations were not changed in Phase 1E.
