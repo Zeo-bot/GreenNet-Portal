@@ -74,8 +74,83 @@ final class RouterOnboardingServiceTest extends TestCase
 
         self::assertArrayHasKey('bootstrap.rsc', $artifacts);
         self::assertArrayHasKey('greennet-app.yml', $artifacts);
-        self::assertStringContainsString('<SET-ONE-TIME-PASSWORD>', $artifacts['bootstrap.rsc']);
+        self::assertStringContainsString('<SET-ONE-TIME-ADMIN-PASSWORD>', $artifacts['bootstrap.rsc']);
         self::assertStringContainsString('no artifact has been applied automatically', strtolower($artifacts['README.txt']));
         self::assertStringNotContainsString('synthetic-only', $combined);
+    }
+
+    public function testEligibleArm64ArtifactsUseFinalProductionRuntimeModel(): void
+    {
+        $service = new RouterOnboardingService();
+        $router = Router::find($this->routerId) ?? [];
+        $router['capabilities_json'] = json_encode([
+            'routeros_version' => '7.23.1',
+            'architecture' => 'arm64',
+            'board_name' => 'hAP ax3',
+            'container_package' => true,
+            'container_mode' => true,
+            'apps' => true,
+            'interface_names' => [],
+            'router_addresses' => [],
+            'container_names' => [],
+        ]);
+        $deployment = $service->deployment($router, [
+            'method' => 'apps',
+            'app_name' => 'greennet',
+            'storage_path' => 'disk1/greennet',
+            'container_ip' => '172.30.30.2',
+            'gateway_ip' => '172.30.30.1',
+            'prefix' => 28,
+            'veth_name' => 'veth-greennet',
+            'bridge_name' => 'greennet-containers',
+            'http_port' => 8080,
+            'timezone' => 'Asia/Damascus',
+            'automation_interval' => 300,
+            'admin_username' => 'greennet-operator',
+            'image_reference' => 'registry.example/greennet/portal:1.0.0',
+        ]);
+        $artifacts = $service->artifacts($router, $deployment, ['admin_password' => 'synthetic-admin-secret']);
+
+        self::assertStringContainsString('8080:8080:tcp', $artifacts['greennet-app.yml']);
+        self::assertStringContainsString('disk1/greennet/data:/greennet-data', $artifacts['greennet-app.yml']);
+        self::assertStringContainsString('DB_DATABASE=/greennet-data/database/database.sqlite', $artifacts['greennet-app.yml']);
+        self::assertStringContainsString('MIKROTIK_HOST=172.30.30.1', $artifacts['greennet-app.yml']);
+        self::assertStringNotContainsString('/var/www/database', $artifacts['greennet-app.yml']);
+    }
+
+    public function testTraditionalArtifactIsConflictAwareAndUsesLocalArchive(): void
+    {
+        $service = new RouterOnboardingService();
+        $router = Router::find($this->routerId) ?? [];
+        $router['capabilities_json'] = json_encode([
+            'routeros_version' => '7.23.1',
+            'architecture' => 'arm64',
+            'container_package' => true,
+            'container_mode' => true,
+            'apps' => false,
+        ]);
+        $deployment = $service->deployment($router, [
+            'method' => 'container',
+            'app_name' => 'greennet',
+            'storage_path' => 'disk1/greennet',
+            'container_ip' => '172.30.30.2',
+            'gateway_ip' => '172.30.30.1',
+            'prefix' => 28,
+            'veth_name' => 'veth-greennet',
+            'bridge_name' => 'greennet-containers',
+            'http_port' => 8080,
+            'timezone' => 'Asia/Damascus',
+            'automation_interval' => 300,
+            'admin_username' => 'greennet-operator',
+            'image_reference' => 'disk1/greennet-mikrotik-arm64.tar',
+        ]);
+        $rsc = $service->artifacts($router, $deployment, ['admin_password' => 'synthetic-admin-secret'])['bootstrap.rsc'];
+
+        self::assertStringContainsString('/container add file="disk1/greennet-mikrotik-arm64.tar"', $rsc);
+        self::assertStringContainsString('dst=/greennet-data', $rsc);
+        self::assertStringContainsString('MIKROTIK_HOST value="172.30.30.1"', $rsc);
+        self::assertStringContainsString('already exists', $rsc);
+        self::assertStringNotContainsString('/ip/hotspot', $rsc);
+        self::assertStringNotContainsString('/interface/pppoe', $rsc);
     }
 }

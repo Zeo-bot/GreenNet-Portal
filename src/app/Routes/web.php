@@ -161,6 +161,10 @@ $router->post('/admin/router-onboarding/save', [AdminRouterOnboardingController:
 $router->post('/admin/router-onboarding/detect', [AdminRouterOnboardingController::class, 'detect']);
 $router->post('/admin/router-onboarding/finish', [AdminRouterOnboardingController::class, 'finish']);
 $router->get('/admin/router-onboarding/artifact', [AdminRouterOnboardingController::class, 'artifact']);
+$router->post('/admin/router-onboarding/prepare', [AdminRouterOnboardingController::class, 'prepare']);
+$router->post('/admin/router-onboarding/generate', [AdminRouterOnboardingController::class, 'generate']);
+$router->post('/admin/router-onboarding/installation-status', [AdminRouterOnboardingController::class, 'installationStatus']);
+$router->post('/admin/router-onboarding/check-greennet', [AdminRouterOnboardingController::class, 'checkGreenNet']);
 
 $router->get('/admin/customers/edit', [AdminController::class, 'editCustomer']);
 $router->post('/admin/customers/update', [AdminController::class, 'updateCustomer']);

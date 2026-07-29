@@ -121,4 +121,4 @@ If only the image/root directory is lost, recreate the container with the existi
 
 If storage is absent, full, or unwritable, first-run migration or backup creation fails clearly and the existing database is not intentionally replaced. Stop the container, repair/replace the selected storage, then start again. If the container cannot start, inspect `/container/print detail` and RouterOS container logs before changing any network configuration.
 
-This deployment never resets bridges, pools, routes, Hotspot, PPPoE, or firewall policy. Final Apps YAML and `bootstrap.rsc` generation remains a separate Part C task.
+This deployment never resets bridges, pools, routes, Hotspot, PPPoE, or firewall policy. The existing Router Onboarding screen now generates the final RouterOS Apps YAML or traditional `bootstrap.rsc` from operator-selected values.

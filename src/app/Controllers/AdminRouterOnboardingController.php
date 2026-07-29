@@ -29,6 +29,9 @@ final class AdminRouterOnboardingController
             'capabilities' => $router ? $service->capabilities($router) : [],
             'readiness' => $router ? $service->readiness($router) : ['status' => 'registered', 'checks' => []],
             'missing_mappings' => $router ? $service->mappingsMissing($id) : [],
+            'installation_methods' => $router ? $service->installationMethods($router) : [],
+            'deployment' => $router ? $this->deployment($id, $service, $router) : [],
+            'deployment_warnings' => $router ? $service->deploymentWarnings($router, $this->deployment($id, $service, $router)) : [],
             'message' => $this->consume(),
         ]);
     }
@@ -109,7 +112,8 @@ final class AdminRouterOnboardingController
             http_response_code(404);
             return;
         }
-        $artifacts = (new RouterOnboardingService())->artifacts($router);
+        $service = new RouterOnboardingService();
+        $artifacts = $service->artifacts($router, $this->deployment($id, $service, $router));
         if (!array_key_exists($name, $artifacts)) {
             http_response_code(404);
             return;
@@ -118,6 +122,100 @@ final class AdminRouterOnboardingController
         header('Content-Type: ' . $type . '; charset=utf-8');
         header('Content-Disposition: attachment; filename="' . $name . '"');
         echo $artifacts[$name];
+    }
+
+    public function prepare(): void
+    {
+        Database::migrate();
+        $this->requireLogin();
+        $id = (int) ($_POST['id'] ?? 0);
+        try {
+            $router = Router::find($id);
+            if ($router === null) {
+                throw new RuntimeException('Router not found.');
+            }
+            $service = new RouterOnboardingService();
+            $deployment = $service->deployment($router, $_POST);
+            $_SESSION['router_onboarding_deployment'][$id] = $deployment;
+            $service->markInstallationStatus($id, 'artifact_ready');
+            $this->flash('تم تجهيز الملخص. راجع التحذيرات ثم أدخل كلمة مرور المدير مرة واحدة عند تنزيل الملف.');
+        } catch (Throwable $e) {
+            $this->flash($e->getMessage());
+        }
+        $this->redirect($id);
+    }
+
+    public function generate(): void
+    {
+        Database::migrate();
+        $this->requireLogin();
+        $id = (int) ($_POST['id'] ?? 0);
+        $router = Router::find($id);
+        if ($router === null) {
+            http_response_code(404);
+            return;
+        }
+        try {
+            $service = new RouterOnboardingService();
+            $deployment = $this->deployment($id, $service, $router);
+            $password = (string) ($_POST['admin_password'] ?? '');
+            if (strlen($password) < 12 || in_array(strtolower($password), ['admin', 'password', 'change_me_admin_password'], true)) {
+                throw new RuntimeException('استخدم كلمة مرور مدير مقصودة بطول 12 محرفًا على الأقل.');
+            }
+            $method = (string) ($deployment['method'] ?? '');
+            $name = $method === 'apps' ? 'greennet-app.yml' : 'bootstrap.rsc';
+            $artifacts = $service->artifacts($router, $deployment, ['admin_password' => $password]);
+            $service->markInstallationStatus($id, 'installation_pending');
+            $filename = preg_replace('/[^A-Za-z0-9_-]+/', '-', $deployment['app_name'] . '-' . $deployment['router_name']) ?: 'greennet';
+            header('Content-Type: ' . ($method === 'apps' ? 'application/yaml' : 'text/plain') . '; charset=utf-8');
+            header('Content-Disposition: attachment; filename="' . $filename . '-' . $name . '"');
+            header('Cache-Control: no-store, private');
+            header('X-GreenNet-Sensitive-Artifact: true');
+            echo $artifacts[$name];
+        } catch (Throwable $e) {
+            $this->flash($e->getMessage());
+            $this->redirect($id);
+        }
+    }
+
+    public function installationStatus(): void
+    {
+        Database::migrate();
+        $this->requireLogin();
+        $id = (int) ($_POST['id'] ?? 0);
+        try {
+            (new RouterOnboardingService())->markInstallationStatus($id, (string) ($_POST['status'] ?? 'needs_attention'));
+            $this->flash('تم تحديث حالة التثبيت وفق إفادة المشغّل.');
+        } catch (Throwable $e) {
+            $this->flash($e->getMessage());
+        }
+        $this->redirect($id);
+    }
+
+    public function checkGreenNet(): void
+    {
+        Database::migrate();
+        $this->requireLogin();
+        $id = (int) ($_POST['id'] ?? 0);
+        try {
+            $router = Router::find($id);
+            if ($router === null) {
+                throw new RuntimeException('Router not found.');
+            }
+            $service = new RouterOnboardingService();
+            $deployment = $this->deployment($id, $service, $router);
+            $socket = @fsockopen($deployment['container_ip'], (int) $deployment['http_port'], $errorCode, $errorMessage, 3);
+            if (!is_resource($socket)) {
+                $service->markInstallationStatus($id, 'needs_attention');
+                throw new RuntimeException('لم يستجب عنوان GreenNet المتوقع.');
+            }
+            fclose($socket);
+            $service->markInstallationStatus($id, 'greennet_reachable');
+            $this->flash('GreenNet قابل للوصول على العنوان والمنفذ المتوقعين.');
+        } catch (Throwable $e) {
+            $this->flash($e->getMessage());
+        }
+        $this->redirect($id);
     }
 
     private function redirect(int $id): never
@@ -144,5 +242,11 @@ final class AdminRouterOnboardingController
         $message = (string) ($_SESSION['router_onboarding_message'] ?? '');
         unset($_SESSION['router_onboarding_message']);
         return $message;
+    }
+
+    private function deployment(int $id, RouterOnboardingService $service, array $router): array
+    {
+        $saved = $_SESSION['router_onboarding_deployment'][$id] ?? [];
+        return $service->deployment($router, is_array($saved) ? $saved : []);
     }
 }

@@ -302,7 +302,7 @@ class AdminHealthController
         ];
 
         $items[] = [
-            'status' => 'future',
+            'status' => 'ready',
             'title' => 'Subscriber App / PWA',
             'description' => 'سيتم تطوير واجهة المشترك كتطبيق Web/PWA يعمل خارجياً أو داخل MikroTik.',
             'action_url' => '/dashboard',
@@ -312,9 +312,9 @@ class AdminHealthController
         $items[] = [
             'status' => 'future',
             'title' => 'RouterOS YAML Installer',
-            'description' => 'خيار RouterOS Apps YAML لإصدارات 7.22+ محفوظ ضمن خطة التنصيب المستقبلية.',
-            'action_url' => '/admin/router-setup',
-            'action_label' => 'Router Setup',
+            'description' => 'يتوفر RouterOS Apps YAML من إعداد الموجّه عندما يثبت فحص القدرات توافق RouterOS والمعمارية وContainer mode.',
+            'action_url' => '/admin/router-onboarding',
+            'action_label' => 'Router Onboarding',
         ];
 
         return $items;
