@@ -2,12 +2,6 @@
 
 declare(strict_types=1);
 
-ini_set('display_errors', '1');
-ini_set('display_startup_errors', '1');
-error_reporting(E_ALL);
-
-session_start();
-
 define('BASE_PATH', dirname(__DIR__));
 
 spl_autoload_register(function ($class) {
@@ -30,6 +24,18 @@ use GreenNet\Core\Router;
 use GreenNet\Core\Config;
 
 Config::load(BASE_PATH . '/.env');
+
+$displayErrors = Config::isProduction() ? '0' : '1';
+ini_set('display_errors', $displayErrors);
+ini_set('display_startup_errors', $displayErrors);
+error_reporting(E_ALL);
+
+session_set_cookie_params([
+    'httponly' => true,
+    'secure' => Config::get('SESSION_COOKIE_SECURE', 'false') === 'true',
+    'samesite' => (string) Config::get('SESSION_COOKIE_SAMESITE', 'Lax'),
+]);
+session_start();
 
 $router = new Router();
 

@@ -3,6 +3,7 @@
 .env
 .env.*
 !.env.example
+!.env.production.example
 src/.env
 src/.env.*
 
@@ -11,6 +12,7 @@ src/database/
 src/database/*.sqlite
 src/storage/backups/
 src/storage/logs/
+src/public/uploads/
 *.sqlite
 *.sqlite3
 *.db

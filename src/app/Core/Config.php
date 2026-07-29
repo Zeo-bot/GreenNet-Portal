@@ -35,7 +35,13 @@ class Config
 
     public static function get(string $key, mixed $default = null): mixed
     {
-        return self::$items[$key] ?? $default;
+        if (array_key_exists($key, self::$items)) {
+            return self::$items[$key];
+        }
+
+        $environment = getenv($key);
+
+        return $environment !== false ? $environment : $default;
     }
 
     public static function appName(): string

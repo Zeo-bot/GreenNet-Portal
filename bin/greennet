@@ -27,6 +27,11 @@ Database::migrate();
 $command = (string) ($argv[1] ?? '');
 $job = isset($argv[2]) ? (string) $argv[2] : null;
 
+if ($command === 'database:migrate') {
+    fwrite(STDOUT, "GreenNet database is ready.\n");
+    exit(0);
+}
+
 if ($command === 'backup:create') {
     $result = (new ProductionBackupService())->create('automatic');
     fwrite(STDOUT, json_encode([
@@ -39,7 +44,7 @@ if ($command === 'backup:create') {
 }
 
 if ($command !== 'jobs:run') {
-    fwrite(STDERR, "Usage: php bin/greennet jobs:run [job-name] | backup:create\n");
+    fwrite(STDERR, "Usage: php bin/greennet database:migrate | jobs:run [job-name] | backup:create\n");
     exit(2);
 }
 

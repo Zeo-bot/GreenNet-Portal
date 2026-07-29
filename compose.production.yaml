@@ -1,0 +1,90 @@
+name: greennet-production
+
+services:
+  php:
+    image: "greennet/portal:${APP_VERSION:-latest}"
+    build:
+      context: .
+      dockerfile: docker/production/Dockerfile.php
+    env_file:
+      - .env.production
+    volumes:
+      - greennet_database:/var/www/database
+      - greennet_uploads:/var/www/public/uploads
+      - greennet_backups:/var/www/storage/backups
+    restart: unless-stopped
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "php-fpm", "-t"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  scheduler:
+    image: "greennet/portal:${APP_VERSION:-latest}"
+    env_file:
+      - .env.production
+    command:
+      - sh
+      - -c
+      - while true; do su-exec www-data php /var/www/bin/greennet jobs:run; sleep "$${AUTOMATION_INTERVAL_SECONDS:-300}"; done
+    volumes:
+      - greennet_database:/var/www/database
+      - greennet_uploads:/var/www/public/uploads
+      - greennet_backups:/var/www/storage/backups
+    restart: unless-stopped
+    depends_on:
+      php:
+        condition: service_healthy
+    networks:
+      - backend
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  nginx:
+    image: "greennet/nginx:${APP_VERSION:-latest}"
+    build:
+      context: .
+      dockerfile: docker/production/Dockerfile.nginx
+    ports:
+      - "${HTTP_PORT:-8080}:80"
+    volumes:
+      - greennet_uploads:/var/www/public/uploads:ro
+    restart: unless-stopped
+    depends_on:
+      php:
+        condition: service_healthy
+    networks:
+      - edge
+      - backend
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/login"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  greennet_database:
+  greennet_uploads:
+  greennet_backups:
+
+networks:
+  edge:
+  backend:
+    internal: true
