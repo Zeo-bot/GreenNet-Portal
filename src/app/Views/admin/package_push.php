@@ -36,7 +36,10 @@ $safeMode = gn_push_bool($preflight['greennet_safe_mode'] ?? $preflight['safe_mo
 $writeEnabled = gn_push_bool($preflight['mikrotik_write_enabled'] ?? $preflight['write_enabled'] ?? false);
 $freshBackup = gn_push_bool($preflight['fresh_backup'] ?? $preflight['has_fresh_backup'] ?? false);
 
-$selectedPackageId = (int) ($result['package_id'] ?? 0);
+$selectedPackageId = (int) ($result['package_id'] ?? $_GET['package_id'] ?? 0);
+$selectedRouterId = (int) ($result['router_id'] ?? $_GET['router_id'] ?? 0);
+$selectedBackend = (string) ($result['backend'] ?? $_GET['backend'] ?? 'user-manager');
+$matrix = is_array($matrix ?? null) ? $matrix : [];
 $operations = is_array($result['operations'] ?? null) ? $result['operations'] : [];
 $existing = is_array($result['existing'] ?? null) ? $result['existing'] : [];
 $realResult = is_array($result['real_result'] ?? null) ? $result['real_result'] : [];
@@ -229,7 +232,7 @@ $canExecute = $result !== null && !empty($result['can_execute_later']) && empty(
     <div>
         <h1 class="admin-page-title">Push Package to MikroTik</h1>
         <p class="admin-page-description">
-            S10.6 — إرسال باقة من GreenNet إلى MikroTik User Manager.
+            Provision GreenNet packages to User Manager, native Hotspot, or native PPPoE profiles.
         </p>
     </div>
 
@@ -265,7 +268,7 @@ $canExecute = $result !== null && !empty($result['can_execute_later']) && empty(
 
 <div class="gn-push-info">
     هذه العملية تحتاج Dry Run أولاً. التنفيذ الحقيقي سيكتب على MikroTik:
-    <span dir="ltr">limitation/profile/profile-limitation</span>
+    <span dir="ltr">profile policy</span>
 </div>
 
 <section class="gn-push-box">
@@ -310,14 +313,27 @@ $canExecute = $result !== null && !empty($result['can_execute_later']) && empty(
 
                 <div class="gn-push-field">
                     <label>Target Router</label>
-                    <select name="router_id">
-                        <option value="0">Default / legacy router</option>
+                    <select name="router_id" required>
                         <?php foreach (($routers ?? []) as $router): ?>
-                            <option value="<?= (int) ($router['id'] ?? 0) ?>">
+                            <option value="<?= (int) ($router['id'] ?? 0) ?>" <?= $selectedRouterId === (int) ($router['id'] ?? 0) ? 'selected' : '' ?>>
                                 <?= gn_push_h($router['name'] ?? '') ?> — <?= gn_push_h($router['host'] ?? '') ?>
                             </option>
                         <?php endforeach; ?>
                     </select>
+                </div>
+
+                <div class="gn-push-field">
+                    <label>Backend</label>
+                    <select name="backend" required>
+                        <option value="user-manager" <?= $selectedBackend === 'user-manager' ? 'selected' : '' ?>>User Manager</option>
+                        <option value="native-hotspot" <?= $selectedBackend === 'native-hotspot' ? 'selected' : '' ?>>Native Hotspot</option>
+                        <option value="native-pppoe" <?= $selectedBackend === 'native-pppoe' ? 'selected' : '' ?>>Native PPPoE</option>
+                    </select>
+                </div>
+
+                <div class="gn-push-field">
+                    <label>Profile name override (optional)</label>
+                    <input name="profile_name" value="<?= gn_push_h($result['router_names']['profile_name'] ?? '') ?>" placeholder="GN-package-backend" dir="ltr">
                 </div>
 
                 <button class="gn-btn gn-btn-primary gn-btn-lg" type="submit">
@@ -380,12 +396,12 @@ $canExecute = $result !== null && !empty($result['can_execute_later']) && empty(
 
             <div class="gn-push-row">
                 <span>Limitation Exists</span>
-                <strong><?= !empty($existing['limitation']['found']) ? 'YES' : 'NO' ?></strong>
+                <strong><?= !empty($existing['limitation']['not_applicable']) ? 'N/A' : (!empty($existing['limitation']['found']) ? 'YES' : 'NO') ?></strong>
             </div>
 
             <div class="gn-push-row">
                 <span>Profile-Limitation Link Exists</span>
-                <strong><?= !empty($existing['profile_limitation']['found']) ? 'YES' : 'NO' ?></strong>
+                <strong><?= !empty($existing['profile_limitation']['not_applicable']) ? 'N/A' : (!empty($existing['profile_limitation']['found']) ? 'YES' : 'NO') ?></strong>
             </div>
         </div>
 
@@ -419,6 +435,8 @@ $canExecute = $result !== null && !empty($result['can_execute_later']) && empty(
                 <form method="post" action="/admin/package-push/execute" onsubmit="return confirm('سيتم تنفيذ Write حقيقي على MikroTik. متابعة؟');">
                     <input type="hidden" name="package_id" value="<?= gn_push_h((string) ($result['package_id'] ?? 0)) ?>">
                     <input type="hidden" name="router_id" value="<?= (int) ($result['router_id'] ?? 0) ?>">
+                    <input type="hidden" name="backend" value="<?= gn_push_h($selectedBackend) ?>">
+                    <input type="hidden" name="profile_name" value="<?= gn_push_h($result['router_names']['profile_name'] ?? '') ?>">
 
                     <div class="gn-push-field" style="margin-top:14px;">
                         <label>Confirmation</label>
@@ -447,3 +465,35 @@ $canExecute = $result !== null && !empty($result['can_execute_later']) && empty(
         </details>
     </section>
 <?php endif; ?>
+
+<section class="gn-push-box">
+    <h3>Provisioning status</h3>
+    <p>Local mapping and synchronization overview. Remote existence is confirmed when you inspect a specific target above.</p>
+    <div style="overflow:auto;margin-top:14px">
+        <table style="width:100%;border-collapse:collapse">
+            <thead><tr><th>Package</th><th>Router</th><th>Backend</th><th>Mapping</th><th>Status</th><th></th></tr></thead>
+            <tbody>
+            <?php foreach ($matrix as $row): ?>
+                <?php
+                $state = (string) ($row['status'] ?? 'missing_mapping');
+                $label = match ($state) {
+                    'ready' => 'Ready',
+                    'out_of_sync' => 'Out of sync',
+                    'router_unavailable' => 'Router unavailable',
+                    default => 'Missing mapping',
+                };
+                ?>
+                <tr>
+                    <td><?= gn_push_h($row['package_name'] ?? '-') ?></td>
+                    <td><?= gn_push_h($row['router_name'] ?? '-') ?></td>
+                    <td dir="ltr"><?= gn_push_h($row['backend'] ?? '-') ?></td>
+                    <td dir="ltr"><?= gn_push_h($row['profile_name'] ?: '—') ?></td>
+                    <td><span class="admin-badge <?= $state === 'ready' ? 'admin-badge-success' : ($state === 'router_unavailable' ? 'admin-badge-danger' : 'admin-badge-warning') ?>"><?= gn_push_h($label) ?></span></td>
+                    <td><a class="gn-btn gn-btn-secondary gn-btn-sm" href="/admin/package-push?package_id=<?= (int) ($row['package_id'] ?? 0) ?>&router_id=<?= (int) ($row['router_id'] ?? 0) ?>&backend=<?= urlencode((string) ($row['backend'] ?? '')) ?>">Inspect</a></td>
+                </tr>
+            <?php endforeach; ?>
+            <?php if ($matrix === []): ?><tr><td colspan="6">No active package/router targets are available.</td></tr><?php endif; ?>
+            </tbody>
+        </table>
+    </div>
+</section>

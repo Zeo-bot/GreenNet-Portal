@@ -94,5 +94,9 @@ final class WriteCommandPolicyTest extends TestCase
         yield 'pppoe native add' => ['/ppp/secret/add', ['name' => 'synthetic-user', 'password' => 'synthetic', 'service' => 'pppoe', 'profile' => 'Synthetic Profile']];
         yield 'pppoe native set' => ['/ppp/secret/set', ['numbers' => '*10', 'disabled' => 'yes']];
         yield 'pppoe native remove' => ['/ppp/secret/remove', ['numbers' => '*10']];
+        yield 'hotspot profile add' => ['/ip/hotspot/user/profile/add', ['name' => 'GN-test-hotspot', 'rate-limit' => '1M/1M', 'comment' => 'GreenNet package:1 backend:native-hotspot']];
+        yield 'hotspot profile set' => ['/ip/hotspot/user/profile/set', ['numbers' => '*11', 'rate-limit' => '2M/2M']];
+        yield 'ppp profile add' => ['/ppp/profile/add', ['name' => 'GN-test-pppoe', 'rate-limit' => '1M/1M', 'comment' => 'GreenNet package:1 backend:native-pppoe']];
+        yield 'ppp profile set' => ['/ppp/profile/set', ['numbers' => '*12', 'comment' => 'GreenNet package:1 backend:native-pppoe']];
     }
 }

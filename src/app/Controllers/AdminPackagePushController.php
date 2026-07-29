@@ -40,6 +40,7 @@ class AdminPackagePushController
             'title' => 'Push Package to MikroTik',
             'packages' => $this->localPackages(),
             'routers' => Router::enabled(),
+            'matrix' => $this->provisioningMatrix(),
             'preflight' => $guard->preflight(),
             'result' => $_SESSION['package_push_result'] ?? null,
             'message' => $this->consumeFlash('message'),
@@ -59,6 +60,7 @@ class AdminPackagePushController
 
             $packageId = (int) ($_POST['package_id'] ?? 0);
             $routerId = (int) ($_POST['router_id'] ?? 0);
+            $backend = $this->backend((string) ($_POST['backend'] ?? 'user-manager'));
 
             if ($packageId <= 0) {
                 throw new RuntimeException('اختر باقة صحيحة.');
@@ -69,7 +71,7 @@ class AdminPackagePushController
 
             $auditId = $guard->recordDryRun([
                 'action' => 'push_package_to_mikrotik',
-                'dataset' => 'user_manager_package',
+                'dataset' => $backend . '_package_profile',
                 'username' => '',
                 'command' => 'package push preview',
                 'params' => $plan,
@@ -128,6 +130,9 @@ class AdminPackagePushController
             if ((int) ($lastPlan['router_id'] ?? 0) !== (int) ($_POST['router_id'] ?? 0)) {
                 throw new RuntimeException('Target router changed after Dry Run. Create a new preview.');
             }
+            if ((string) ($lastPlan['backend'] ?? '') !== $this->backend((string) ($_POST['backend'] ?? ''))) {
+                throw new RuntimeException('Target backend changed after Dry Run. Create a new preview.');
+            }
 
             if (empty($lastPlan['can_execute_later'])) {
                 throw new RuntimeException('آخر Dry Run لا يسمح بالتنفيذ.');
@@ -156,7 +161,13 @@ class AdminPackagePushController
             $profileName = (string) ($freshPlan['router_names']['profile_name'] ?? '');
             $routerId = (int) ($freshPlan['router_id'] ?? 0);
             if ($routerId > 0) {
-                RouterPackageProfile::save($routerId, $packageId, $profileName);
+                RouterPackageProfile::save(
+                    $routerId,
+                    $packageId,
+                    $profileName,
+                    (string) ($afterPlan['existing']['profile']['id'] ?? ''),
+                    (string) ($freshPlan['backend'] ?? 'user-manager')
+                );
             } else {
                 $this->markPackageSynced($packageId, $profileName);
             }
@@ -194,11 +205,19 @@ class AdminPackagePushController
             throw new RuntimeException('الباقة غير موجودة.');
         }
 
-        $profileName = RouterPackageProfile::profileName(
-            (int) ($_POST['router_id'] ?? $_GET['router_id'] ?? 0),
+        $routerId = (int) ($_POST['router_id'] ?? $_GET['router_id'] ?? 0);
+        $backend = $this->backend((string) ($_POST['backend'] ?? $_GET['backend'] ?? 'user-manager'));
+        $override = $this->cleanRouterName((string) ($_POST['profile_name'] ?? $_GET['profile_name'] ?? ''));
+        $fallbackName = $this->defaultProfileName($package, $backend);
+        $profileName = $override !== '' ? $override : RouterPackageProfile::profileName(
+            $routerId,
             $packageId,
-            $this->routerPackageName($package)
+            $fallbackName,
+            $backend
         );
+        if ($backend !== 'user-manager') {
+            return $this->buildNativePlan($packageId, $package, $routerId, $backend, $profileName);
+        }
         $limitationName = $profileName;
 
         if ($profileName === '') {
@@ -250,6 +269,30 @@ class AdminPackagePushController
         }
 
         $existing = $this->readExistingRouterPackage($profileName, $limitationName);
+        $mappedProfileName = RouterPackageProfile::profileName($routerId, $packageId, '', $backend);
+
+        if (($mappedProfileName === '' || $mappedProfileName !== $profileName)
+            && (!empty($existing['profile']['found']) || !empty($existing['limitation']['found']))) {
+            return [
+                'ok' => true,
+                'action' => 'push_package_to_mikrotik',
+                'backend' => $backend,
+                'router_id' => $routerId,
+                'package_id' => $packageId,
+                'package' => $this->sanitizePackage($package),
+                'router_names' => ['profile_name' => $profileName, 'limitation_name' => $limitationName],
+                'desired' => ['profile' => $profileDesired, 'limitation' => $limitationDesired],
+                'existing' => $existing,
+                'operations' => [],
+                'operations_count' => 0,
+                'can_execute_later' => false,
+                'block_reason' => 'Existing User Manager objects with this name are not mapped to this GreenNet package. Map them explicitly or choose another name.',
+                'executed' => false,
+                'real_execution' => false,
+                'created_at' => date('Y-m-d H:i:s'),
+                'notes' => ['No RouterOS write was planned because ownership could not be proven.'],
+            ];
+        }
 
         $operations = [];
 
@@ -305,6 +348,7 @@ class AdminPackagePushController
         return [
             'ok' => true,
             'action' => 'push_package_to_mikrotik',
+            'backend' => $backend,
             'package_id' => $packageId,
             'package' => $this->sanitizePackage($package),
             'router_names' => [
@@ -353,7 +397,7 @@ class AdminPackagePushController
         $result = $this->writeGateway()->execute(
             new WriteExecutionRequest(
                 'push_package_to_mikrotik',
-                'user_manager_package',
+                (string) ($plan['backend'] ?? 'user-manager') . '_package_profile',
                 '',
                 'package push execute',
                 [
@@ -394,14 +438,26 @@ class AdminPackagePushController
                 ];
             }
 
-                $after = $this->readExistingRouterPackage(
-                    (string) ($plan['router_names']['profile_name'] ?? ''),
-                    (string) ($plan['router_names']['limitation_name'] ?? '')
-                );
-                if (empty($after['profile']['found'])
-                    || empty($after['limitation']['found'])
-                    || empty($after['profile_limitation']['found'])) {
-                    throw new RuntimeException('RouterOS package push verification failed.');
+                $backend = (string) ($plan['backend'] ?? 'user-manager');
+                if ($backend === 'user-manager') {
+                    $after = $this->readExistingRouterPackage(
+                        (string) ($plan['router_names']['profile_name'] ?? ''),
+                        (string) ($plan['router_names']['limitation_name'] ?? '')
+                    );
+                    if (empty($after['profile']['found'])
+                        || empty($after['limitation']['found'])
+                        || empty($after['profile_limitation']['found'])) {
+                        throw new RuntimeException('RouterOS package push verification failed.');
+                    }
+                } else {
+                    $root = $backend === 'native-hotspot' ? '/ip/hotspot/user/profile' : '/ppp/profile';
+                    $after = ['profile' => $this->readNativeProfile(
+                        $root,
+                        (string) ($plan['router_names']['profile_name'] ?? '')
+                    )];
+                    if (empty($after['profile']['found'])) {
+                        throw new RuntimeException('RouterOS native profile verification failed.');
+                    }
                 }
 
                 return ['operations' => $executed, 'verified' => true];
@@ -417,6 +473,101 @@ class AdminPackagePushController
             'audit_warning' => $result->auditWarning,
             'executed_at' => date('Y-m-d H:i:s'),
         ];
+    }
+
+    private function buildNativePlan(
+        int $packageId,
+        array $package,
+        int $routerId,
+        string $backend,
+        string $profileName
+    ): array {
+        if ($routerId <= 0) {
+            throw new RuntimeException('Select a registered router for native profile provisioning.');
+        }
+        if ($profileName === '') {
+            throw new RuntimeException('The generated RouterOS profile name is empty.');
+        }
+
+        $commandRoot = $backend === 'native-hotspot' ? '/ip/hotspot/user/profile' : '/ppp/profile';
+        $ownership = 'GreenNet package:' . $packageId . ' backend:' . $backend;
+        $desired = ['name' => $profileName];
+        $rateLimit = trim((string) ($package['rate_limit'] ?? ''));
+        if ($rateLimit !== '' && $rateLimit !== '-') {
+            $desired['rate-limit'] = $rateLimit;
+        }
+        $desired['comment'] = $ownership;
+
+        $mappedName = RouterPackageProfile::profileName($routerId, $packageId, '', $backend);
+        $existing = $this->readNativeProfile($commandRoot, $profileName);
+        $owned = $mappedName === $profileName || (string) ($existing['row']['comment'] ?? '') === $ownership;
+        $operations = [];
+        $blockReason = '';
+
+        if (!empty($existing['found'])) {
+            if (!$owned) {
+                $blockReason = 'A profile with this name already exists but is not proven to be owned by GreenNet. Map it explicitly or choose another name.';
+            } else {
+                $operations[] = [
+                    'type' => 'update_native_profile',
+                    'command' => $commandRoot . '/set',
+                    'params' => ['numbers' => (string) ($existing['id'] ?? '')] + $this->withoutName($desired),
+                ];
+            }
+        } else {
+            $operations[] = [
+                'type' => 'create_native_profile',
+                'command' => $commandRoot . '/add',
+                'params' => $desired,
+            ];
+        }
+
+        return [
+            'ok' => true,
+            'action' => 'push_package_to_mikrotik',
+            'backend' => $backend,
+            'router_id' => $routerId,
+            'package_id' => $packageId,
+            'package' => $this->sanitizePackage($package),
+            'router_names' => ['profile_name' => $profileName, 'limitation_name' => ''],
+            'desired' => ['profile' => $desired],
+            'existing' => [
+                'profile' => $existing,
+                'limitation' => ['found' => false, 'not_applicable' => true],
+                'profile_limitation' => ['found' => false, 'not_applicable' => true],
+            ],
+            'operations' => $operations,
+            'operations_count' => count($operations),
+            'can_execute_later' => $operations !== [] && $blockReason === '',
+            'block_reason' => $blockReason,
+            'executed' => false,
+            'real_execution' => false,
+            'created_at' => date('Y-m-d H:i:s'),
+            'notes' => [
+                'Only the RouterOS rate-limit is provisioned for this native backend.',
+                'Duration and quota remain GreenNet subscription policy and are not falsely represented as native profile enforcement.',
+            ],
+        ];
+    }
+
+    private function readNativeProfile(string $commandRoot, string $profileName): array
+    {
+        $result = ['found' => false, 'id' => '', 'row' => [], 'error' => ''];
+        try {
+            $rows = $this->normalizeRows($this->readGateway()->read($commandRoot . '/print', ['?name' => $profileName]));
+            $row = $this->findRowByName($rows, $profileName);
+            if ($row !== null) {
+                return [
+                    'found' => true,
+                    'id' => (string) ($row['.id'] ?? ''),
+                    'row' => $this->sanitizeRowForDisplay($row),
+                    'error' => '',
+                ];
+            }
+        } catch (Throwable $e) {
+            $result['error'] = $e->getMessage();
+        }
+        return $result;
     }
 
     private function readExistingRouterPackage(string $profileName, string $limitationName): array
@@ -885,6 +1036,59 @@ class AdminPackagePushController
     private function jsonString(mixed $value): string
     {
         return json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) ?: '{}';
+    }
+
+    private function defaultProfileName(array $package, string $backend): string
+    {
+        $slug = strtolower($this->cleanRouterName((string) ($package['name'] ?? 'package')));
+        $slug = preg_replace('/[^a-z0-9_-]+/i', '-', $slug) ?? 'package';
+        $slug = trim($slug, '-_');
+        $suffix = match ($backend) {
+            'native-hotspot' => 'hotspot',
+            'native-pppoe' => 'pppoe',
+            default => 'um',
+        };
+
+        return substr('GN-' . ($slug !== '' ? $slug : ('package-' . (int) ($package['id'] ?? 0))) . '-' . $suffix, 0, 64);
+    }
+
+    private function backend(string $backend): string
+    {
+        if (!in_array($backend, ['user-manager', 'native-hotspot', 'native-pppoe'], true)) {
+            throw new RuntimeException('Unsupported package provisioning backend.');
+        }
+        return $backend;
+    }
+
+    private function provisioningMatrix(): array
+    {
+        try {
+            return Database::connection()->query("
+                SELECT sp.id AS package_id, sp.name AS package_name, sp.rate_limit,
+                       sp.updated_at AS package_updated_at,
+                       r.id AS router_id, r.name AS router_name, r.last_status,
+                       b.backend, m.profile_name, m.profile_id, m.updated_at AS mapping_updated_at,
+                       CASE
+                         WHEN r.last_status = 'unreachable' THEN 'router_unavailable'
+                         WHEN m.id IS NULL THEN 'missing_mapping'
+                         WHEN datetime(m.updated_at) < datetime(sp.updated_at) THEN 'out_of_sync'
+                         ELSE 'ready'
+                       END AS status
+                FROM service_packages sp
+                CROSS JOIN routers r
+                CROSS JOIN (
+                    SELECT 'user-manager' AS backend
+                    UNION ALL SELECT 'native-hotspot'
+                    UNION ALL SELECT 'native-pppoe'
+                ) b
+                LEFT JOIN router_backend_package_profiles m
+                  ON m.package_id = sp.id AND m.router_id = r.id AND m.backend = b.backend
+                WHERE sp.is_active = 1 AND r.enabled = 1
+                ORDER BY sp.name, r.name, b.backend
+            ")->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        } catch (Throwable) {
+            return [];
+        }
     }
 
     private function readGateway(): RouterOSReadGatewayInterface

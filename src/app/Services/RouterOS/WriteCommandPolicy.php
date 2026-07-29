@@ -75,6 +75,22 @@ final class WriteCommandPolicy implements RouterOSWriteCommandPolicyInterface
             'required' => ['numbers'],
             'allowed' => ['numbers'],
         ],
+        '/ip/hotspot/user/profile/add' => [
+            'required' => ['name'],
+            'allowed' => ['name', 'rate-limit', 'comment'],
+        ],
+        '/ip/hotspot/user/profile/set' => [
+            'required' => ['numbers'],
+            'allowed' => ['numbers', 'rate-limit', 'comment'],
+        ],
+        '/ppp/profile/add' => [
+            'required' => ['name'],
+            'allowed' => ['name', 'rate-limit', 'comment'],
+        ],
+        '/ppp/profile/set' => [
+            'required' => ['numbers'],
+            'allowed' => ['numbers', 'rate-limit', 'comment'],
+        ],
     ];
 
     public function assertAllowed(RouterOSWriteCommand $command): void
