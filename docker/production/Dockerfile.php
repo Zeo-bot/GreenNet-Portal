@@ -13,7 +13,7 @@ RUN apk add --no-cache \
         pdo_sqlite \
         zip
 
-FROM php:8.3-fpm-alpine
+FROM php:8.3-fpm-alpine AS application
 
 RUN apk add --no-cache \
         icu-libs \
@@ -41,3 +41,20 @@ RUN chmod 0755 /usr/local/bin/greennet-entrypoint \
 
 ENTRYPOINT ["greennet-entrypoint"]
 CMD ["php-fpm", "-F"]
+
+FROM application AS server
+
+FROM application AS mikrotik
+
+RUN apk add --no-cache nginx
+
+COPY docker/mikrotik/nginx.conf /etc/nginx/nginx.conf
+COPY docker/mikrotik/php-fpm.conf /usr/local/etc/php-fpm.d/zzz-mikrotik.conf
+COPY docker/mikrotik/php.ini /usr/local/etc/php/conf.d/zzz-mikrotik.ini
+COPY docker/mikrotik/runtime.sh /usr/local/bin/greennet-mikrotik-runtime
+
+RUN chmod 0755 /usr/local/bin/greennet-mikrotik-runtime \
+    && mkdir -p /run/nginx /var/lib/nginx /var/log/nginx \
+    && chown -R nginx:nginx /run/nginx /var/lib/nginx /var/log/nginx
+
+CMD ["greennet-mikrotik-runtime"]

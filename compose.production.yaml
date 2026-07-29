@@ -6,6 +6,7 @@ services:
     build:
       context: .
       dockerfile: docker/production/Dockerfile.php
+      target: server
     env_file:
       - .env.production
     volumes:
