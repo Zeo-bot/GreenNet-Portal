@@ -83,6 +83,7 @@ final class OperationsDashboardService
             'recent_payments' => Payment::latest(6),
             'sessions' => $this->sessionSnapshot(),
             'automation' => $automation->health(),
+            'migrations' => $this->migrationAttention(),
         ];
     }
 
@@ -158,5 +159,32 @@ final class OperationsDashboardService
         }
 
         return $result;
+    }
+
+    private function migrationAttention(): array
+    {
+        try {
+            $rows = Database::connection()->query("
+                SELECT status, COUNT(*) AS total
+                FROM subscriber_router_migrations
+                WHERE status IN ('target_failed','cutover_failed','target_created','cleanup_pending')
+                GROUP BY status
+            ")->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            $result = ['failed' => 0, 'incomplete' => 0, 'cleanup_pending' => 0];
+            foreach ($rows as $row) {
+                $status = (string) ($row['status'] ?? '');
+                $count = (int) ($row['total'] ?? 0);
+                if (in_array($status, ['target_failed', 'cutover_failed'], true)) {
+                    $result['failed'] += $count;
+                } elseif ($status === 'cleanup_pending') {
+                    $result['cleanup_pending'] += $count;
+                } else {
+                    $result['incomplete'] += $count;
+                }
+            }
+            return $result;
+        } catch (Throwable) {
+            return ['failed' => 0, 'incomplete' => 0, 'cleanup_pending' => 0];
+        }
     }
 }

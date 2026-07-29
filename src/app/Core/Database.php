@@ -241,6 +241,35 @@ class Database
                 UNIQUE(router_id, package_id, backend)
             );
         ");
+
+        $db->exec("
+            CREATE TABLE IF NOT EXISTS subscriber_router_migrations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                customer_id INTEGER NOT NULL,
+                username TEXT NOT NULL,
+                source_router_id INTEGER NOT NULL,
+                source_backend TEXT NOT NULL,
+                target_router_id INTEGER NOT NULL,
+                target_backend TEXT NOT NULL,
+                package_id INTEGER NOT NULL,
+                target_profile_name TEXT NOT NULL,
+                target_record_id TEXT DEFAULT '',
+                source_record_id TEXT DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'ready',
+                source_cleanup_action TEXT DEFAULT 'leave',
+                source_cleanup_state TEXT DEFAULT 'not_requested',
+                usage_decision TEXT DEFAULT '',
+                usage_snapshot_json TEXT DEFAULT '{}',
+                failure_reason TEXT DEFAULT '',
+                started_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                completed_at TEXT,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+        ");
+        $db->exec("
+            CREATE INDEX IF NOT EXISTS idx_subscriber_router_migrations_customer
+            ON subscriber_router_migrations(customer_id, id DESC)
+        ");
         $db->exec("
             INSERT OR IGNORE INTO router_backend_package_profiles
                 (router_id, package_id, backend, profile_name, profile_id, created_at, updated_at)

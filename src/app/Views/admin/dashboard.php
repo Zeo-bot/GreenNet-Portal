@@ -171,6 +171,9 @@ $backendLabel = static fn (string $backend): string => match ($backend) {
             ['تجديد بانتظار مزامنة الموجّه', $ops['lifecycle']['renewal_sync_pending'] ?? 0, '/admin/lifecycle'],
             ['مهام آلية فاشلة', $ops['automation']['failed_jobs'] ?? 0, '/admin/automation'],
             ['موجّهات لم تُحدّث مؤخراً', $ops['automation']['stale_routers'] ?? 0, '/admin/automation'],
+            ['نقل مشتركين فشل', $ops['migrations']['failed'] ?? 0, '/admin/customers/table'],
+            ['نقل مشتركين غير مكتمل', $ops['migrations']['incomplete'] ?? 0, '/admin/customers/table'],
+            ['تنظيف حساب مصدر معلق', $ops['migrations']['cleanup_pending'] ?? 0, '/admin/customers/table'],
         ];
         ?>
         <?php foreach ($attention as [$label, $count, $url]): ?>

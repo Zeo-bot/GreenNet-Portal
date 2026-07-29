@@ -15,6 +15,8 @@ use GreenNet\Services\CustomerDashboardService;
 use PDO;
 use Throwable;
 use GreenNet\Services\SubscriptionLifecycleService;
+use GreenNet\Services\SubscriberRouterMigrationService;
+use GreenNet\Models\SubscriberRouterMigration;
 
 class AdminCustomerProfileController
 {
@@ -79,6 +81,8 @@ class AdminCustomerProfileController
             ];
         }
 
+        $migrationService = new SubscriberRouterMigrationService();
+
         return View::render('admin/customer_profile', [
             'title' => 'ملف المشترك: ' . $username,
             'error' => '',
@@ -93,6 +97,8 @@ class AdminCustomerProfileController
             'assigned_router' => $this->assignedRouter($username),
             'native_record_state' => $this->nativeRecordState($customer, $username),
             'lifecycle' => (new SubscriptionLifecycleService())->evaluate($username, null, false),
+            'migration_targets' => $migrationService->usableTargets((int) ($customer['router_id'] ?? 0)),
+            'latest_migration' => SubscriberRouterMigration::latestForCustomer((int) ($customer['id'] ?? 0)),
         ]);
     }
 

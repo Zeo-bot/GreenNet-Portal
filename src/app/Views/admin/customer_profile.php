@@ -6,6 +6,8 @@ $payments = is_array($payments ?? null) ? $payments : [];
 $renewalRequests = is_array($renewal_requests ?? null) ? $renewal_requests : [];
 $assignedRouter = is_array($assigned_router ?? null) ? $assigned_router : [];
 $nativeRecordState = is_array($native_record_state ?? null) ? $native_record_state : [];
+$migrationTargets = is_array($migration_targets ?? null) ? $migration_targets : [];
+$latestMigration = is_array($latest_migration ?? null) ? $latest_migration : [];
 
 $username = (string) ($username ?? $customer['username'] ?? '');
 $u = urlencode($username);
@@ -60,6 +62,12 @@ $requestLabels = [
 <?php if (($error ?? '') !== ''): ?>
     <div class="notice" style="background:#fee2e2;color:#991b1b;"><?= htmlspecialchars((string) $error) ?></div>
 <?php elseif ($username !== ''): ?>
+    <?php if (in_array((string) ($latestMigration['status'] ?? ''), ['target_failed', 'cutover_failed', 'cleanup_pending'], true)): ?>
+        <div class="notice" style="background:#fff7ed;color:#9a3412">
+            عملية نقل تحتاج متابعة: <?= htmlspecialchars((string) ($latestMigration['failure_reason'] ?? 'تنظيف الحساب المصدر ما زال معلقاً.')) ?>
+            <a href="/admin/customers/migrate?username=<?= htmlspecialchars($u) ?>">فتح النقل</a>
+        </div>
+    <?php endif; ?>
     <section class="admin-section-card">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap">
             <div>
@@ -177,8 +185,38 @@ $requestLabels = [
                 <div class="admin-action-icon">◷</div><div class="admin-action-title">السجل</div>
                 <div class="admin-action-desc">الدفعات والتجديدات والملاحظات التشغيلية.</div>
             </a>
+            <?php if (count($migrationTargets) > 0): ?>
+                <a class="admin-action-card" href="/admin/customers/migrate?username=<?= htmlspecialchars($u) ?>">
+                    <div class="admin-action-icon">⇢</div><div class="admin-action-title">نقل إلى راوتر آخر</div>
+                    <div class="admin-action-desc">إنشاء الحساب على الهدف أولاً مع الحفاظ على الاشتراك والتاريخ.</div>
+                </a>
+            <?php endif; ?>
         </div>
     </section>
+
+    <?php if ($latestMigration !== []): ?>
+        <section class="admin-section-card">
+            <h2 class="admin-section-title">سجل النقل الأخير</h2>
+            <p class="admin-section-subtitle">
+                <?= htmlspecialchars((string) ($latestMigration['source_router_name'] ?? '-')) ?>
+                ← <?= htmlspecialchars((string) ($latestMigration['target_router_name'] ?? '-')) ?>
+                · <?= htmlspecialchars((string) ($latestMigration['status'] ?? '-')) ?>
+                · بدأ <?= htmlspecialchars((string) ($latestMigration['started_at'] ?? '-')) ?>
+            </p>
+            <?php if ((string) ($latestMigration['status'] ?? '') === 'cleanup_pending'): ?>
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                    <?php foreach (['disable' => 'تعطيل الحساب القديم', 'disconnect' => 'فصل الاتصال القديم', 'delete' => 'حذف الحساب القديم'] as $action => $label): ?>
+                        <form method="post" action="/admin/customers/migrate/cleanup" <?= $action === 'delete' ? 'onsubmit="return confirm(\'سيتم حذف الحساب القديم من الراوتر المصدر. هل تريد المتابعة؟\')"' : '' ?>>
+                            <input type="hidden" name="username" value="<?= htmlspecialchars($username) ?>">
+                            <input type="hidden" name="migration_id" value="<?= (int) ($latestMigration['id'] ?? 0) ?>">
+                            <input type="hidden" name="cleanup_action" value="<?= htmlspecialchars($action) ?>">
+                            <button class="admin-mini-btn" type="submit"><?= htmlspecialchars($label) ?></button>
+                        </form>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
+        </section>
+    <?php endif; ?>
 
     <section class="admin-section-card">
         <h2 class="admin-section-title">إجراءات متقدمة</h2>

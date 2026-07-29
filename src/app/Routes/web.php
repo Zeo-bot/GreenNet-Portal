@@ -9,6 +9,7 @@ use GreenNet\Controllers\AdminQosController;
 use GreenNet\Controllers\AdminSystemController;
 use GreenNet\Controllers\AdminRouterOsController;
 use GreenNet\Controllers\AdminCustomerProfileController;
+use GreenNet\Controllers\AdminCustomerMigrationController;
 use GreenNet\Controllers\AdminSearchController;
 use GreenNet\Controllers\AdminCustomerImportController;
 use GreenNet\Controllers\AdminCustomerSyncController;
@@ -136,6 +137,9 @@ $router->get('/admin/customers/sync', [AdminCustomerSyncController::class, 'inde
 $router->post('/admin/customers/sync/import-selected', [AdminCustomerSyncController::class, 'importSelected']);
 
 $router->get('/admin/customers/profile', [AdminCustomerProfileController::class, 'show']);
+$router->get('/admin/customers/migrate', [AdminCustomerMigrationController::class, 'index']);
+$router->post('/admin/customers/migrate', [AdminCustomerMigrationController::class, 'migrate']);
+$router->post('/admin/customers/migrate/cleanup', [AdminCustomerMigrationController::class, 'cleanup']);
 
 $router->get('/admin/customers/timeline', [AdminCustomerTimelineController::class, 'index']);
 $router->post('/admin/customers/timeline/note', [AdminCustomerTimelineController::class, 'storeNote']);
