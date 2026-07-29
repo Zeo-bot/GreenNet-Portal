@@ -20,5 +20,6 @@ COPY phpunit.xml.dist ./
 COPY src/app ./src/app
 COPY src/public ./src/public
 COPY tests ./tests
+COPY bin ./bin
 
 CMD ["composer", "test"]

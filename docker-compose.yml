@@ -9,6 +9,7 @@ services:
 
     volumes:
       - ./src:/var/www
+      - ./bin:/var/www/bin:ro
 
     restart: unless-stopped
 

@@ -53,6 +53,7 @@ use GreenNet\Controllers\SubscriberApiController;
 use GreenNet\Controllers\AdminRoutersController;
 use GreenNet\Controllers\AdminNativeSubscriberController;
 use GreenNet\Controllers\AdminSubscriptionLifecycleController;
+use GreenNet\Controllers\AdminAutomationController;
 
 $router->get('/', [HomeController::class, 'index']);
 
@@ -147,6 +148,8 @@ $router->get('/admin/customers/renew', [AdminCustomerRenewalController::class, '
 $router->post('/admin/customers/renew', [AdminCustomerRenewalController::class, 'renew']);
 $router->get('/admin/lifecycle', [AdminSubscriptionLifecycleController::class, 'index']);
 $router->post('/admin/lifecycle/evaluate', [AdminSubscriptionLifecycleController::class, 'evaluate']);
+$router->get('/admin/automation', [AdminAutomationController::class, 'index']);
+$router->post('/admin/automation/run', [AdminAutomationController::class, 'run']);
 
 $router->get('/admin/customers/edit', [AdminController::class, 'editCustomer']);
 $router->post('/admin/customers/update', [AdminController::class, 'updateCustomer']);

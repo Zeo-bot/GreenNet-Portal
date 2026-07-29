@@ -14,6 +14,7 @@ final class OperationsDashboardService
 {
     public function getData(): array
     {
+        $automation = new AutomationEngine();
         $subscription = (new SubscriptionOverviewService())->getSummary();
         $customers = $this->customers();
         $routers = Router::allWithCustomerCounts();
@@ -80,13 +81,32 @@ final class OperationsDashboardService
             'lifecycle' => (new SubscriptionLifecycleService())->counts(),
             'renewals' => $this->renewals(),
             'recent_payments' => Payment::latest(6),
-            'sessions' => [
-                'hotspot' => null,
-                'pppoe' => null,
-                'total' => null,
-                'message' => 'بيانات الجلسات متاحة عند الطلب من صفحة الجلسات ولا يتم استطلاع الموجّهات عند فتح اللوحة.',
-            ],
+            'sessions' => $this->sessionSnapshot(),
+            'automation' => $automation->health(),
         ];
+    }
+
+    private function sessionSnapshot(): array
+    {
+        try {
+            $row = Database::connection()->query("
+                SELECT COALESCE(SUM(hotspot_count),0) AS hotspot,
+                       COALESCE(SUM(pppoe_count),0) AS pppoe,
+                       MAX(captured_at) AS captured_at
+                FROM router_session_snapshots
+            ")->fetch(PDO::FETCH_ASSOC) ?: [];
+            $hotspot = (int) ($row['hotspot'] ?? 0);
+            $pppoe = (int) ($row['pppoe'] ?? 0);
+            return [
+                'hotspot' => $hotspot,
+                'pppoe' => $pppoe,
+                'total' => $hotspot + $pppoe,
+                'captured_at' => (string) ($row['captured_at'] ?? ''),
+                'message' => ($row['captured_at'] ?? '') !== '' ? 'آخر لقطة جلسات محفوظة.' : 'لم تُلتقط بيانات الجلسات بعد.',
+            ];
+        } catch (Throwable) {
+            return ['hotspot' => null, 'pppoe' => null, 'total' => null, 'captured_at' => '', 'message' => 'لم تُلتقط بيانات الجلسات بعد.'];
+        }
     }
 
     private function customers(): array

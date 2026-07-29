@@ -25,6 +25,7 @@ $backendLabel = static fn (string $backend): string => match ($backend) {
     <div class="admin-header-actions">
         <a class="admin-mini-btn" href="/admin/renewal-requests">طلبات التجديد</a>
         <a class="admin-mini-btn" href="/admin/routers">الموجّهات</a>
+        <a class="admin-mini-btn" href="/admin/automation">الأتمتة</a>
         <a class="admin-mini-btn danger" href="/admin/logout">خروج</a>
     </div>
 </div>
@@ -120,8 +121,9 @@ $backendLabel = static fn (string $backend): string => match ($backend) {
 
         <h2 class="admin-section-title" style="margin-top:22px">الجلسات النشطة</h2>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <span class="admin-badge">Hotspot: غير متاح</span>
-            <span class="admin-badge">PPPoE: غير متاح</span>
+            <span class="admin-badge">Hotspot: <?= $sessions['hotspot'] === null ? 'غير متاح' : (int) $sessions['hotspot'] ?></span>
+            <span class="admin-badge">PPPoE: <?= $sessions['pppoe'] === null ? 'غير متاح' : (int) $sessions['pppoe'] ?></span>
+            <span class="admin-badge admin-badge-success">الإجمالي: <?= $sessions['total'] === null ? 'غير متاح' : (int) $sessions['total'] ?></span>
         </div>
         <p class="admin-section-subtitle" style="margin-top:10px"><?= $h($sessions['message'] ?? '') ?></p>
         <a class="admin-mini-btn" href="/admin/routeros/active-users">فحص الجلسات الآن</a>
@@ -167,6 +169,8 @@ $backendLabel = static fn (string $backend): string => match ($backend) {
             ['الحصة مستهلكة', $ops['lifecycle']['quota_exhausted'] ?? 0, '/admin/lifecycle'],
             ['تنفيذ فاشل أو متعذر', $ops['lifecycle']['enforcement_failed'] ?? 0, '/admin/lifecycle'],
             ['تجديد بانتظار مزامنة الموجّه', $ops['lifecycle']['renewal_sync_pending'] ?? 0, '/admin/lifecycle'],
+            ['مهام آلية فاشلة', $ops['automation']['failed_jobs'] ?? 0, '/admin/automation'],
+            ['موجّهات لم تُحدّث مؤخراً', $ops['automation']['stale_routers'] ?? 0, '/admin/automation'],
         ];
         ?>
         <?php foreach ($attention as [$label, $count, $url]): ?>

@@ -1,0 +1,36 @@
+<?php
+
+declare(strict_types=1);
+
+use GreenNet\Core\Config;
+use GreenNet\Core\Database;
+use GreenNet\Services\AutomationEngine;
+
+$repositoryRoot = dirname(__DIR__);
+$sourceRoot = is_dir($repositoryRoot . '/src/app') ? $repositoryRoot . '/src' : $repositoryRoot;
+
+spl_autoload_register(static function (string $class) use ($sourceRoot): void {
+    $prefix = 'GreenNet\\';
+    if (!str_starts_with($class, $prefix)) {
+        return;
+    }
+    $file = $sourceRoot . '/app/' . str_replace('\\', '/', substr($class, strlen($prefix))) . '.php';
+    if (is_file($file)) {
+        require $file;
+    }
+});
+
+Config::load($sourceRoot . '/.env');
+Database::migrate();
+
+$command = (string) ($argv[1] ?? '');
+$job = isset($argv[2]) ? (string) $argv[2] : null;
+
+if ($command !== 'jobs:run') {
+    fwrite(STDERR, "Usage: php bin/greennet jobs:run [job-name]\n");
+    exit(2);
+}
+
+$result = (new AutomationEngine())->run($job);
+fwrite(STDOUT, json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) . PHP_EOL);
+exit(!empty($result['ok']) ? 0 : 1);
