@@ -1,0 +1,40 @@
+name: greennet-subscriber-smoke
+
+services:
+  php:
+    build:
+      context: .
+      dockerfile: docker/smoke/Dockerfile.php
+    environment:
+      APP_ENV: smoke
+      MIKROTIK_HOST: ""
+      MIKROTIK_USERNAME: ""
+      MIKROTIK_PASSWORD: ""
+      MIKROTIK_TIMEOUT: "1"
+    tmpfs:
+      - /var/www/database:rw,nosuid,nodev,noexec,size=16m
+      - /tmp:rw,nosuid,nodev,noexec,size=16m
+    networks:
+      - backend
+    read_only: true
+
+  nginx:
+    build:
+      context: .
+      dockerfile: docker/smoke/Dockerfile.nginx
+    depends_on:
+      - php
+    ports:
+      - "127.0.0.1:18080:80"
+    networks:
+      - edge
+      - backend
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx:rw,nosuid,nodev,noexec,size=8m
+      - /var/run:rw,nosuid,nodev,noexec,size=1m
+
+networks:
+  edge:
+  backend:
+    internal: true

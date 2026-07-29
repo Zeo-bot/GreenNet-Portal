@@ -1,0 +1,5 @@
+FROM nginx:alpine
+
+COPY src/public /var/www/public
+COPY docker/smoke/nginx.conf /etc/nginx/conf.d/default.conf
+
