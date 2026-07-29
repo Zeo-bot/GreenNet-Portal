@@ -54,6 +54,7 @@ use GreenNet\Controllers\AdminRoutersController;
 use GreenNet\Controllers\AdminNativeSubscriberController;
 use GreenNet\Controllers\AdminSubscriptionLifecycleController;
 use GreenNet\Controllers\AdminAutomationController;
+use GreenNet\Controllers\AdminRouterOnboardingController;
 
 $router->get('/', [HomeController::class, 'index']);
 
@@ -150,6 +151,11 @@ $router->get('/admin/lifecycle', [AdminSubscriptionLifecycleController::class, '
 $router->post('/admin/lifecycle/evaluate', [AdminSubscriptionLifecycleController::class, 'evaluate']);
 $router->get('/admin/automation', [AdminAutomationController::class, 'index']);
 $router->post('/admin/automation/run', [AdminAutomationController::class, 'run']);
+$router->get('/admin/router-onboarding', [AdminRouterOnboardingController::class, 'index']);
+$router->post('/admin/router-onboarding/save', [AdminRouterOnboardingController::class, 'save']);
+$router->post('/admin/router-onboarding/detect', [AdminRouterOnboardingController::class, 'detect']);
+$router->post('/admin/router-onboarding/finish', [AdminRouterOnboardingController::class, 'finish']);
+$router->get('/admin/router-onboarding/artifact', [AdminRouterOnboardingController::class, 'artifact']);
 
 $router->get('/admin/customers/edit', [AdminController::class, 'editCustomer']);
 $router->post('/admin/customers/update', [AdminController::class, 'updateCustomer']);

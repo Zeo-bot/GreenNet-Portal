@@ -14,6 +14,7 @@ $statusLabel = static fn (array $router): string => empty($router['enabled'])
 ?>
 <div class="admin-page-header">
     <div><h1 class="admin-page-title">إدارة الراوترات</h1><p class="admin-page-description">سجل مركزي للراوترات التي تستهدفها عمليات المشتركين.</p></div>
+    <a class="admin-mini-btn" href="/admin/router-onboarding">إعداد موجّه جديد</a>
 </div>
 <?php if (($message ?? '') !== ''): ?>
     <div class="notice" style="<?= ($message_type ?? '') === 'warning' ? 'background:#fff7ed;color:#9a3412' : 'background:#ecfdf5;color:#166534' ?>"><?= $h($message) ?></div>

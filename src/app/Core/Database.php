@@ -121,6 +121,11 @@ class Database
             ON routers (is_default)
             WHERE is_default = 1
         ");
+        self::ensureColumn('routers', 'onboarding_mode', "TEXT DEFAULT 'existing'");
+        self::ensureColumn('routers', 'onboarding_status', "TEXT DEFAULT 'registered'");
+        self::ensureColumn('routers', 'selected_roles', "TEXT DEFAULT '[]'");
+        self::ensureColumn('routers', 'capabilities_json', "TEXT DEFAULT '{}'");
+        self::ensureColumn('routers', 'capabilities_checked_at', 'TEXT');
 
         $db->exec("
             CREATE TABLE IF NOT EXISTS payments (
