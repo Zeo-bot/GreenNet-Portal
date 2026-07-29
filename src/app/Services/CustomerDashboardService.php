@@ -10,6 +10,7 @@ use GreenNet\Models\Payment;
 use GreenNet\Models\ServicePackage;
 use GreenNet\Services\Access\AccessServiceFactory;
 use GreenNet\Services\RouterOS\RouterOSApiClient;
+use GreenNet\Services\RouterOS\RouterConnectionResolver;
 use PDO;
 use Throwable;
 
@@ -155,7 +156,11 @@ class CustomerDashboardService
     private function safeConnectionData(string $username): array
     {
         try {
-            $accessService = AccessServiceFactory::make();
+            $customer = CustomerLocal::findByUsername($username);
+            $accessService = AccessServiceFactory::make(
+                RouterConnectionResolver::settingsForCustomer($username, ['timeout' => 4]),
+                (string) ($customer['access_type'] ?? '')
+            );
             $data = $accessService->getSubscriberStatus($username);
 
             return is_array($data) ? $data : $this->emptyConnectionData();
@@ -387,9 +392,9 @@ class CustomerDashboardService
             'active_sessions' => 0,
         ];
 
-        $client = new RouterOSApiClient([
-            'timeout' => 4,
-        ]);
+        $client = new RouterOSApiClient(
+            RouterConnectionResolver::settingsForCustomer($username, ['timeout' => 4])
+        );
 
         try {
             $users = $this->normalizeRows($client->comm('/user-manager/user/print', [

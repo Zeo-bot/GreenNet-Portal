@@ -4,6 +4,7 @@ $package = is_array($package ?? null) ? $package : [];
 $dashboard = is_array($dashboard ?? null) ? $dashboard : [];
 $payments = is_array($payments ?? null) ? $payments : [];
 $renewalRequests = is_array($renewal_requests ?? null) ? $renewal_requests : [];
+$assignedRouter = is_array($assigned_router ?? null) ? $assigned_router : [];
 
 $username = (string) ($username ?? $customer['username'] ?? '');
 $u = urlencode($username);
@@ -54,6 +55,10 @@ $requestLabels = [
                 <h2 class="admin-section-title"><?= htmlspecialchars($displayName) ?></h2>
                 <div style="direction:ltr;text-align:right;color:#4b5563"><?= htmlspecialchars($username) ?></div>
                 <div style="color:#6b7280"><?= htmlspecialchars((string) ($customer['phone'] ?? 'لا يوجد رقم مسجل')) ?></div>
+                <div style="color:#166534;margin-top:5px">
+                    الراوتر: <?= htmlspecialchars((string) ($assignedRouter['name'] ?? 'الافتراضي')) ?>
+                    <?php if (!empty($assignedRouter['legacy_fallback'])): ?> (توافق الإعداد القديم)<?php endif; ?>
+                </div>
             </div>
             <div style="display:flex;gap:8px;flex-wrap:wrap">
                 <span class="<?= $statusClass ?>"><?= htmlspecialchars($statusLabel) ?></span>

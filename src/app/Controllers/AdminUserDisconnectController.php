@@ -12,7 +12,7 @@ use GreenNet\Core\View;
 use GreenNet\DTO\RouterOS\RouterOSWriteCommand;
 use GreenNet\DTO\RouterOS\WriteExecutionRequest;
 use GreenNet\Models\AppLog;
-use GreenNet\Services\RouterOS\RouterOSGatewayBundleFactory;
+use GreenNet\Services\RouterOS\RouterConnectionResolver;
 use GreenNet\Services\WriteSafetyGuard;
 use PDO;
 use RuntimeException;
@@ -753,7 +753,10 @@ class AdminUserDisconnectController
             return;
         }
 
-        $bundle = RouterOSGatewayBundleFactory::create(['timeout' => 6]);
+        $bundle = RouterConnectionResolver::gatewayBundleForCustomer(
+            (string) ($_POST['username'] ?? $_GET['username'] ?? ''),
+            ['timeout' => 6]
+        );
         $this->readGateway ??= $bundle->read;
         $this->writeGateway ??= $bundle->write;
     }

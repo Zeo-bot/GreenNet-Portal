@@ -82,6 +82,38 @@ class Database
         ");
 
         self::ensureColumn('customers_local', 'package_id', 'INTEGER DEFAULT 0');
+        self::ensureColumn('customers_local', 'router_id', 'INTEGER DEFAULT NULL');
+
+        $db->exec("
+            CREATE TABLE IF NOT EXISTS routers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                host TEXT NOT NULL,
+                api_port INTEGER DEFAULT 8728,
+                username TEXT DEFAULT '',
+                password TEXT DEFAULT '',
+                enabled INTEGER DEFAULT 1,
+                is_default INTEGER DEFAULT 0,
+                access_mode TEXT DEFAULT 'hybrid',
+                auth_backend TEXT DEFAULT 'user-manager',
+                identity TEXT DEFAULT '',
+                routeros_version TEXT DEFAULT '',
+                last_status TEXT DEFAULT 'unknown',
+                last_error TEXT DEFAULT '',
+                last_checked_at TEXT,
+                last_seen_at TEXT,
+                location TEXT DEFAULT '',
+                notes TEXT DEFAULT '',
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+        ");
+
+        $db->exec("
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_routers_default
+            ON routers (is_default)
+            WHERE is_default = 1
+        ");
 
         $db->exec("
             CREATE TABLE IF NOT EXISTS payments (
@@ -169,6 +201,19 @@ class Database
         $db->exec("
             CREATE UNIQUE INDEX IF NOT EXISTS idx_service_packages_source
             ON service_packages (source_type, source_profile);
+        ");
+
+        $db->exec("
+            CREATE TABLE IF NOT EXISTS router_package_profiles (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                router_id INTEGER NOT NULL,
+                package_id INTEGER NOT NULL,
+                profile_name TEXT NOT NULL,
+                profile_id TEXT DEFAULT '',
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(router_id, package_id)
+            );
         ");
 
         $db->exec("

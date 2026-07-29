@@ -10,9 +10,9 @@ class MikroTikService
 {
     private RouterOSApiClient $client;
 
-    public function __construct(?RouterOSApiClient $client = null)
+    public function __construct(?RouterOSApiClient $client = null, array $settings = [])
     {
-        $this->client = $client ?? new RouterOSApiClient();
+        $this->client = $client ?? new RouterOSApiClient($settings);
     }
 
     public function status(): array

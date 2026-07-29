@@ -12,7 +12,9 @@ use GreenNet\Core\View;
 use GreenNet\DTO\RouterOS\RouterOSWriteCommand;
 use GreenNet\DTO\RouterOS\WriteExecutionRequest;
 use GreenNet\Models\AppLog;
-use GreenNet\Services\RouterOS\RouterOSGatewayBundleFactory;
+use GreenNet\Models\Router;
+use GreenNet\Models\RouterPackageProfile;
+use GreenNet\Services\RouterOS\RouterConnectionResolver;
 use GreenNet\Services\WriteSafetyGuard;
 use PDO;
 use RuntimeException;
@@ -37,6 +39,7 @@ class AdminPackagePushController
         return View::render('admin/package_push', [
             'title' => 'Push Package to MikroTik',
             'packages' => $this->localPackages(),
+            'routers' => Router::enabled(),
             'preflight' => $guard->preflight(),
             'result' => $_SESSION['package_push_result'] ?? null,
             'message' => $this->consumeFlash('message'),
@@ -55,12 +58,14 @@ class AdminPackagePushController
             $guard->assertDryRunAllowed();
 
             $packageId = (int) ($_POST['package_id'] ?? 0);
+            $routerId = (int) ($_POST['router_id'] ?? 0);
 
             if ($packageId <= 0) {
                 throw new RuntimeException('اختر باقة صحيحة.');
             }
 
             $plan = $this->buildPushPlan($packageId);
+            $plan['router_id'] = $routerId;
 
             $auditId = $guard->recordDryRun([
                 'action' => 'push_package_to_mikrotik',
@@ -120,6 +125,10 @@ class AdminPackagePushController
 
             $lastPlan = $this->requireLastPlan($packageId);
 
+            if ((int) ($lastPlan['router_id'] ?? 0) !== (int) ($_POST['router_id'] ?? 0)) {
+                throw new RuntimeException('Target router changed after Dry Run. Create a new preview.');
+            }
+
             if (empty($lastPlan['can_execute_later'])) {
                 throw new RuntimeException('آخر Dry Run لا يسمح بالتنفيذ.');
             }
@@ -133,6 +142,7 @@ class AdminPackagePushController
             $execution = $this->executePushPlan($packageId, $lastPlan);
 
             $afterPlan = $this->buildPushPlan($packageId);
+            $afterPlan['router_id'] = (int) ($lastPlan['router_id'] ?? 0);
             $afterPlan['executed'] = true;
             $afterPlan['real_execution'] = true;
             $afterPlan['real_result'] = $execution;
@@ -143,10 +153,13 @@ class AdminPackagePushController
                 throw new RuntimeException((string) ($execution['message'] ?? 'فشل تنفيذ Push.'));
             }
 
-            $this->markPackageSynced(
-                $packageId,
-                (string) ($freshPlan['router_names']['profile_name'] ?? '')
-            );
+            $profileName = (string) ($freshPlan['router_names']['profile_name'] ?? '');
+            $routerId = (int) ($freshPlan['router_id'] ?? 0);
+            if ($routerId > 0) {
+                RouterPackageProfile::save($routerId, $packageId, $profileName);
+            } else {
+                $this->markPackageSynced($packageId, $profileName);
+            }
 
             $this->flash('تم Push الباقة إلى MikroTik بنجاح.', 'success');
         } catch (Throwable $e) {
@@ -181,7 +194,11 @@ class AdminPackagePushController
             throw new RuntimeException('الباقة غير موجودة.');
         }
 
-        $profileName = $this->routerPackageName($package);
+        $profileName = RouterPackageProfile::profileName(
+            (int) ($_POST['router_id'] ?? $_GET['router_id'] ?? 0),
+            $packageId,
+            $this->routerPackageName($package)
+        );
         $limitationName = $profileName;
 
         if ($profileName === '') {
@@ -892,7 +909,10 @@ class AdminPackagePushController
             return;
         }
 
-        $bundle = RouterOSGatewayBundleFactory::create(['timeout' => 6]);
+        $bundle = RouterConnectionResolver::gatewayBundleForRouter(
+            (int) ($_POST['router_id'] ?? $_GET['router_id'] ?? 0),
+            ['timeout' => 6]
+        );
         $this->readGateway ??= $bundle->read;
         $this->writeGateway ??= $bundle->write;
     }

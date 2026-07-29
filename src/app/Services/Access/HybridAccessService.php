@@ -6,6 +6,10 @@ namespace GreenNet\Services\Access;
 
 class HybridAccessService implements AccessServiceInterface
 {
+    public function __construct(private array $routerSettings = [])
+    {
+    }
+
     public function sourceName(): string
     {
         return 'hybrid';
@@ -13,7 +17,7 @@ class HybridAccessService implements AccessServiceInterface
 
     public function getSubscriberStatus(string $username): array
     {
-        $hotspot = new HotspotAccessService();
+        $hotspot = new HotspotAccessService($this->routerSettings);
         $hotspotData = $hotspot->getSubscriberStatus($username);
 
         if (($hotspotData['routeros_found'] ?? false) === true) {
@@ -21,7 +25,7 @@ class HybridAccessService implements AccessServiceInterface
             return $hotspotData;
         }
 
-        $ppp = new PppAccessService();
+        $ppp = new PppAccessService($this->routerSettings);
         $pppData = $ppp->getSubscriberStatus($username);
 
         if (($pppData['routeros_found'] ?? false) === true) {

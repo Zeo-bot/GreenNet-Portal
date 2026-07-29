@@ -14,7 +14,7 @@ use GreenNet\DTO\RouterOS\WriteExecutionRequest;
 use GreenNet\Exceptions\GuardedWriteExecutionException;
 use GreenNet\Models\AppLog;
 use GreenNet\Services\GreenNetUsageBaselineService;
-use GreenNet\Services\RouterOS\RouterOSGatewayBundleFactory;
+use GreenNet\Services\RouterOS\RouterConnectionResolver;
 use GreenNet\Services\WriteSafetyGuard;
 use PDO;
 use RuntimeException;
@@ -661,9 +661,10 @@ class AdminMikroTikDryRunController
             return;
         }
 
-        $bundle = RouterOSGatewayBundleFactory::create([
-            'timeout' => 5,
-        ]);
+        $bundle = RouterConnectionResolver::gatewayBundleForCustomer(
+            (string) ($_POST['username'] ?? $_GET['username'] ?? ''),
+            ['timeout' => 5]
+        );
         $this->readGateway ??= $bundle->read;
         $this->writeGateway ??= $bundle->write;
     }

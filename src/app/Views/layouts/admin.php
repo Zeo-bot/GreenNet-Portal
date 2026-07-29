@@ -197,6 +197,7 @@ $navGroups = [
             ['/admin/mikrotik-dry-run', '⚗', $t['dry_run'], '/admin/mikrotik-dry-run'],
             ['/admin/write-safety', '🛡', $t['write_safety'], '/admin/write-safety'],
             ['/admin/router-setup', '◎', $t['router_setup'], '/admin/router-setup'],
+            ['/admin/routers', 'R', 'Routers', '/admin/routers'],
             ['/admin/api/diagnostics', '◈', $t['api_diagnostics'], '/admin/api/diagnostics'],
             ['/admin/api/browser', '⌘', $t['api_browser'], '/admin/api/browser'],
             ['/admin/routeros/users', '◌', $t['routeros_users'], '/admin/routeros/users'],

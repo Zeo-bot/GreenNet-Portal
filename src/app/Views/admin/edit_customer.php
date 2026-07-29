@@ -55,6 +55,19 @@
             </div>
 
             <div class="form-group">
+                <label>الراوتر المستهدف</label>
+                <select name="router_id" class="input-select">
+                    <option value="">الراوتر الافتراضي / إعداد التوافق القديم</option>
+                    <?php foreach (($routers ?? []) as $router): ?>
+                        <option value="<?= (int) ($router['id'] ?? 0) ?>" <?= (int) ($customer['router_id'] ?? 0) === (int) ($router['id'] ?? 0) ? 'selected' : '' ?>>
+                            <?= htmlspecialchars((string) ($router['name'] ?? '')) ?> — <?= htmlspecialchars((string) ($router['host'] ?? '')) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <small>تغيير التعيين لا ينقل أو يحذف حساب RouterOS تلقائياً.</small>
+            </div>
+
+            <div class="form-group">
                 <label>حالة الدفع</label>
                 <select name="payment_status" class="input-select">
                     <option value="paid" <?= ($customer['payment_status'] ?? '') === 'paid' ? 'selected' : '' ?>>مدفوع</option>

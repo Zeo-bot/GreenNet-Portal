@@ -308,6 +308,18 @@ $canExecute = $result !== null && !empty($result['can_execute_later']) && empty(
                     </select>
                 </div>
 
+                <div class="gn-push-field">
+                    <label>Target Router</label>
+                    <select name="router_id">
+                        <option value="0">Default / legacy router</option>
+                        <?php foreach (($routers ?? []) as $router): ?>
+                            <option value="<?= (int) ($router['id'] ?? 0) ?>">
+                                <?= gn_push_h($router['name'] ?? '') ?> — <?= gn_push_h($router['host'] ?? '') ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
                 <button class="gn-btn gn-btn-primary gn-btn-lg" type="submit">
                     Create Dry Run
                 </button>
@@ -406,6 +418,7 @@ $canExecute = $result !== null && !empty($result['can_execute_later']) && empty(
 
                 <form method="post" action="/admin/package-push/execute" onsubmit="return confirm('سيتم تنفيذ Write حقيقي على MikroTik. متابعة؟');">
                     <input type="hidden" name="package_id" value="<?= gn_push_h((string) ($result['package_id'] ?? 0)) ?>">
+                    <input type="hidden" name="router_id" value="<?= (int) ($result['router_id'] ?? 0) ?>">
 
                     <div class="gn-push-field" style="margin-top:14px;">
                         <label>Confirmation</label>

@@ -6,6 +6,7 @@ namespace GreenNet\Services;
 
 use GreenNet\Core\Database;
 use GreenNet\Services\RouterOS\RouterOSApiClient;
+use GreenNet\Services\RouterOS\RouterConnectionResolver;
 use PDO;
 use Throwable;
 
@@ -195,9 +196,9 @@ class GreenNetUsageBaselineService
             'active_sessions' => 0,
         ];
 
-        $client = new RouterOSApiClient([
-            'timeout' => 5,
-        ]);
+        $client = new RouterOSApiClient(
+            RouterConnectionResolver::settingsForCustomer($username, ['timeout' => 5])
+        );
 
         try {
             $users = $this->normalizeRows($client->comm('/user-manager/user/print', [

@@ -405,6 +405,7 @@ $formData = [
     'access_type' => (string) ($editing['access_type'] ?? 'hybrid'),
     'payment_status' => (string) ($editing['payment_status'] ?? 'unpaid'),
     'package_id' => (string) ($editing['package_id'] ?? ''),
+    'router_id' => (string) ($editing['router_id'] ?? ''),
     'must_change_password' => (int) ($editing['must_change_password'] ?? 0) === 1,
     'notes' => (string) ($editing['notes'] ?? ''),
 ];
@@ -910,6 +911,19 @@ $formData = [
                                 ?>
                                 <option value="<?= gn_cust_h($pkgId) ?>" <?= $formData['package_id'] === $pkgId ? 'selected' : '' ?>>
                                     <?= gn_cust_h($pkgName) ?> — <?= gn_cust_h(gn_cust_access_label($pkgAccess)) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <div class="gn-cust-field">
+                        <label>الراوتر المستهدف</label>
+                        <select name="router_id">
+                            <option value="">الراوتر الافتراضي / إعداد التوافق القديم</option>
+                            <?php foreach (($routers ?? []) as $router): ?>
+                                <?php $routerId = (string) ($router['id'] ?? ''); ?>
+                                <option value="<?= gn_cust_h($routerId) ?>" <?= $formData['router_id'] === $routerId ? 'selected' : '' ?>>
+                                    <?= gn_cust_h($router['name'] ?? '') ?> — <?= gn_cust_h($router['host'] ?? '') ?>
                                 </option>
                             <?php endforeach; ?>
                         </select>

@@ -12,7 +12,7 @@ use GreenNet\Core\View;
 use GreenNet\DTO\RouterOS\RouterOSWriteCommand;
 use GreenNet\DTO\RouterOS\WriteExecutionRequest;
 use GreenNet\Models\AppLog;
-use GreenNet\Services\RouterOS\RouterOSGatewayBundleFactory;
+use GreenNet\Services\RouterOS\RouterConnectionResolver;
 use GreenNet\Services\WriteSafetyGuard;
 use PDO;
 use RuntimeException;
@@ -207,7 +207,7 @@ class AdminUserManagerUserCreateController
             throw new RuntimeException('الباقة غير موجودة داخل GreenNet.');
         }
 
-        $profileName = $this->routerProfileName($package);
+        $profileName = $this->routerProfileName($package, $username);
 
         if ($profileName === '') {
             throw new RuntimeException('الباقة لا تحتوي اسم Profile صالح للـ MikroTik.');
@@ -683,15 +683,28 @@ class AdminUserManagerUserCreateController
         }
     }
 
-    private function routerProfileName(array $package): string
+    private function routerProfileName(array $package, string $username): string
     {
         $sourceProfile = trim((string) ($package['source_profile'] ?? ''));
 
-        if ($sourceProfile !== '') {
-            return $this->cleanRouterName($sourceProfile);
+        $fallback = $sourceProfile !== ''
+            ? $this->cleanRouterName($sourceProfile)
+            : $this->cleanRouterName((string) ($package['name'] ?? ''));
+        try {
+            $stmt = $this->database()->prepare("
+            SELECT rpm.profile_name
+            FROM customers_local c
+            JOIN router_package_profiles rpm
+              ON rpm.router_id = c.router_id AND rpm.package_id = :package_id
+            WHERE lower(c.username) = lower(:username)
+            LIMIT 1
+            ");
+            $stmt->execute(['package_id' => (int) ($package['id'] ?? 0), 'username' => $username]);
+            $mapped = trim((string) ($stmt->fetchColumn() ?: ''));
+            return $mapped !== '' ? $mapped : $fallback;
+        } catch (Throwable) {
+            return $fallback;
         }
-
-        return $this->cleanRouterName((string) ($package['name'] ?? ''));
     }
 
     private function cleanRouterName(string $name): string
@@ -890,7 +903,10 @@ class AdminUserManagerUserCreateController
         if ($this->readGateway !== null && $this->writeGateway !== null) {
             return;
         }
-        $bundle = RouterOSGatewayBundleFactory::create(['timeout' => 6]);
+        $bundle = RouterConnectionResolver::gatewayBundleForCustomer(
+            (string) ($_POST['username'] ?? $_GET['username'] ?? ''),
+            ['timeout' => 6]
+        );
         $this->readGateway ??= $bundle->read;
         $this->writeGateway ??= $bundle->write;
     }

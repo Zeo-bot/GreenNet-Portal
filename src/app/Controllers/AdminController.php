@@ -13,6 +13,7 @@ use GreenNet\Models\Payment;
 use GreenNet\Models\Announcement;
 use GreenNet\Models\QosProfile;
 use GreenNet\Models\CustomerLocal;
+use GreenNet\Models\Router;
 use GreenNet\Services\CustomerRenewalService;
 
 class AdminController
@@ -87,6 +88,7 @@ class AdminController
             'title' => 'إدارة الزبائن',
             'app_name' => Config::appName(),
             'customers' => CustomerLocal::all(),
+            'routers' => Router::enabled(),
         ]);
     }
 
@@ -108,6 +110,7 @@ class AdminController
             'title' => 'تعديل الزبون',
             'app_name' => Config::appName(),
             'customer' => $customer,
+            'routers' => Router::enabled(),
         ]);
     }
 
@@ -123,6 +126,7 @@ class AdminController
         $accessType = trim((string) ($_POST['access_type'] ?? 'hybrid'));
         $paymentStatus = trim((string) ($_POST['payment_status'] ?? 'unknown'));
         $notes = trim((string) ($_POST['notes'] ?? ''));
+        $routerId = (int) ($_POST['router_id'] ?? 0);
 
         $allowedAccessTypes = ['hotspot', 'ppp', 'hybrid'];
         $allowedStatuses = ['paid', 'due', 'pending', 'unknown'];
@@ -142,7 +146,8 @@ class AdminController
                 $phone,
                 $accessType,
                 $paymentStatus,
-                $notes
+                $notes,
+                $routerId > 0 ? $routerId : null
             );
         }
 
@@ -213,10 +218,15 @@ class AdminController
 
         $username = trim((string) ($_POST['username'] ?? ''));
         $displayName = trim((string) ($_POST['display_name'] ?? ''));
+        if ($displayName === '') {
+            $displayName = trim((string) ($_POST['full_name'] ?? ''));
+        }
         $phone = trim((string) ($_POST['phone'] ?? ''));
         $accessType = trim((string) ($_POST['access_type'] ?? 'hybrid'));
         $paymentStatus = trim((string) ($_POST['payment_status'] ?? 'unknown'));
         $notes = trim((string) ($_POST['notes'] ?? ''));
+        $packageId = (int) ($_POST['package_id'] ?? 0);
+        $routerId = (int) ($_POST['router_id'] ?? 0);
 
         if ($username !== '') {
             CustomerLocal::create(
@@ -225,7 +235,9 @@ class AdminController
                 $phone,
                 $accessType,
                 $paymentStatus,
-                $notes
+                $notes,
+                $packageId,
+                $routerId > 0 ? $routerId : null
             );
         }
 

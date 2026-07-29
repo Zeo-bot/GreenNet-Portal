@@ -8,6 +8,10 @@ use GreenNet\Services\RouterOS\MikroTikService;
 
 class HotspotAccessService implements AccessServiceInterface
 {
+    public function __construct(private array $routerSettings = [])
+    {
+    }
+
     public function sourceName(): string
     {
         return 'hotspot';
@@ -15,7 +19,7 @@ class HotspotAccessService implements AccessServiceInterface
 
     public function getSubscriberStatus(string $username): array
     {
-        $mikrotik = new MikroTikService();
+        $mikrotik = new MikroTikService(null, $this->routerSettings);
         $activeUser = $mikrotik->findHotspotActiveUser($username);
 
         if (!$activeUser) {

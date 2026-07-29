@@ -9,6 +9,7 @@ use GreenNet\Core\View;
 use GreenNet\Models\CustomerLocal;
 use GreenNet\Models\Payment;
 use GreenNet\Models\ServicePackage;
+use GreenNet\Services\RouterOS\RouterConnectionResolver;
 use GreenNet\Services\CustomerDashboardService;
 use PDO;
 use Throwable;
@@ -87,7 +88,23 @@ class AdminCustomerProfileController
             'payments_count' => count($payments),
             'dashboard' => $dashboard,
             'renewal_requests' => $this->renewalRequests($username),
+            'assigned_router' => $this->assignedRouter($username),
         ]);
+    }
+
+    private function assignedRouter(string $username): array
+    {
+        try {
+            return RouterConnectionResolver::routerForCustomer($username);
+        } catch (Throwable $e) {
+            return [
+                'name' => 'الراوتر المعيّن غير متاح',
+                'host' => '',
+                'enabled' => 0,
+                'last_status' => 'disabled',
+                'resolution_error' => $e->getMessage(),
+            ];
+        }
     }
 
     private function renewalRequests(string $username): array
