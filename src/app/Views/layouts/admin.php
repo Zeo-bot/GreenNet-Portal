@@ -115,7 +115,6 @@ $labels = [
         'subscriptions' => 'Subscriptions',
         'reports' => 'Reports',
         'mikrotik' => 'MikroTik',
-        'dry_run' => 'MikroTik Dry Run',
         'write_safety' => 'Write Safety',
         'router_setup' => 'Router Setup',
         'api_diagnostics' => 'API Diagnostics',
@@ -207,6 +206,7 @@ $navGroups = [
     <link rel="stylesheet" href="/css/admin-dry-run.css?v=ui7pack">
     <link rel="stylesheet" href="/css/admin-pages.css?v=ui8pack">
     <link rel="stylesheet" href="/css/admin-theme-final.css?v=themefinal1">
+    <link rel="stylesheet" href="/css/product-experience.css?v=rc1">
 </head>
 
 <body class="gn-admin-body <?= gn_admin_h($bodyDirClass) ?>" data-admin-lang="<?= gn_admin_h($lang) ?>" data-admin-theme="greennet-light">
@@ -261,6 +261,8 @@ $navGroups = [
                 </div>
 
                 <div class="gn-topbar-right">
+                    <button class="gn-btn gn-btn-ghost gn-btn-sm" type="button" data-gn-language-toggle><?= $lang === 'ar' ? 'English' : 'العربية' ?></button>
+                    <button class="gn-btn gn-btn-ghost gn-btn-sm" type="button" data-gn-theme-toggle><?= $lang === 'ar' ? 'المظهر' : 'Theme' ?></button>
                     <div class="gn-topbar-chip">
                         <span class="gn-topbar-chip-dot"></span>
                         <span><?= gn_admin_h($adminUsername) ?></span>
@@ -279,6 +281,7 @@ $navGroups = [
     </div>
 
     <script src="/js/admin-theme.js?v=themefinal1"></script>
+    <script src="/js/product-language.js?v=rc1"></script>
     <script src="/js/admin-buttons.js?v=ui3"></script>
     <script src="/js/admin-layout.js?v=ui4"></script>
     <script src="/js/admin-tables.js?v=ui5pack"></script>

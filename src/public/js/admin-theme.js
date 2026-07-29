@@ -7,9 +7,7 @@
 
     const themes = [
         { value: "greennet-light", label: "GreenNet Light" },
-        { value: "greennet-dark", label: "GreenNet Dark" },
-        { value: "cloud-light", label: "Cloud Light" },
-        { value: "high-contrast", label: "High Contrast" }
+        { value: "greennet-dark", label: "GreenNet Dark" }
     ];
 
     function getCookie(name) {

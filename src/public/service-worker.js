@@ -1,4 +1,4 @@
-const GREENNET_CACHE = 'greennet-static-v3.0.0';
+const GREENNET_CACHE = 'greennet-static-v1-rc1';
 
 const STATIC_ASSETS = [
     '/offline.html',
@@ -7,6 +7,10 @@ const STATIC_ASSETS = [
     '/css/app.css',
     '/css/subscriber.css',
     '/css/subscriber-app.css',
+    '/css/subscriber-ui.css',
+    '/css/product-experience.css',
+    '/js/subscriber-ui.js',
+    '/js/product-language.js',
     '/js/pwa.js'
 ];
 

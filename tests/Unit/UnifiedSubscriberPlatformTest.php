@@ -143,7 +143,10 @@ final class UnifiedSubscriberPlatformTest extends TestCase
         self::assertStringContainsString('navigationNoCache', $worker);
 
         $layout = (string) file_get_contents($root . '/src/app/Views/layouts/app.php');
-        self::assertStringContainsString('<html lang="ar" dir="rtl">', $layout);
+        self::assertStringContainsString("greennet_ui_lang", $layout);
+        self::assertStringContainsString("\$subscriberLang === 'en' ? 'en' : 'ar'", $layout);
+        self::assertStringContainsString("\$subscriberLang === 'en' ? 'ltr' : 'rtl'", $layout);
+        self::assertStringContainsString('<html lang="<?= gn_sub_h($subscriberLang) ?>" dir="<?= gn_sub_h($subscriberDir) ?>">', $layout);
         self::assertStringContainsString('name="viewport"', $layout);
 
         $subscriberSource = (string) file_get_contents($root . '/src/app/Services/UnifiedSubscriberService.php');

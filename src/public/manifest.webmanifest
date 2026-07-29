@@ -2,15 +2,15 @@
   "id": "/login",
   "name": "GreenNet Portal",
   "short_name": "GreenNet",
-  "description": "تطبيق المشتركين الخاص بشبكة GreenNet",
+  "description": "بوابة GreenNet لإدارة الاشتراك والاستهلاك والتجديد",
   "start_url": "/login",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
   "dir": "rtl",
   "lang": "ar",
-  "theme_color": "#16a34a",
-  "background_color": "#ffffff",
+  "theme_color": "#118657",
+  "background_color": "#f5f8f6",
   "categories": ["utilities", "productivity"],
   "icons": [
     {

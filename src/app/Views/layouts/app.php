@@ -21,6 +21,9 @@ if (!function_exists('gn_sub_current_path')) {
 
 $appName = (string) ($_ENV['APP_NAME'] ?? getenv('APP_NAME') ?: 'GreenNet');
 $pageTitle = (string) ($title ?? $appName);
+$subscriberLang = (string) ($_COOKIE['greennet_ui_lang'] ?? 'ar');
+$subscriberLang = $subscriberLang === 'en' ? 'en' : 'ar';
+$subscriberDir = $subscriberLang === 'en' ? 'ltr' : 'rtl';
 $currentPath = gn_sub_current_path();
 
 $isAdminLogin = $currentPath === '/admin/login';
@@ -29,7 +32,7 @@ $username = (string) ($_GET['username'] ?? ($_SESSION['subscriber_username'] ?? 
 $usernameQuery = $username !== '' ? '?username=' . rawurlencode($username) : '';
 
 ?><!doctype html>
-<html lang="ar" dir="rtl">
+<html lang="<?= gn_sub_h($subscriberLang) ?>" dir="<?= gn_sub_h($subscriberDir) ?>">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -40,6 +43,7 @@ $usernameQuery = $username !== '' ? '?username=' . rawurlencode($username) : '';
 
     <meta name="theme-color" content="#11945a">
     <link rel="manifest" href="/manifest.webmanifest">
+    <link rel="stylesheet" href="/css/product-experience.css?v=rc1">
 
     <?php if ($isAdminLogin): ?>
         <style>
@@ -291,12 +295,12 @@ $usernameQuery = $username !== '' ? '?username=' . rawurlencode($username) : '';
                 justify-content: center;
             }
 
-            html[data-theme="dark"] .gn-admin-login-card {
+            html[data-theme="greennet-dark"] .gn-admin-login-card {
                 background: var(--login-card-dark);
                 color: #ecfdf5;
             }
 
-            html[data-theme="dark"] {
+            html[data-theme="greennet-dark"] {
                 --login-text: #ecfdf5;
                 --login-muted: #9bbba8;
                 --login-border: rgba(148, 163, 184, 0.22);
@@ -377,7 +381,7 @@ $usernameQuery = $username !== '' ? '?username=' . rawurlencode($username) : '';
                 transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
             }
 
-            html[data-theme="dark"] .gn-admin-login-field input {
+            html[data-theme="greennet-dark"] .gn-admin-login-field input {
                 background: rgba(255,255,255,0.08);
                 color: #ecfdf5;
             }
@@ -474,7 +478,7 @@ $usernameQuery = $username !== '' ? '?username=' . rawurlencode($username) : '';
 </head>
 
 <?php if ($isAdminLogin): ?>
-    <body>
+    <body class="gn-admin-login-body">
         <div class="gn-admin-login-page">
             <header class="gn-admin-login-topbar">
                 <a class="gn-admin-login-brand" href="/admin/login">
@@ -485,17 +489,17 @@ $usernameQuery = $username !== '' ? '?username=' . rawurlencode($username) : '';
                     </span>
                 </a>
 
-                <button class="gn-admin-login-theme" type="button" onclick="
-                    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-                    document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark');
-                    this.textContent = isDark ? 'Dark' : 'Light';
-                ">Dark</button>
+                <div class="gn-sub-header-actions">
+                    <button class="gn-admin-login-theme" type="button" data-gn-language-toggle>English</button>
+                    <button class="gn-admin-login-theme" type="button" data-gn-theme-toggle>Theme</button>
+                </div>
             </header>
 
             <main class="gn-admin-login-main">
                 <?= $content ?? '' ?>
             </main>
         </div>
+        <script src="/js/product-language.js?v=rc1"></script>
     </body>
 <?php else: ?>
     <body class="gn-subscriber-body">
@@ -505,13 +509,15 @@ $usernameQuery = $username !== '' ? '?username=' . rawurlencode($username) : '';
                     <div class="gn-sub-brand-mark">G</div>
                     <div>
                         <div class="gn-sub-brand-title"><?= gn_sub_h($appName) ?></div>
-                        <div class="gn-sub-brand-subtitle">بوابة المشترك</div>
+                        <div class="gn-sub-brand-subtitle" data-i18n="subscriber_portal">بوابة المشترك</div>
                     </div>
                 </div>
 
-                <?php if ($username !== ''): ?>
-                    <a class="gn-sub-btn" href="/my/account">حسابي</a>
-                <?php endif; ?>
+                <div class="gn-sub-header-actions">
+                    <button class="gn-sub-header-control" type="button" data-gn-language-toggle><?= $subscriberLang === 'ar' ? 'English' : 'العربية' ?></button>
+                    <button class="gn-sub-header-control" type="button" data-gn-theme-toggle aria-label="Theme">◐</button>
+                    <?php if ($username !== ''): ?><a class="gn-sub-btn" href="/my/account" data-i18n="my_account">حسابي</a><?php endif; ?>
+                </div>
             </div>
         </header>
 
@@ -520,6 +526,7 @@ $usernameQuery = $username !== '' ? '?username=' . rawurlencode($username) : '';
         </main>
 
         <script src="/js/subscriber-ui.js?v=ui9pack"></script>
+        <script src="/js/product-language.js?v=rc1"></script>
         <script src="/js/pwa.js?v=stage2"></script>
     </body>
 <?php endif; ?>
