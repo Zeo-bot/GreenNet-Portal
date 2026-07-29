@@ -5,6 +5,7 @@ declare(strict_types=1);
 use GreenNet\Core\Config;
 use GreenNet\Core\Database;
 use GreenNet\Services\AutomationEngine;
+use GreenNet\Services\ProductionBackupService;
 
 $repositoryRoot = dirname(__DIR__);
 $sourceRoot = is_dir($repositoryRoot . '/src/app') ? $repositoryRoot . '/src' : $repositoryRoot;
@@ -26,8 +27,19 @@ Database::migrate();
 $command = (string) ($argv[1] ?? '');
 $job = isset($argv[2]) ? (string) $argv[2] : null;
 
+if ($command === 'backup:create') {
+    $result = (new ProductionBackupService())->create('automatic');
+    fwrite(STDOUT, json_encode([
+        'ok' => true,
+        'name' => $result['name'],
+        'size' => $result['size'],
+        'format_version' => $result['format_version'],
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) . PHP_EOL);
+    exit(0);
+}
+
 if ($command !== 'jobs:run') {
-    fwrite(STDERR, "Usage: php bin/greennet jobs:run [job-name]\n");
+    fwrite(STDERR, "Usage: php bin/greennet jobs:run [job-name] | backup:create\n");
     exit(2);
 }
 

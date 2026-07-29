@@ -16,6 +16,11 @@ class Database
         return self::$connection !== null;
     }
 
+    public static function disconnect(): void
+    {
+        self::$connection = null;
+    }
+
     public static function connection(): PDO
     {
         if (self::$connection !== null) {

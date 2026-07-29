@@ -12,10 +12,11 @@ use ZipArchive;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use FilesystemIterator;
+use GreenNet\Services\ProductionBackupService;
 
 final class AdminBackupController
 {
-    private const MAX_RESTORE_BYTES = 52428800; // 50 MB
+    private const MAX_RESTORE_BYTES = 536870912; // 512 MB
 
     public function index(): string
     {
@@ -25,7 +26,7 @@ final class AdminBackupController
     public function download(): string
     {
         try {
-            $file = $this->createDatabaseBackup();
+            $file = (new ProductionBackupService())->create()['path'];
 
             return $this->sendFile($file);
         } catch (Throwable $e) {
@@ -36,7 +37,7 @@ final class AdminBackupController
     public function downloadFull(): string
     {
         try {
-            $file = $this->createFullBackup();
+            $file = (new ProductionBackupService())->create()['path'];
 
             return $this->sendFile($file);
         } catch (Throwable $e) {
@@ -53,7 +54,7 @@ final class AdminBackupController
                 throw new RuntimeException('اسم ملف النسخة غير صحيح.');
             }
 
-            $file = $this->backupDir() . '/' . $name;
+            $file = (new ProductionBackupService())->storedPath($name);
 
             if (!is_file($file)) {
                 throw new RuntimeException('ملف النسخة غير موجود.');
@@ -67,6 +68,12 @@ final class AdminBackupController
 
     public function restore(): string
     {
+        return $this->restorePortableUpload('backup_file');
+        /*
+         * Legacy raw-database restore implementation remains below for historical
+         * reference but is intentionally unreachable. Production restore accepts
+         * only validated portable packages.
+         */
         try {
             $this->requireRestoreConfirmation('RESTORE');
 
@@ -137,6 +144,11 @@ final class AdminBackupController
 
     public function restoreFull(): string
     {
+        return $this->restorePortableUpload('full_backup_file');
+        /*
+         * Legacy generic ZIP extraction remains unreachable. Portable restore
+         * validates exact archive members before replacing any state.
+         */
         try {
             $this->requireRestoreConfirmation('RESTORE FULL');
 
@@ -260,20 +272,104 @@ final class AdminBackupController
         }
     }
 
+    public function createStored(): string
+    {
+        try {
+            (new ProductionBackupService())->create();
+            return $this->redirect('/admin/backup?success=created');
+        } catch (Throwable $e) {
+            return $this->renderBackup('', $e->getMessage());
+        }
+    }
+
+    public function upload(): string
+    {
+        try {
+            $file = $this->uploadedPackage('backup_package');
+            (new ProductionBackupService())->import(
+                (string) $file['tmp_name'],
+                (string) $file['name']
+            );
+            return $this->redirect('/admin/backup?success=uploaded');
+        } catch (Throwable $e) {
+            return $this->renderBackup('', $e->getMessage());
+        }
+    }
+
+    public function restoreStored(): string
+    {
+        try {
+            $this->requireRestoreConfirmation('RESTORE');
+            $service = new ProductionBackupService();
+            $service->restore($service->storedPath((string) ($_POST['file'] ?? '')));
+            return $this->redirect('/admin/backup?success=restored');
+        } catch (Throwable $e) {
+            return $this->renderBackup('', $e->getMessage());
+        }
+    }
+
+    public function deleteStored(): string
+    {
+        try {
+            if (trim((string) ($_POST['confirm_delete'] ?? '')) !== 'DELETE') {
+                throw new RuntimeException('عبارة تأكيد الحذف غير صحيحة.');
+            }
+            (new ProductionBackupService())->delete((string) ($_POST['file'] ?? ''));
+            return $this->redirect('/admin/backup?success=deleted');
+        } catch (Throwable $e) {
+            return $this->renderBackup('', $e->getMessage());
+        }
+    }
+
     private function renderBackup(string $success = '', string $error = ''): string
     {
         $success = $success !== '' ? $success : (string) ($_GET['success'] ?? '');
 
+        $service = new ProductionBackupService();
         return $this->renderAdmin('admin/backup', [
             'title' => 'Backup & Restore',
             'success' => $success,
             'error' => $error,
-            'backups' => $this->storedBackups(),
+            'backups' => $service->list(),
             'dbPath' => $this->databasePath(),
-            'backupDir' => $this->backupDir(),
+            'backupDir' => $service->backupDirectory(),
             'uploadsDir' => $this->uploadsDir(),
             'zipAvailable' => class_exists(ZipArchive::class),
         ]);
+    }
+
+    private function restorePortableUpload(string $field): string
+    {
+        try {
+            $this->requireRestoreConfirmation('RESTORE');
+            $file = $this->uploadedPackage($field);
+            $service = new ProductionBackupService();
+            $imported = $service->import((string) $file['tmp_name'], (string) $file['name']);
+            $service->restore((string) $imported['path']);
+            return $this->redirect('/admin/backup?success=restored');
+        } catch (Throwable $e) {
+            return $this->renderBackup('', $e->getMessage());
+        }
+    }
+
+    private function uploadedPackage(string $field): array
+    {
+        $file = $_FILES[$field] ?? null;
+        if (!is_array($file) || (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+            throw new RuntimeException('فشل رفع حزمة النسخة الاحتياطية.');
+        }
+        $size = (int) ($file['size'] ?? 0);
+        if ($size <= 0 || $size > self::MAX_RESTORE_BYTES) {
+            throw new RuntimeException('حجم حزمة النسخة غير صالح أو يتجاوز 512MB.');
+        }
+        $tmp = (string) ($file['tmp_name'] ?? '');
+        if ($tmp === '' || !is_uploaded_file($tmp)) {
+            throw new RuntimeException('ملف النسخة المرفوع غير صالح.');
+        }
+        if (!str_ends_with(strtolower((string) ($file['name'] ?? '')), '.zip')) {
+            throw new RuntimeException('حزمة النسخة يجب أن تكون ZIP.');
+        }
+        return $file;
     }
 
     private function pdo(): PDO
