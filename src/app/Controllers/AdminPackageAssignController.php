@@ -43,6 +43,9 @@ class AdminPackageAssignController
             'result' => $_SESSION['package_assign_result'] ?? null,
             'message' => $this->consumeFlash('message'),
             'message_type' => $this->consumeFlash('type', 'success'),
+            'requested_username' => trim((string) ($_GET['username'] ?? '')),
+            'requested_package_id' => (int) ($_GET['package_id'] ?? 0),
+            'requested_mode' => $this->normalizeMode((string) ($_GET['assign_mode'] ?? 'replace')),
         ]);
     }
 

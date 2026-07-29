@@ -5,6 +5,7 @@
     $subscription = $preview['subscription'] ?? null;
 
     $canRenew = (bool) ($preview['ok'] ?? false);
+    $renewalRequest = is_array($renewal_request ?? null) ? $renewal_request : null;
 ?>
 
 <div class="page">
@@ -25,6 +26,14 @@
             التجديد هنا يسجل دفعة ومدة اشتراك داخل GreenNet فقط.
             لا يتم تعديل أي شيء على MikroTik في هذه الخطوة.
         </div>
+
+        <?php if ($renewalRequest): ?>
+            <div class="notice" style="background:#ecfdf5;color:#166534;">
+                سيتم ربط هذا التجديد بطلب المشترك رقم
+                #<?= (int) ($renewalRequest['id'] ?? 0) ?>
+                وتحديث حالته إلى «مكتمل» بعد نجاح تسجيل الدفعة.
+            </div>
+        <?php endif; ?>
 
         <?php if (!$canRenew): ?>
             <div class="notice" style="background:#fee2e2;color:#991b1b;">
@@ -128,6 +137,9 @@
             <form method="post" action="/admin/customers/renew">
 
                 <input type="hidden" name="username" value="<?= htmlspecialchars($customer['username'] ?? '') ?>">
+                <?php if ($renewalRequest): ?>
+                    <input type="hidden" name="renewal_request_id" value="<?= (int) ($renewalRequest['id'] ?? 0) ?>">
+                <?php endif; ?>
 
                 <div class="form-group">
                     <label>المبلغ المدفوع</label>

@@ -36,7 +36,8 @@ $writeEnabled = gn_s10_bool($preflight['mikrotik_write_enabled'] ?? $preflight['
 $dryRunRequired = gn_s10_bool($preflight['dry_run_required'] ?? true);
 $freshBackup = gn_s10_bool($preflight['fresh_backup'] ?? $preflight['has_fresh_backup'] ?? false);
 
-$action = (string) ($result['action'] ?? 'hotspot_reset_counters');
+$action = (string) ($result['action'] ?? $requested_action ?? 'hotspot_reset_counters');
+$requestedUsername = (string) ($result['username'] ?? $requested_username ?? 'user1');
 $monitor = is_array($result['monitor_summary'] ?? null) ? $result['monitor_summary'] : [];
 $baseline = is_array($result['latest_baseline'] ?? null) ? $result['latest_baseline'] : [];
 $baselineUsage = is_array($result['baseline_usage'] ?? null) ? $result['baseline_usage'] : [];
@@ -352,7 +353,7 @@ $confirmWord = (string) ($result['confirm_word'] ?? ($action === 'um_enable_user
             <div class="gn-dry-fields">
                 <div class="form-group">
                     <label>Username</label>
-                    <input type="text" name="username" value="<?= gn_s10_h((string) ($result['username'] ?? 'user1')) ?>" placeholder="user1" dir="ltr" required>
+                    <input type="text" name="username" value="<?= gn_s10_h($requestedUsername) ?>" placeholder="user1" dir="ltr" required>
                 </div>
             </div>
 

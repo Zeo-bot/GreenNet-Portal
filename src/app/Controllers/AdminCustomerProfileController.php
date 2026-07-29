@@ -10,6 +10,7 @@ use GreenNet\Models\CustomerLocal;
 use GreenNet\Models\Payment;
 use GreenNet\Models\ServicePackage;
 use GreenNet\Services\CustomerDashboardService;
+use PDO;
 use Throwable;
 
 class AdminCustomerProfileController
@@ -85,7 +86,26 @@ class AdminCustomerProfileController
             'total_paid' => $totalPaid,
             'payments_count' => count($payments),
             'dashboard' => $dashboard,
+            'renewal_requests' => $this->renewalRequests($username),
         ]);
+    }
+
+    private function renewalRequests(string $username): array
+    {
+        try {
+            $stmt = Database::connection()->prepare("
+                SELECT id, package_name, message, status, admin_note, created_at, updated_at
+                FROM renewal_requests
+                WHERE lower(username) = lower(:username)
+                ORDER BY id DESC
+                LIMIT 10
+            ");
+            $stmt->execute(['username' => $username]);
+
+            return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        } catch (Throwable) {
+            return [];
+        }
     }
 
     private function requireLogin(): void

@@ -36,7 +36,7 @@ $safeMode = gn_disc_bool($preflight['greennet_safe_mode'] ?? $preflight['safe_mo
 $writeEnabled = gn_disc_bool($preflight['mikrotik_write_enabled'] ?? $preflight['write_enabled'] ?? false);
 $freshBackup = gn_disc_bool($preflight['fresh_backup'] ?? $preflight['has_fresh_backup'] ?? false);
 
-$selectedUsername = (string) ($result['username'] ?? '');
+$selectedUsername = (string) ($result['username'] ?? $requested_username ?? '');
 $router = is_array($result['router'] ?? null) ? $result['router'] : [];
 $hotspotRows = is_array($router['hotspot_active']['rows'] ?? null) ? $router['hotspot_active']['rows'] : [];
 $pppRows = is_array($router['ppp_active']['rows'] ?? null) ? $router['ppp_active']['rows'] : [];

@@ -37,8 +37,8 @@ $safeMode = gn_um_create_bool($preflight['greennet_safe_mode'] ?? $preflight['sa
 $writeEnabled = gn_um_create_bool($preflight['mikrotik_write_enabled'] ?? $preflight['write_enabled'] ?? false);
 $freshBackup = gn_um_create_bool($preflight['fresh_backup'] ?? $preflight['has_fresh_backup'] ?? false);
 
-$selectedUsername = (string) ($result['username'] ?? '');
-$selectedPackageId = (int) ($result['package_id'] ?? 0);
+$selectedUsername = (string) ($result['username'] ?? $requested_username ?? '');
+$selectedPackageId = (int) ($result['package_id'] ?? $requested_package_id ?? 0);
 $router = is_array($result['router'] ?? null) ? $result['router'] : [];
 $operations = is_array($result['operations'] ?? null) ? $result['operations'] : [];
 $realResult = is_array($result['real_result'] ?? null) ? $result['real_result'] : [];

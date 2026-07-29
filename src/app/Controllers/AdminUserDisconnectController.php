@@ -41,6 +41,7 @@ class AdminUserDisconnectController
             'result' => $_SESSION['user_disconnect_result'] ?? null,
             'message' => $this->consumeFlash('message'),
             'message_type' => $this->consumeFlash('type', 'success'),
+            'requested_username' => trim((string) ($_GET['username'] ?? '')),
         ]);
     }
 

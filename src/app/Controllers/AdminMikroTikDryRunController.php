@@ -43,6 +43,12 @@ class AdminMikroTikDryRunController
             'result' => $_SESSION['mikrotik_dry_run_result'] ?? null,
             'message' => $this->consumeFlash('message'),
             'message_type' => $this->consumeFlash('type', 'success'),
+            'requested_username' => trim((string) ($_GET['username'] ?? '')),
+            'requested_action' => in_array(
+                (string) ($_GET['action'] ?? ''),
+                ['hotspot_reset_counters', 'um_disable_user', 'um_enable_user'],
+                true
+            ) ? (string) $_GET['action'] : 'hotspot_reset_counters',
         ]);
     }
 

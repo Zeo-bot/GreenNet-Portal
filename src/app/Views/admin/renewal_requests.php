@@ -595,6 +595,11 @@ try {
                         </div>
 
                         <?php if ($username !== ''): ?>
+                            <?php if (!in_array($status, ['completed', 'rejected'], true)): ?>
+                                <a class="gn-btn gn-btn-primary gn-btn-sm" href="/admin/customers/renew?username=<?= rawurlencode($username) ?>&amp;request_id=<?= $id ?>">
+                                    تسجيل الدفعة والتجديد
+                                </a>
+                            <?php endif; ?>
                             <a class="gn-btn gn-btn-secondary gn-btn-sm" href="/admin/customers/timeline?username=<?= rawurlencode($username) ?>">
                                 Timeline
                             </a>

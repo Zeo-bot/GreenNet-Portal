@@ -43,6 +43,8 @@ class AdminUserManagerUserCreateController
             'result' => $_SESSION['um_user_create_result'] ?? null,
             'message' => $this->consumeFlash('message'),
             'message_type' => $this->consumeFlash('type', 'success'),
+            'requested_username' => trim((string) ($_GET['username'] ?? '')),
+            'requested_package_id' => (int) ($_GET['package_id'] ?? 0),
         ]);
     }
 
