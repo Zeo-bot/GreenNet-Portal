@@ -1,314 +1,204 @@
 <?php
-    $paymentsList = $payments ?? [];
+$ops = is_array($operations ?? null) ? $operations : [];
+$subscriptions = $ops['subscription'] ?? [];
+$renewals = $ops['renewals'] ?? [];
+$sessions = $ops['sessions'] ?? [];
+$h = static fn ($value): string => htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
+$customerUrl = static fn (array $query = []): string => '/admin/customers/table' . ($query ? '?' . http_build_query($query) : '');
+$statusLabel = static fn (string $status): string => match (strtolower($status)) {
+    'available' => 'متاح',
+    'unreachable' => 'غير متاح',
+    default => 'غير معروف',
+};
+$backendLabel = static fn (string $backend): string => match ($backend) {
+    'native-hotspot' => 'Hotspot أصلي',
+    'native-pppoe' => 'PPPoE أصلي',
+    default => 'User Manager',
+};
 ?>
 
 <div class="admin-page-header">
     <div>
-        <h1 class="admin-page-title">
-            لوحة المدير
-        </h1>
-
-        <p class="admin-page-description">
-            مركز إدارة <?= htmlspecialchars($app_name ?? 'GreenNet') ?>: المشتركين، الاشتراكات، الباقات، التقارير، والجاهزية قبل التحكم بالـ MikroTik.
-        </p>
+        <h1 class="admin-page-title">لوحة العمليات</h1>
+        <p class="admin-page-description">نظرة يومية على المشتركين والموجّهات والتجديدات والحالات التي تحتاج متابعة.</p>
     </div>
-
     <div class="admin-header-actions">
-        <a class="admin-mini-btn" href="/admin/settings">الإعدادات</a>
-        <a class="admin-mini-btn" href="/admin/backup">Backup</a>
+        <a class="admin-mini-btn" href="/admin/renewal-requests">طلبات التجديد</a>
+        <a class="admin-mini-btn" href="/admin/routers">الموجّهات</a>
         <a class="admin-mini-btn danger" href="/admin/logout">خروج</a>
     </div>
 </div>
 
-<form method="get" action="/admin/search" style="margin-bottom:18px;">
+<form method="get" action="/admin/customers/table" style="margin-bottom:18px">
     <div class="form-group">
         <label>بحث سريع عن مشترك</label>
-        <input type="text" name="q" placeholder="اسم المستخدم / الهاتف / IP / الباقة">
+        <input type="text" name="q" placeholder="اسم المستخدم، الاسم، الهاتف أو الملاحظة">
     </div>
-
-    <button class="btn btn-primary" type="submit">
-        🔎 بحث
-    </button>
+    <button class="btn btn-primary" type="submit">بحث</button>
 </form>
 
 <div class="admin-stats-grid">
-
-    <div class="admin-stat-card">
-        <div class="admin-stat-label">👥 إجمالي الزبائن</div>
-        <div class="admin-stat-value"><?= htmlspecialchars((string) ($customers_count ?? 0)) ?></div>
-        <div class="admin-stat-note">كل المشتركين داخل CRM</div>
-    </div>
-
-    <div class="admin-stat-card">
-        <div class="admin-stat-label">✅ مدفوع</div>
-        <div class="admin-stat-value"><?= htmlspecialchars((string) ($customers_paid ?? 0)) ?></div>
-        <div class="admin-stat-note">حالة الدفع paid</div>
-    </div>
-
-    <div class="admin-stat-card">
-        <div class="admin-stat-label">⚠️ غير مدفوع</div>
-        <div class="admin-stat-value"><?= htmlspecialchars((string) ($customers_unpaid ?? 0)) ?></div>
-        <div class="admin-stat-note">due / pending / unknown</div>
-    </div>
-
-    <div class="admin-stat-card">
-        <div class="admin-stat-label">💰 إجمالي الدفعات</div>
-        <div class="admin-stat-value" style="font-size:20px;">
-            <?= htmlspecialchars((string) ($total_paid ?? 0)) ?>
-        </div>
-        <div class="admin-stat-note"><?= htmlspecialchars($default_currency ?? 'SYP') ?></div>
-    </div>
-
-    <div class="admin-stat-card">
-        <div class="admin-stat-label">📢 الإعلانات</div>
-        <div class="admin-stat-value"><?= htmlspecialchars((string) count($announcements ?? [])) ?></div>
-        <div class="admin-stat-note">الفعالة: <?= htmlspecialchars((string) ($announcements_active ?? 0)) ?></div>
-    </div>
-
-    <div class="admin-stat-card">
-        <div class="admin-stat-label">⚙️ QoS Profiles</div>
-        <div class="admin-stat-value"><?= htmlspecialchars((string) count($qos_profiles ?? [])) ?></div>
-        <div class="admin-stat-note">محلية داخل GreenNet</div>
-    </div>
-
-    <div class="admin-stat-card">
-        <div class="admin-stat-label">👤 حسابات المدير</div>
-        <div class="admin-stat-value"><?= htmlspecialchars((string) ($admin_count ?? 0)) ?></div>
-        <div class="admin-stat-note">حسابات إدارة النظام</div>
-    </div>
-
-    <div class="admin-stat-card">
-        <div class="admin-stat-label">🎨 الهوية</div>
-        <div class="admin-stat-value" style="font-size:16px;">
-            <?= !empty($site_logo_path) ? 'شعار مرفوع' : 'بدون شعار' ?>
-        </div>
-        <div class="admin-stat-note"><?= htmlspecialchars($network_name ?? ($app_name ?? 'GreenNet')) ?></div>
-    </div>
-
+    <a class="admin-stat-card" href="<?= $h($customerUrl()) ?>">
+        <div class="admin-stat-label">إجمالي المشتركين</div>
+        <div class="admin-stat-value"><?= (int) ($subscriptions['total_count'] ?? 0) ?></div>
+        <div class="admin-stat-note">كل المشتركين المحليين</div>
+    </a>
+    <a class="admin-stat-card" href="<?= $h($customerUrl(['subscription_status' => 'active'])) ?>">
+        <div class="admin-stat-label">فعال</div>
+        <div class="admin-stat-value"><?= (int) ($subscriptions['active_count'] ?? 0) ?></div>
+        <div class="admin-stat-note">اشتراك ساري</div>
+    </a>
+    <a class="admin-stat-card" href="<?= $h($customerUrl(['subscription_status' => 'expiring'])) ?>">
+        <div class="admin-stat-label">قريب الانتهاء</div>
+        <div class="admin-stat-value"><?= (int) ($subscriptions['soon_7_count'] ?? 0) ?></div>
+        <div class="admin-stat-note">خلال سبعة أيام</div>
+    </a>
+    <a class="admin-stat-card" href="<?= $h($customerUrl(['subscription_status' => 'expired'])) ?>">
+        <div class="admin-stat-label">منتهي</div>
+        <div class="admin-stat-value"><?= (int) ($subscriptions['expired_count'] ?? 0) ?></div>
+        <div class="admin-stat-note">يحتاج تجديداً</div>
+    </a>
+    <a class="admin-stat-card" href="<?= $h($customerUrl(['service_status' => 'suspended'])) ?>">
+        <div class="admin-stat-label">موقوف</div>
+        <div class="admin-stat-value"><?= (int) ($ops['suspended_count'] ?? 0) ?></div>
+        <div class="admin-stat-note">خدمة معلّقة محلياً</div>
+    </a>
+    <a class="admin-stat-card" href="/admin/renewal-requests?status=pending">
+        <div class="admin-stat-label">تجديد بانتظار الإجراء</div>
+        <div class="admin-stat-value"><?= (int) ($renewals['pending'] ?? 0) ?></div>
+        <div class="admin-stat-note">أولوية فريق التشغيل</div>
+    </a>
 </div>
 
 <div class="admin-two-columns">
-
     <section class="admin-section-card">
-        <h2 class="admin-section-title">إجراءات سريعة</h2>
-        <p class="admin-section-subtitle">
-            أهم الصفحات المستخدمة يومياً.
-        </p>
-
-        <div class="admin-action-grid">
-
-            <a class="admin-action-card" href="/admin/customers/table">
-                <div class="admin-action-icon">👥</div>
-                <div class="admin-action-title">جدول الزبائن</div>
-                <div class="admin-action-desc">بحث وفلاتر وإجراءات سريعة للمشتركين.</div>
-            </a>
-
-            <a class="admin-action-card" href="/admin/subscriptions">
-                <div class="admin-action-icon">📅</div>
-                <div class="admin-action-title">الاشتراكات</div>
-                <div class="admin-action-desc">فعال، منتهي، قريب الانتهاء، بلا تجديد.</div>
-            </a>
-
-            <a class="admin-action-card" href="/admin/packages">
-                <div class="admin-action-icon">📦</div>
-                <div class="admin-action-title">الباقات</div>
-                <div class="admin-action-desc">إدارة الباقات ومزامنتها مع MikroTik Profiles.</div>
-            </a>
-
-            <a class="admin-action-card" href="/admin/routeros">
-                <div class="admin-action-icon">🧩</div>
-                <div class="admin-action-title">MikroTik</div>
-                <div class="admin-action-desc">حالة الاتصال والقراءة من RouterOS API.</div>
-            </a>
-
-            <a class="admin-action-card" href="/admin/reports">
-                <div class="admin-action-icon">📊</div>
-                <div class="admin-action-title">التقارير</div>
-                <div class="admin-action-desc">الدفعات والتجديدات والباقات الأكثر استخداماً.</div>
-            </a>
-
-            <a class="admin-action-card" href="/admin/backup">
-                <div class="admin-action-icon">💾</div>
-                <div class="admin-action-title">Backup & Restore</div>
-                <div class="admin-action-desc">نسخ احتياطي، استعادة، وتنظيف بيانات التطوير.</div>
-            </a>
-
+        <div class="admin-page-header">
+            <div>
+                <h2 class="admin-section-title">حالة الموجّهات</h2>
+                <p class="admin-section-subtitle">آخر حالة محفوظة؛ لا يتم الاتصال بالموجّهات عند فتح اللوحة.</p>
+            </div>
+            <a class="admin-mini-btn" href="/admin/routers">إدارة الموجّهات</a>
         </div>
-    </section>
-
-    <section class="admin-section-card">
-        <h2 class="admin-section-title">حالة الدفع</h2>
-        <p class="admin-section-subtitle">
-            تفصيل سريع لحالات المشتركين داخل CRM.
-        </p>
-
-        <div style="display:flex; flex-wrap:wrap; gap:8px;">
-            <span class="admin-badge admin-badge-success">
-                مدفوع: <?= htmlspecialchars((string) ($customers_paid ?? 0)) ?>
-            </span>
-
-            <span class="admin-badge admin-badge-warning">
-                عليه دفع: <?= htmlspecialchars((string) ($customers_due ?? 0)) ?>
-            </span>
-
-            <span class="admin-badge">
-                مؤجل: <?= htmlspecialchars((string) ($customers_pending ?? 0)) ?>
-            </span>
-
-            <span class="admin-badge admin-badge-danger">
-                غير معروف: <?= htmlspecialchars((string) ($customers_unknown ?? 0)) ?>
-            </span>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+            <span class="admin-badge">الإجمالي: <?= (int) ($ops['router_summary']['total'] ?? 0) ?></span>
+            <span class="admin-badge admin-badge-success">المفعّل: <?= (int) ($ops['router_summary']['enabled'] ?? 0) ?></span>
+            <span class="admin-badge admin-badge-success">المتاح: <?= (int) ($ops['router_summary']['available'] ?? 0) ?></span>
+            <span class="admin-badge admin-badge-danger">غير المتاح: <?= (int) ($ops['router_summary']['unavailable'] ?? 0) ?></span>
         </div>
-
-        <h2 class="admin-section-title" style="margin-top:22px;">آخر الدفعات</h2>
-
         <div class="admin-payment-list">
-            <?php if (count($paymentsList) === 0): ?>
+            <?php if (($ops['routers'] ?? []) === []): ?>
+                <div class="admin-payment-item">لم تتم إضافة موجّهات بعد.</div>
+            <?php endif; ?>
+            <?php foreach (($ops['routers'] ?? []) as $router): ?>
                 <div class="admin-payment-item">
-                    لا توجد دفعات حالياً.
-                </div>
-            <?php else: ?>
-                <?php foreach ($paymentsList as $payment): ?>
-                    <div class="admin-payment-item">
-                        <div>
-                            <div class="admin-payment-user">
-                                <?= htmlspecialchars($payment['username'] ?? '-') ?>
-                            </div>
-                            <div style="color:#6b7280;font-size:12px;">
-                                <?= htmlspecialchars($payment['paid_at'] ?? '-') ?>
-                            </div>
-                        </div>
-
-                        <div class="admin-payment-amount">
-                            <?= htmlspecialchars((string) ($payment['amount'] ?? 0)) ?>
-                            <?= htmlspecialchars($payment['currency'] ?? ($default_currency ?? 'SYP')) ?>
+                    <div>
+                        <strong><?= $h($router['name'] ?? '-') ?><?= !empty($router['is_default']) ? ' · الافتراضي' : '' ?></strong>
+                        <div style="color:#6b7280;font-size:12px" dir="ltr">
+                            <?= $h($router['host'] ?? '-') ?> · RouterOS <?= $h($router['routeros_version'] ?: '—') ?>
                         </div>
                     </div>
-                <?php endforeach; ?>
-            <?php endif; ?>
+                    <div style="text-align:left">
+                        <span class="admin-badge <?= ($router['last_status'] ?? '') === 'available' ? 'admin-badge-success' : (($router['last_status'] ?? '') === 'unreachable' ? 'admin-badge-danger' : '') ?>">
+                            <?= $h($statusLabel((string) ($router['last_status'] ?? 'unknown'))) ?>
+                        </span>
+                        <div style="font-size:12px;margin-top:5px"><?= (int) ($router['customer_count'] ?? 0) ?> مشترك</div>
+                    </div>
+                </div>
+            <?php endforeach; ?>
         </div>
     </section>
 
+    <section class="admin-section-card">
+        <h2 class="admin-section-title">توزيع أنظمة الخدمة</h2>
+        <p class="admin-section-subtitle">النظام الذي تُدار منه حسابات المشتركين.</p>
+        <?php foreach (($ops['backend_counts'] ?? []) as $backend => $count): ?>
+            <a class="admin-payment-item" href="<?= $h($customerUrl(['backend' => $backend])) ?>" style="margin-bottom:8px">
+                <strong><?= $h($backendLabel((string) $backend)) ?></strong>
+                <span class="admin-payment-amount"><?= (int) $count ?></span>
+            </a>
+        <?php endforeach; ?>
+
+        <h2 class="admin-section-title" style="margin-top:22px">الجلسات النشطة</h2>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <span class="admin-badge">Hotspot: غير متاح</span>
+            <span class="admin-badge">PPPoE: غير متاح</span>
+        </div>
+        <p class="admin-section-subtitle" style="margin-top:10px"><?= $h($sessions['message'] ?? '') ?></p>
+        <a class="admin-mini-btn" href="/admin/routeros/active-users">فحص الجلسات الآن</a>
+    </section>
+</div>
+
+<div class="admin-two-columns">
+    <section class="admin-section-card">
+        <div class="admin-page-header">
+            <div>
+                <h2 class="admin-section-title">التجديدات والمدفوعات</h2>
+                <p class="admin-section-subtitle">طلبات حديثة وآخر عمليات الدفع المسجلة.</p>
+            </div>
+            <a class="admin-mini-btn" href="/admin/renewal-requests">إدارة الطلبات</a>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+            <span class="admin-badge admin-badge-warning">معلّق: <?= (int) ($renewals['pending'] ?? 0) ?></span>
+            <span class="admin-badge admin-badge-success">مكتمل: <?= (int) ($renewals['completed'] ?? 0) ?></span>
+            <span class="admin-badge admin-badge-danger">مرفوض: <?= (int) ($renewals['rejected'] ?? 0) ?></span>
+        </div>
+        <div class="admin-payment-list">
+            <?php foreach (($ops['recent_payments'] ?? []) as $payment): ?>
+                <div class="admin-payment-item">
+                    <div><strong><?= $h($payment['username'] ?? '-') ?></strong><div style="font-size:12px;color:#6b7280"><?= $h($payment['paid_at'] ?? '-') ?></div></div>
+                    <span class="admin-payment-amount"><?= $h($payment['amount'] ?? 0) ?> <?= $h($payment['currency'] ?? 'SYP') ?></span>
+                </div>
+            <?php endforeach; ?>
+            <?php if (($ops['recent_payments'] ?? []) === []): ?><div class="admin-payment-item">لا توجد مدفوعات مسجلة.</div><?php endif; ?>
+        </div>
+    </section>
+
+    <section class="admin-section-card">
+        <h2 class="admin-section-title">تحتاج متابعة</h2>
+        <p class="admin-section-subtitle">مشكلات محلية واضحة يمكن لفريق التشغيل معالجتها.</p>
+        <?php
+        $attention = [
+            ['مشتركون بلا موجّه', $ops['unassigned_count'] ?? 0, $customerUrl(['router_id' => 'none'])],
+            ['ربط الباقة بالنظام مفقود', $ops['mapping_missing_count'] ?? 0, '/admin/routers'],
+            ['مزامنة معلّقة', $ops['sync_pending_count'] ?? 0, $customerUrl(['service_status' => 'pending'])],
+            ['مزامنة فاشلة أو سجل مفقود', $ops['sync_failed_count'] ?? 0, $customerUrl(['service_status' => 'failed'])],
+            ['موجّهات غير متاحة', $ops['router_summary']['unavailable'] ?? 0, '/admin/routers'],
+        ];
+        ?>
+        <?php foreach ($attention as [$label, $count, $url]): ?>
+            <a class="admin-payment-item" href="<?= $h($url) ?>" style="margin-bottom:8px">
+                <strong><?= $h($label) ?></strong>
+                <span class="admin-badge <?= (int) $count > 0 ? 'admin-badge-danger' : 'admin-badge-success' ?>"><?= (int) $count ?></span>
+            </a>
+        <?php endforeach; ?>
+    </section>
 </div>
 
 <section class="admin-section-card">
-    <h2 class="admin-section-title">قائمة الجاهزية قبل MikroTik Write</h2>
-    <p class="admin-section-subtitle">
-        هذه العناصر ستُستكمل قبل أول أمر تعديل فعلي على MikroTik.
-    </p>
-
-    <div class="admin-checklist">
-
-        <div class="admin-check-item">
-            <div class="admin-check-icon">✓</div>
-            <div>
-                <strong>Settings & Branding</strong>
-                <br>
-                اسم الشبكة، الدعم، واتساب، اللون، والشعار قابلة للتعديل.
-            </div>
+    <div class="admin-page-header">
+        <div>
+            <h2 class="admin-section-title">اشتراكات قريبة الانتهاء</h2>
+            <p class="admin-section-subtitle">الاشتراكات التي تنتهي خلال سبعة أيام.</p>
         </div>
-
-        <div class="admin-check-item">
-            <div class="admin-check-icon">✓</div>
-            <div>
-                <strong>Backup / Restore</strong>
-                <br>
-                النسخ الاحتياطي والاستعادة جاهزة قبل أي مخاطرة.
-            </div>
-        </div>
-
-        <div class="admin-check-item">
-            <div class="admin-check-icon warning">!</div>
-            <div>
-                <strong>API Diagnostics</strong>
-                <br>
-                سنضيف فحص اتصال RouterOS API بالتفصيل.
-            </div>
-        </div>
-
-        <div class="admin-check-item">
-            <div class="admin-check-icon warning">!</div>
-            <div>
-                <strong>Readiness Check</strong>
-                <br>
-                كشف الزبائن والباقات غير الجاهزة قبل الكتابة.
-            </div>
-        </div>
-
-        <div class="admin-check-item">
-            <div class="admin-check-icon future">↻</div>
-            <div>
-                <strong>Auto Match</strong>
-                <br>
-                ربط تلقائي بين MikroTik Profiles وباقات GreenNet.
-            </div>
-        </div>
-
-        <div class="admin-check-item">
-            <div class="admin-check-icon future">🔒</div>
-            <div>
-                <strong>Security Basics</strong>
-                <br>
-                CSRF، تغيير كلمة مرور المدير، وإغلاق صفحات التطوير.
-            </div>
-        </div>
-
+        <a class="admin-mini-btn" href="<?= $h($customerUrl(['subscription_status' => 'expiring'])) ?>">عرض الكل</a>
+    </div>
+    <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse">
+            <thead><tr><th>المشترك</th><th>الموجّه</th><th>النظام</th><th>الباقة</th><th>الانتهاء</th><th>المتبقي</th><th></th></tr></thead>
+            <tbody>
+            <?php foreach (($ops['expiring'] ?? []) as $row): ?>
+                <tr>
+                    <td><?= $h($row['display_name'] ?: $row['username']) ?></td>
+                    <td><?= $h($row['router_name'] ?: 'غير معيّن') ?></td>
+                    <td><?= $h($backendLabel((string) ($row['service_backend'] ?? 'user-manager'))) ?></td>
+                    <td><?= $h($row['package_name'] ?? '-') ?></td>
+                    <td dir="ltr"><?= $h($row['expires_at'] ?? '-') ?></td>
+                    <td><?= $h($row['days_left_label'] ?? '-') ?></td>
+                    <td><a class="admin-mini-btn" href="/admin/customers/profile?username=<?= urlencode((string) ($row['username'] ?? '')) ?>">فتح</a></td>
+                </tr>
+            <?php endforeach; ?>
+            <?php if (($ops['expiring'] ?? []) === []): ?><tr><td colspan="7">لا توجد اشتراكات تنتهي خلال سبعة أيام.</td></tr><?php endif; ?>
+            </tbody>
+        </table>
     </div>
 </section>
-
-<section class="admin-section-card">
-    <h2 class="admin-section-title">صفحات النظام</h2>
-    <p class="admin-section-subtitle">
-        روابط إدارية إضافية.
-    </p>
-
-    <div class="admin-action-grid">
-
-        <a class="admin-action-card" href="/admin/settings">
-            <div class="admin-action-icon">🎨</div>
-            <div class="admin-action-title">الإعدادات والهوية</div>
-            <div class="admin-action-desc">الشعار، الألوان، أرقام الدعم، ورسائل واتساب.</div>
-        </a>
-
-        <a class="admin-action-card" href="/admin/announcements">
-            <div class="admin-action-icon">📢</div>
-            <div class="admin-action-title">الإعلانات</div>
-            <div class="admin-action-desc">رسائل تظهر في لوحة المشترك.</div>
-        </a>
-
-        <a class="admin-action-card" href="/admin/qos">
-            <div class="admin-action-icon">⚙️</div>
-            <div class="admin-action-title">Smart QoS</div>
-            <div class="admin-action-desc">Profiles محلية تمهيداً للربط مع MikroTik.</div>
-        </a>
-
-        <a class="admin-action-card" href="/admin/logs">
-            <div class="admin-action-icon">🧾</div>
-            <div class="admin-action-title">سجل العمليات</div>
-            <div class="admin-action-desc">عمليات التجديد، النسخ، الاستعادة، والتعديلات.</div>
-        </a>
-
-        <a class="admin-action-card" href="/admin/system">
-            <div class="admin-action-icon">🛠️</div>
-            <div class="admin-action-title">حالة النظام</div>
-            <div class="admin-action-desc">معلومات البيئة والإعدادات الفنية.</div>
-        </a>
-
-        <a class="admin-action-card" href="/dev/database">
-            <div class="admin-action-icon">🧪</div>
-            <div class="admin-action-title">فحص قاعدة البيانات</div>
-            <div class="admin-action-desc">صفحة تطويرية ستُغلق في production.</div>
-        </a>
-
-    </div>
-</section>
-
-<div style="margin-top:22px;">
-    <a class="btn btn-outline" href="/dashboard">
-        معاينة لوحة المشترك
-    </a>
-
-    <a class="btn btn-danger" href="/admin/logout">
-        تسجيل خروج المدير
-    </a>
-</div>

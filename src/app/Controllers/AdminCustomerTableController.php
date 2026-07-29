@@ -19,6 +19,10 @@ class AdminCustomerTableController
         $paymentStatus = trim((string) ($_GET['payment_status'] ?? 'all'));
         $accessType = trim((string) ($_GET['access_type'] ?? 'all'));
         $packageId = (int) ($_GET['package_id'] ?? 0);
+        $subscriptionStatus = trim((string) ($_GET['subscription_status'] ?? 'all'));
+        $serviceStatus = trim((string) ($_GET['service_status'] ?? 'all'));
+        $backend = trim((string) ($_GET['backend'] ?? 'all'));
+        $routerFilter = trim((string) ($_GET['router_id'] ?? 'all'));
 
         $customerColumns = $this->columns('customers_local');
 
@@ -54,6 +58,39 @@ class AdminCustomerTableController
         if ($packageId > 0 && in_array('package_id', $customerColumns, true)) {
             $where[] = 'c.package_id = :package_id';
             $params['package_id'] = $packageId;
+        }
+
+        if ($serviceStatus !== 'all' && in_array('service_status', $customerColumns, true)) {
+            if ($serviceStatus === 'suspended') {
+                $where[] = "lower(c.service_status) IN ('suspended', 'disabled')";
+            } elseif ($serviceStatus === 'failed') {
+                $where[] = "lower(c.service_status) IN ('failed', 'sync_failed', 'missing')";
+            } elseif ($serviceStatus === 'pending') {
+                $where[] = "lower(c.service_status) IN ('pending', 'sync_pending')";
+            }
+        }
+
+        if ($backend !== 'all' && in_array('service_backend', $customerColumns, true)) {
+            $where[] = 'c.service_backend = :service_backend';
+            $params['service_backend'] = $backend;
+        }
+
+        if ($routerFilter === 'none' && in_array('router_id', $customerColumns, true)) {
+            $where[] = '(c.router_id IS NULL OR c.router_id <= 0)';
+        } elseif (ctype_digit($routerFilter) && (int) $routerFilter > 0) {
+            $where[] = 'c.router_id = :router_id';
+            $params['router_id'] = (int) $routerFilter;
+        }
+
+        if ($subscriptionStatus !== 'all') {
+            $latestExpiry = "(SELECT p.expires_at FROM payments p WHERE p.username = c.username AND p.status = 'paid' AND p.package_id > 0 ORDER BY p.paid_at DESC, p.id DESC LIMIT 1)";
+            if ($subscriptionStatus === 'active') {
+                $where[] = "c.package_id > 0 AND {$latestExpiry} > datetime('now', '+7 days')";
+            } elseif ($subscriptionStatus === 'expiring') {
+                $where[] = "c.package_id > 0 AND {$latestExpiry} >= datetime('now') AND {$latestExpiry} <= datetime('now', '+7 days')";
+            } elseif ($subscriptionStatus === 'expired') {
+                $where[] = "c.package_id > 0 AND {$latestExpiry} < datetime('now')";
+            }
         }
 
         $whereSql = count($where) > 0 ? 'WHERE ' . implode(' AND ', $where) : '';
@@ -121,6 +158,10 @@ class AdminCustomerTableController
                 'payment_status' => $paymentStatus,
                 'access_type' => $accessType,
                 'package_id' => $packageId,
+                'subscription_status' => $subscriptionStatus,
+                'service_status' => $serviceStatus,
+                'backend' => $backend,
+                'router_id' => $routerFilter,
             ],
         ]);
     }

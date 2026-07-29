@@ -15,6 +15,7 @@ use GreenNet\Models\QosProfile;
 use GreenNet\Models\CustomerLocal;
 use GreenNet\Models\Router;
 use GreenNet\Services\CustomerRenewalService;
+use GreenNet\Services\OperationsDashboardService;
 
 class AdminController
 {
@@ -75,6 +76,7 @@ class AdminController
             'customers_unpaid' => CustomerLocal::unpaidCount(),
 
             'total_paid' => Payment::totalPaid(),
+            'operations' => (new OperationsDashboardService())->getData(),
         ]);
     }
 
