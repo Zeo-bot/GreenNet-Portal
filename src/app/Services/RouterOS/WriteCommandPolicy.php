@@ -59,6 +59,22 @@ final class WriteCommandPolicy implements RouterOSWriteCommandPolicyInterface
             'required' => ['numbers'],
             'allowed' => ['numbers'],
         ],
+        '/ip/hotspot/user/add' => [
+            'required' => ['name', 'password', 'profile'],
+            'allowed' => ['name', 'password', 'profile', 'disabled', 'comment'],
+        ],
+        '/ip/hotspot/user/remove' => [
+            'required' => ['numbers'],
+            'allowed' => ['numbers'],
+        ],
+        '/ppp/secret/add' => [
+            'required' => ['name', 'password', 'service', 'profile'],
+            'allowed' => ['name', 'password', 'service', 'profile', 'disabled', 'comment'],
+        ],
+        '/ppp/secret/remove' => [
+            'required' => ['numbers'],
+            'allowed' => ['numbers'],
+        ],
     ];
 
     public function assertAllowed(RouterOSWriteCommand $command): void
@@ -66,6 +82,11 @@ final class WriteCommandPolicy implements RouterOSWriteCommandPolicyInterface
         if ($command->command === '/user-manager/user/set') {
             $this->assertUserSet($command);
 
+            return;
+        }
+
+        if (in_array($command->command, ['/ip/hotspot/user/set', '/ppp/secret/set'], true)) {
+            $this->assertNativeUserSet($command);
             return;
         }
 
@@ -78,6 +99,21 @@ final class WriteCommandPolicy implements RouterOSWriteCommandPolicyInterface
 
         if (!in_array($command->action(), ['add', 'set', 'remove'], true)) {
             throw new WriteCommandNotAllowedException('RouterOS write action is not allowed.');
+        }
+    }
+
+    private function assertNativeUserSet(RouterOSWriteCommand $command): void
+    {
+        $allowed = ['numbers', 'password', 'profile', 'disabled'];
+        $this->assertParams($command->params, ['numbers'], $allowed);
+        $changes = array_intersect(['password', 'profile', 'disabled'], array_keys($command->params));
+
+        if (count($changes) !== 1) {
+            throw new WriteCommandNotAllowedException('Native account set must change exactly one field.');
+        }
+        if (isset($command->params['disabled'])
+            && !in_array((string) $command->params['disabled'], ['yes', 'no'], true)) {
+            throw new WriteCommandNotAllowedException('RouterOS disabled value is not allowed.');
         }
     }
 

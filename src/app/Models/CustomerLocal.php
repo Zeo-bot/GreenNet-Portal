@@ -53,13 +53,14 @@ class CustomerLocal extends Model
         string $paymentStatus,
         string $notes,
         int $packageId = 0,
-        ?int $routerId = null
+        ?int $routerId = null,
+        string $serviceBackend = 'user-manager'
     ): void {
         $stmt = self::db()->prepare("
             INSERT INTO customers_local
-            (username, display_name, phone, access_type, payment_status, package_id, router_id, notes)
+            (username, display_name, phone, access_type, payment_status, package_id, router_id, service_backend, notes)
             VALUES
-            (:username, :display_name, :phone, :access_type, :payment_status, :package_id, :router_id, :notes)
+            (:username, :display_name, :phone, :access_type, :payment_status, :package_id, :router_id, :service_backend, :notes)
         ");
 
         $stmt->execute([
@@ -70,6 +71,7 @@ class CustomerLocal extends Model
             'payment_status' => $paymentStatus,
             'package_id' => $packageId,
             'router_id' => $routerId,
+            'service_backend' => $serviceBackend,
             'notes' => $notes,
         ]);
     }
@@ -97,7 +99,8 @@ class CustomerLocal extends Model
         string $accessType,
         string $paymentStatus,
         string $notes,
-        ?int $routerId = null
+        ?int $routerId = null,
+        string $serviceBackend = 'user-manager'
     ): void {
         $stmt = self::db()->prepare("
             UPDATE customers_local
@@ -106,6 +109,7 @@ class CustomerLocal extends Model
                 access_type = :access_type,
                 payment_status = :payment_status,
                 router_id = :router_id,
+                service_backend = :service_backend,
                 notes = :notes,
                 updated_at = CURRENT_TIMESTAMP
             WHERE username = :username
@@ -118,6 +122,7 @@ class CustomerLocal extends Model
             'access_type' => $accessType,
             'payment_status' => $paymentStatus,
             'router_id' => $routerId,
+            'service_backend' => $serviceBackend,
             'notes' => $notes,
         ]);
     }

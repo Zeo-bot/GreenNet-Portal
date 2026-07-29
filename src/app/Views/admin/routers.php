@@ -61,10 +61,11 @@ $statusLabel = static fn (array $router): string => empty($router['enabled'])
     <form method="post" action="/admin/routers/package-mapping" style="display:flex;gap:12px;flex-wrap:wrap;align-items:end">
         <input type="hidden" name="router_id" value="<?= (int) $editing['id'] ?>">
         <div class="form-group"><label>الباقة</label><select name="package_id"><?php foreach ($packages as $package): ?><option value="<?= (int) ($package['id'] ?? 0) ?>"><?= $h($package['name'] ?? '') ?></option><?php endforeach; ?></select></div>
+        <div class="form-group"><label>Backend</label><select name="backend"><option value="user-manager">User Manager</option><option value="native-hotspot">Native Hotspot</option><option value="native-pppoe">Native PPPoE</option></select></div>
         <div class="form-group"><label>اسم Profile</label><input name="profile_name" dir="ltr" required></div>
         <div class="form-group"><label>معرّف Profile (اختياري)</label><input name="profile_id" dir="ltr"></div>
         <button class="gn-btn gn-btn-primary" type="submit">حفظ الربط</button>
     </form>
-    <?php foreach ($mappings as $mapping): ?><div class="admin-payment-item"><strong><?= $h($mapping['package_name'] ?? '') ?></strong><span dir="ltr"><?= $h($mapping['profile_name'] ?? '') ?></span></div><?php endforeach; ?>
+    <?php foreach ($mappings as $mapping): ?><div class="admin-payment-item"><strong><?= $h($mapping['package_name'] ?? '') ?> · <?= $h($mapping['backend'] ?? '') ?></strong><span dir="ltr"><?= $h($mapping['profile_name'] ?? '') ?></span></div><?php endforeach; ?>
 </section>
 <?php endif; ?>

@@ -5,6 +5,7 @@ $dashboard = is_array($dashboard ?? null) ? $dashboard : [];
 $payments = is_array($payments ?? null) ? $payments : [];
 $renewalRequests = is_array($renewal_requests ?? null) ? $renewal_requests : [];
 $assignedRouter = is_array($assigned_router ?? null) ? $assigned_router : [];
+$nativeRecordState = is_array($native_record_state ?? null) ? $native_record_state : [];
 
 $username = (string) ($username ?? $customer['username'] ?? '');
 $u = urlencode($username);
@@ -15,6 +16,8 @@ $subscriptionStatus = (string) ($dashboard['subscription_status'] ?? 'none');
 $routerFound = !empty($dashboard['routeros_found']);
 $routerDisabled = (string) ($dashboard['disabled'] ?? $dashboard['routeros_disabled'] ?? '') === 'true';
 $packageFound = $packageId > 0;
+$serviceBackend = (string) ($customer['service_backend'] ?? 'user-manager');
+$isNativeBackend = in_array($serviceBackend, ['native-hotspot', 'native-pppoe'], true);
 
 $statusLabel = match ($subscriptionStatus) {
     'active' => 'اشتراك فعّال',
@@ -59,6 +62,10 @@ $requestLabels = [
                     الراوتر: <?= htmlspecialchars((string) ($assignedRouter['name'] ?? 'الافتراضي')) ?>
                     <?php if (!empty($assignedRouter['legacy_fallback'])): ?> (توافق الإعداد القديم)<?php endif; ?>
                 </div>
+                <div style="color:#4b5563">نظام الحساب: <?= htmlspecialchars($serviceBackend) ?></div>
+                <?php if ($isNativeBackend): ?>
+                    <div style="color:#4b5563">سجل RouterOS: <?= htmlspecialchars(match ($nativeRecordState['status'] ?? '') { 'found' => 'موجود', 'missing' => 'مفقود', default => 'الراوتر غير متاح' }) ?></div>
+                <?php endif; ?>
             </div>
             <div style="display:flex;gap:8px;flex-wrap:wrap">
                 <span class="<?= $statusClass ?>"><?= htmlspecialchars($statusLabel) ?></span>
@@ -108,20 +115,20 @@ $requestLabels = [
                 <div class="admin-action-desc">إنشاء مدة اشتراك جديدة وتاريخ انتهاء وتصفير دورة الاستهلاك المحلية.</div>
             </a>
             <?php if ($packageFound): ?>
-                <a class="admin-action-card" href="/admin/package-assign?username=<?= htmlspecialchars($u) ?>&amp;package_id=<?= $packageId ?>&amp;assign_mode=replace">
+                <a class="admin-action-card" href="<?= $isNativeBackend ? '/admin/native-subscriber?username=' . htmlspecialchars($u) . '&amp;action=package' : '/admin/package-assign?username=' . htmlspecialchars($u) . '&amp;package_id=' . $packageId . '&amp;assign_mode=replace' ?>">
                     <div class="admin-action-icon">⇄</div><div class="admin-action-title">تطبيق الباقة على الشبكة</div>
                     <div class="admin-action-desc">فتح المعاينة المحمية لتعيين أو استبدال ملف الباقة.</div>
                 </a>
-                <a class="admin-action-card" href="/admin/user-manager-user-create?username=<?= htmlspecialchars($u) ?>&amp;package_id=<?= $packageId ?>">
+                <a class="admin-action-card" href="<?= $isNativeBackend ? '/admin/native-subscriber?username=' . htmlspecialchars($u) . '&amp;action=create' : '/admin/user-manager-user-create?username=' . htmlspecialchars($u) . '&amp;package_id=' . $packageId ?>">
                     <div class="admin-action-icon">＋</div><div class="admin-action-title">إنشاء حساب الشبكة</div>
                     <div class="admin-action-desc">للمشترك الجديد غير الموجود في User Manager.</div>
                 </a>
             <?php endif; ?>
-            <a class="admin-action-card" href="/admin/mikrotik-dry-run?username=<?= htmlspecialchars($u) ?>&amp;action=um_disable_user">
+            <a class="admin-action-card" href="<?= $isNativeBackend ? '/admin/native-subscriber?username=' . htmlspecialchars($u) . '&amp;action=disable' : '/admin/mikrotik-dry-run?username=' . htmlspecialchars($u) . '&amp;action=um_disable_user' ?>">
                 <div class="admin-action-icon">Ⅱ</div><div class="admin-action-title">تعليق الخدمة</div>
                 <div class="admin-action-desc">معاينة تعطيل الحساب ثم تنفيذه عبر بوابة الكتابة المحمية.</div>
             </a>
-            <a class="admin-action-card" href="/admin/mikrotik-dry-run?username=<?= htmlspecialchars($u) ?>&amp;action=um_enable_user">
+            <a class="admin-action-card" href="<?= $isNativeBackend ? '/admin/native-subscriber?username=' . htmlspecialchars($u) . '&amp;action=enable' : '/admin/mikrotik-dry-run?username=' . htmlspecialchars($u) . '&amp;action=um_enable_user' ?>">
                 <div class="admin-action-icon">▶</div><div class="admin-action-title">إعادة التفعيل</div>
                 <div class="admin-action-desc">معاينة إعادة تمكين الحساب بعد التجديد أو التسوية.</div>
             </a>
@@ -129,9 +136,13 @@ $requestLabels = [
                 <div class="admin-action-icon">⏏</div><div class="admin-action-title">فصل الجلسات</div>
                 <div class="admin-action-desc">فصل الجلسات النشطة فقط باستخدام معرّفاتها الحالية.</div>
             </a>
-            <a class="admin-action-card" href="/admin/user-manager-user-delete?username=<?= htmlspecialchars($u) ?>">
+            <a class="admin-action-card" href="<?= $isNativeBackend ? '/admin/native-subscriber?username=' . htmlspecialchars($u) . '&amp;action=delete' : '/admin/user-manager-user-delete?username=' . htmlspecialchars($u) ?>">
                 <div class="admin-action-icon">×</div><div class="admin-action-title">حذف حساب الشبكة</div>
                 <div class="admin-action-desc">معاينة حذف حساب User Manager وارتباطاته قبل التنفيذ.</div>
+            </a>
+            <a class="admin-action-card" href="<?= $isNativeBackend ? '/admin/native-subscriber?username=' . htmlspecialchars($u) . '&amp;action=password' : '/admin/user-manager-password?username=' . htmlspecialchars($u) ?>">
+                <div class="admin-action-icon">●</div><div class="admin-action-title">تغيير كلمة مرور الشبكة</div>
+                <div class="admin-action-desc">تحديث كلمة مرور الحساب المحدد عبر مسار محمي.</div>
             </a>
             <a class="admin-action-card" href="/admin/customers/delete?username=<?= htmlspecialchars($u) ?>">
                 <div class="admin-action-icon">⌫</div><div class="admin-action-title">حذف السجل المحلي</div>

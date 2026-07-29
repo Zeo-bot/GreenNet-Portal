@@ -127,6 +127,7 @@ class AdminController
         $paymentStatus = trim((string) ($_POST['payment_status'] ?? 'unknown'));
         $notes = trim((string) ($_POST['notes'] ?? ''));
         $routerId = (int) ($_POST['router_id'] ?? 0);
+        $serviceBackend = $this->serviceBackend((string) ($_POST['service_backend'] ?? 'user-manager'));
 
         $allowedAccessTypes = ['hotspot', 'ppp', 'hybrid'];
         $allowedStatuses = ['paid', 'due', 'pending', 'unknown'];
@@ -147,7 +148,8 @@ class AdminController
                 $accessType,
                 $paymentStatus,
                 $notes,
-                $routerId > 0 ? $routerId : null
+                $routerId > 0 ? $routerId : null,
+                $serviceBackend
             );
         }
 
@@ -227,6 +229,7 @@ class AdminController
         $notes = trim((string) ($_POST['notes'] ?? ''));
         $packageId = (int) ($_POST['package_id'] ?? 0);
         $routerId = (int) ($_POST['router_id'] ?? 0);
+        $serviceBackend = $this->serviceBackend((string) ($_POST['service_backend'] ?? 'user-manager'));
 
         if ($username !== '') {
             CustomerLocal::create(
@@ -237,7 +240,8 @@ class AdminController
                 $paymentStatus,
                 $notes,
                 $packageId,
-                $routerId > 0 ? $routerId : null
+                $routerId > 0 ? $routerId : null,
+                $serviceBackend
             );
         }
 
@@ -273,6 +277,13 @@ class AdminController
 
         header('Location: ' . $redirectTo);
         exit;
+    }
+
+    private function serviceBackend(string $backend): string
+    {
+        return in_array($backend, ['user-manager', 'native-hotspot', 'native-pppoe'], true)
+            ? $backend
+            : 'user-manager';
     }
 
     public function payments(): string

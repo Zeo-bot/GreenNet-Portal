@@ -51,6 +51,7 @@ use GreenNet\Controllers\AdminUserDisconnectController;
 use GreenNet\Controllers\AdminUserManagerControlController;
 use GreenNet\Controllers\SubscriberApiController;
 use GreenNet\Controllers\AdminRoutersController;
+use GreenNet\Controllers\AdminNativeSubscriberController;
 
 $router->get('/', [HomeController::class, 'index']);
 
@@ -201,6 +202,9 @@ $router->get('/admin/routers', [AdminRoutersController::class, 'index']);
 $router->post('/admin/routers/save', [AdminRoutersController::class, 'save']);
 $router->post('/admin/routers/test', [AdminRoutersController::class, 'test']);
 $router->post('/admin/routers/package-mapping', [AdminRoutersController::class, 'saveMapping']);
+$router->get('/admin/native-subscriber', [AdminNativeSubscriberController::class, 'index']);
+$router->post('/admin/native-subscriber/preview', [AdminNativeSubscriberController::class, 'preview']);
+$router->post('/admin/native-subscriber/execute', [AdminNativeSubscriberController::class, 'execute']);
 
 $router->get('/admin/auto-match', [AdminAutoMatchController::class, 'index']);
 $router->post('/admin/auto-match/import-users', [AdminAutoMatchController::class, 'importUsers']);

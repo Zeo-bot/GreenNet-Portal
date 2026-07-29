@@ -98,11 +98,18 @@ final class AdminRoutersController
         $routerId = (int) ($_POST['router_id'] ?? 0);
         $packageId = (int) ($_POST['package_id'] ?? 0);
         $profileName = trim((string) ($_POST['profile_name'] ?? ''));
+        $backend = trim((string) ($_POST['backend'] ?? 'user-manager'));
 
         if (Router::find($routerId) === null || ServicePackage::find($packageId) === null || $profileName === '') {
             $this->flash('اختر راوتراً وباقة وأدخل اسم ملف صالحاً.', 'warning');
         } else {
-            RouterPackageProfile::save($routerId, $packageId, $profileName, (string) ($_POST['profile_id'] ?? ''));
+            RouterPackageProfile::save(
+                $routerId,
+                $packageId,
+                $profileName,
+                (string) ($_POST['profile_id'] ?? ''),
+                $backend
+            );
             $this->flash('تم حفظ ربط الباقة لهذا الراوتر.');
         }
 

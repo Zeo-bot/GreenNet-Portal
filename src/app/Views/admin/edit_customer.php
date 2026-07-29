@@ -68,6 +68,15 @@
             </div>
 
             <div class="form-group">
+                <label>نظام الحساب</label>
+                <select name="service_backend" class="input-select">
+                    <option value="user-manager" <?= ($customer['service_backend'] ?? 'user-manager') === 'user-manager' ? 'selected' : '' ?>>User Manager</option>
+                    <option value="native-hotspot" <?= ($customer['service_backend'] ?? '') === 'native-hotspot' ? 'selected' : '' ?>>Native Hotspot</option>
+                    <option value="native-pppoe" <?= ($customer['service_backend'] ?? '') === 'native-pppoe' ? 'selected' : '' ?>>Native PPPoE</option>
+                </select>
+            </div>
+
+            <div class="form-group">
                 <label>حالة الدفع</label>
                 <select name="payment_status" class="input-select">
                     <option value="paid" <?= ($customer['payment_status'] ?? '') === 'paid' ? 'selected' : '' ?>>مدفوع</option>

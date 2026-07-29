@@ -10,6 +10,7 @@ use GreenNet\Models\CustomerLocal;
 use GreenNet\Models\Payment;
 use GreenNet\Models\ServicePackage;
 use GreenNet\Services\RouterOS\RouterConnectionResolver;
+use GreenNet\Services\RouterOS\NativeSubscriberRecordResolver;
 use GreenNet\Services\CustomerDashboardService;
 use PDO;
 use Throwable;
@@ -89,7 +90,27 @@ class AdminCustomerProfileController
             'dashboard' => $dashboard,
             'renewal_requests' => $this->renewalRequests($username),
             'assigned_router' => $this->assignedRouter($username),
+            'native_record_state' => $this->nativeRecordState($customer, $username),
         ]);
+    }
+
+    private function nativeRecordState(array $customer, string $username): array
+    {
+        $backend = (string) ($customer['service_backend'] ?? 'user-manager');
+        if (!in_array($backend, ['native-hotspot', 'native-pppoe'], true)) {
+            return [];
+        }
+        try {
+            $bundle = RouterConnectionResolver::gatewayBundleForCustomer($username, ['timeout' => 4]);
+            $record = (new NativeSubscriberRecordResolver())->resolve($bundle->read, $username, $backend);
+            return [
+                'status' => $record === null ? 'missing' : 'found',
+                'record_id' => (string) ($record['.id'] ?? ''),
+                'disabled' => (string) ($record['disabled'] ?? 'false'),
+            ];
+        } catch (Throwable $e) {
+            return ['status' => 'unavailable', 'message' => $e->getMessage()];
+        }
     }
 
     private function assignedRouter(string $username): array

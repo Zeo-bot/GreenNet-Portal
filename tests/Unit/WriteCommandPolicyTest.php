@@ -88,5 +88,11 @@ final class WriteCommandPolicyTest extends TestCase
         yield 'user remove' => ['/user-manager/user/remove', ['numbers' => '*6']];
         yield 'hotspot active remove' => ['/ip/hotspot/active/remove', ['numbers' => '*7']];
         yield 'ppp active remove' => ['/ppp/active/remove', ['numbers' => '*8']];
+        yield 'hotspot native add' => ['/ip/hotspot/user/add', ['name' => 'synthetic-user', 'password' => 'synthetic', 'profile' => 'Synthetic Profile']];
+        yield 'hotspot native set' => ['/ip/hotspot/user/set', ['numbers' => '*9', 'profile' => 'Synthetic Profile']];
+        yield 'hotspot native remove' => ['/ip/hotspot/user/remove', ['numbers' => '*9']];
+        yield 'pppoe native add' => ['/ppp/secret/add', ['name' => 'synthetic-user', 'password' => 'synthetic', 'service' => 'pppoe', 'profile' => 'Synthetic Profile']];
+        yield 'pppoe native set' => ['/ppp/secret/set', ['numbers' => '*10', 'disabled' => 'yes']];
+        yield 'pppoe native remove' => ['/ppp/secret/remove', ['numbers' => '*10']];
     }
 }

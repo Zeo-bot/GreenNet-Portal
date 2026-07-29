@@ -188,6 +188,15 @@ class AdminUserDisconnectController
         $userManagerRows = is_array($router['user_manager_sessions']['id_rows'] ?? null)
             ? $router['user_manager_sessions']['id_rows']
             : [];
+        $backend = (string) ($customer['service_backend'] ?? 'user-manager');
+
+        if ($backend === 'native-hotspot') {
+            $pppRows = [];
+            $userManagerRows = [];
+        } elseif ($backend === 'native-pppoe') {
+            $hotspotRows = [];
+            $userManagerRows = [];
+        }
 
         $operations = [];
 
@@ -256,6 +265,7 @@ class AdminUserDisconnectController
             'action' => 'disconnect_active_sessions',
             'username' => $username,
             'customer' => $customer !== null ? $this->sanitizeCustomer($customer) : null,
+            'backend' => $backend,
             'router' => $this->sanitizeRouterStateForSession($router),
             'hotspot_active_count' => count($hotspotRows),
             'ppp_active_count' => count($pppRows),

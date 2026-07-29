@@ -694,9 +694,9 @@ class AdminUserManagerUserCreateController
             $stmt = $this->database()->prepare("
             SELECT rpm.profile_name
             FROM customers_local c
-            JOIN router_package_profiles rpm
-              ON rpm.router_id = c.router_id AND rpm.package_id = :package_id
-            WHERE lower(c.username) = lower(:username)
+                JOIN router_backend_package_profiles rpm
+                  ON rpm.router_id = c.router_id AND rpm.package_id = :package_id
+                WHERE lower(c.username) = lower(:username) AND rpm.backend = 'user-manager'
             LIMIT 1
             ");
             $stmt->execute(['package_id' => (int) ($package['id'] ?? 0), 'username' => $username]);

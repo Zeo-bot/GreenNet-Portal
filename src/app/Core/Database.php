@@ -83,6 +83,8 @@ class Database
 
         self::ensureColumn('customers_local', 'package_id', 'INTEGER DEFAULT 0');
         self::ensureColumn('customers_local', 'router_id', 'INTEGER DEFAULT NULL');
+        self::ensureColumn('customers_local', 'service_backend', "TEXT DEFAULT 'user-manager'");
+        self::ensureColumn('customers_local', 'service_status', "TEXT DEFAULT 'active'");
 
         $db->exec("
             CREATE TABLE IF NOT EXISTS routers (
@@ -214,6 +216,26 @@ class Database
                 updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(router_id, package_id)
             );
+        ");
+
+        $db->exec("
+            CREATE TABLE IF NOT EXISTS router_backend_package_profiles (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                router_id INTEGER NOT NULL,
+                package_id INTEGER NOT NULL,
+                backend TEXT NOT NULL,
+                profile_name TEXT NOT NULL,
+                profile_id TEXT DEFAULT '',
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(router_id, package_id, backend)
+            );
+        ");
+        $db->exec("
+            INSERT OR IGNORE INTO router_backend_package_profiles
+                (router_id, package_id, backend, profile_name, profile_id, created_at, updated_at)
+            SELECT router_id, package_id, 'user-manager', profile_name, profile_id, created_at, updated_at
+            FROM router_package_profiles
         ");
 
         $db->exec("

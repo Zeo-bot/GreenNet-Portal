@@ -406,6 +406,7 @@ $formData = [
     'payment_status' => (string) ($editing['payment_status'] ?? 'unpaid'),
     'package_id' => (string) ($editing['package_id'] ?? ''),
     'router_id' => (string) ($editing['router_id'] ?? ''),
+    'service_backend' => (string) ($editing['service_backend'] ?? 'user-manager'),
     'must_change_password' => (int) ($editing['must_change_password'] ?? 0) === 1,
     'notes' => (string) ($editing['notes'] ?? ''),
 ];
@@ -926,6 +927,15 @@ $formData = [
                                     <?= gn_cust_h($router['name'] ?? '') ?> — <?= gn_cust_h($router['host'] ?? '') ?>
                                 </option>
                             <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <div class="gn-cust-field">
+                        <label>نظام الحساب</label>
+                        <select name="service_backend">
+                            <option value="user-manager" <?= $formData['service_backend'] === 'user-manager' ? 'selected' : '' ?>>User Manager</option>
+                            <option value="native-hotspot" <?= $formData['service_backend'] === 'native-hotspot' ? 'selected' : '' ?>>Native Hotspot</option>
+                            <option value="native-pppoe" <?= $formData['service_backend'] === 'native-pppoe' ? 'selected' : '' ?>>Native PPPoE</option>
                         </select>
                     </div>
 
