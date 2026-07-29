@@ -7,11 +7,15 @@ namespace GreenNet\Controllers;
 use GreenNet\Core\View;
 use GreenNet\Core\Config;
 use GreenNet\Core\Database;
-use GreenNet\Services\CustomerDashboardService;
 use GreenNet\Services\SiteSettingsService;
+use GreenNet\Services\UnifiedSubscriberService;
 
 class SupportController
 {
+    public function __construct(private ?UnifiedSubscriberService $subscribers = null)
+    {
+    }
+
     public function index(): string
     {
         Database::migrate();
@@ -23,17 +27,16 @@ class SupportController
             exit;
         }
 
-        $dashboardService = new CustomerDashboardService();
-        $data = $dashboardService->getDashboardData($username);
-
+        $summary = $this->service()->summary($username);
+        $support = $this->service()->support();
         $settings = SiteSettingsService::all();
 
         $message = SiteSettingsService::renderTemplate(
             (string) ($settings['whatsapp_renew_message'] ?? ''),
             [
                 'username' => $username,
-                'package' => ($data['package_name'] ?? '') !== '' ? $data['package_name'] : '-',
-                'expires_at' => ($data['subscription_expires_at'] ?? '') !== '' ? $data['subscription_expires_at'] : '-',
+                'package' => ($summary['package']['name'] ?? '') !== '' ? $summary['package']['name'] : '-',
+                'expires_at' => ($summary['expiration_date'] ?? '') !== '' ? $summary['expiration_date'] : '-',
             ]
         );
 
@@ -42,15 +45,17 @@ class SupportController
             $message .= "اسم المستخدم: " . $username . "\n";
         }
 
-        return View::render('support', array_merge([
+        return View::render('support', [
             'title' => 'الدعم',
             'app_name' => Config::appName(),
             'username' => $username,
-            'support_phone' => Config::supportPhone(),
-            'support_whatsapp' => Config::supportWhatsapp(),
+            'support_phone' => $support['phone'],
+            'support_whatsapp' => $support['whatsapp'],
             'whatsapp_message' => $message,
             'is_admin_preview' => $this->isAdminPreview(),
-        ], $data));
+            'package_name' => (string) ($summary['package']['name'] ?? ''),
+            'subscription_label' => (string) ($summary['status'] ?? 'unknown'),
+        ]);
     }
 
     private function resolveUsername(): string
@@ -71,5 +76,10 @@ class SupportController
     private function isAdminPreview(): bool
     {
         return ($_SESSION['admin_logged_in'] ?? false) === true;
+    }
+
+    private function service(): UnifiedSubscriberService
+    {
+        return $this->subscribers ??= new UnifiedSubscriberService();
     }
 }

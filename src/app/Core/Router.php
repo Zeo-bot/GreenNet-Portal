@@ -4,9 +4,19 @@ declare(strict_types=1);
 
 namespace GreenNet\Core;
 
+use Closure;
+
 class Router
 {
     private array $routes = [];
+    private ?Closure $controllerResolver;
+
+    public function __construct(?callable $controllerResolver = null)
+    {
+        $this->controllerResolver = $controllerResolver !== null
+            ? Closure::fromCallable($controllerResolver)
+            : null;
+    }
 
     public function get(string $path, array $handler): void
     {
@@ -38,7 +48,9 @@ class Router
             return;
         }
 
-        $controller = new $controllerClass();
+        $controller = $this->controllerResolver !== null
+            ? ($this->controllerResolver)($controllerClass)
+            : new $controllerClass();
 
         if (!method_exists($controller, $action)) {
             http_response_code(500);

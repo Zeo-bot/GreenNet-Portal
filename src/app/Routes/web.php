@@ -49,12 +49,14 @@ use GreenNet\Controllers\AdminUserManagerPasswordController;
 use GreenNet\Controllers\AdminUserManagerUserDeleteController;
 use GreenNet\Controllers\AdminUserDisconnectController;
 use GreenNet\Controllers\AdminUserManagerControlController;
+use GreenNet\Controllers\SubscriberApiController;
 
 $router->get('/', [HomeController::class, 'index']);
 
 $router->get('/login', [LoginController::class, 'show']);
 $router->post('/login', [LoginController::class, 'login']);
 $router->get('/logout', [LoginController::class, 'logout']);
+$router->post('/logout', [LoginController::class, 'logout']);
 
 $router->get('/dashboard', [SubscriberAppController::class, 'home']);
 $router->get('/my/usage', [SubscriberAppController::class, 'usage']);
@@ -62,8 +64,21 @@ $router->get('/my/package', [SubscriberAppController::class, 'package']);
 $router->get('/my/renew', [SubscriberAppController::class, 'renewForm']);
 $router->post('/my/renew', [SubscriberAppController::class, 'renewSubmit']);
 $router->get('/announcements', [SubscriberAppController::class, 'announcements']);
+$router->get('/my/notifications', [SubscriberAppController::class, 'notifications']);
+$router->get('/my/account', [SubscriberAppController::class, 'account']);
 $router->get('/my/payments', [SubscriberPaymentsController::class, 'index']);
 $router->get('/support', [SupportController::class, 'index']);
+
+$router->get('/api/v1/subscriber/session', [SubscriberApiController::class, 'session']);
+$router->get('/api/v1/subscriber/summary', [SubscriberApiController::class, 'summary']);
+$router->get('/api/v1/subscriber/package', [SubscriberApiController::class, 'package']);
+$router->get('/api/v1/subscriber/usage', [SubscriberApiController::class, 'usage']);
+$router->get('/api/v1/subscriber/active-session', [SubscriberApiController::class, 'activeSession']);
+$router->get('/api/v1/subscriber/renewals', [SubscriberApiController::class, 'renewals']);
+$router->post('/api/v1/subscriber/renewals', [SubscriberApiController::class, 'createRenewal']);
+$router->get('/api/v1/subscriber/payments', [SubscriberApiController::class, 'payments']);
+$router->get('/api/v1/subscriber/notifications', [SubscriberApiController::class, 'notifications']);
+$router->get('/api/v1/subscriber/support', [SubscriberApiController::class, 'support']);
 
 $router->get('/install', [InstallController::class, 'index']);
 $router->get('/dev/database', [DevController::class, 'database']);

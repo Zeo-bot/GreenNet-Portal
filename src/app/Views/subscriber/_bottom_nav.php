@@ -1,40 +1,17 @@
 <?php
-    $currentPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
-
-    $previewQuery = '';
-
-    if (($_SESSION['admin_logged_in'] ?? false) === true && isset($_GET['username']) && trim((string) $_GET['username']) !== '') {
-        $previewQuery = '?username=' . urlencode(trim((string) $_GET['username']));
-    }
-
-    $active = function (string $path) use ($currentPath): string {
-        return $currentPath === $path ? 'active' : '';
-    };
+$currentPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+$previewQuery = '';
+if (($_SESSION['admin_logged_in'] ?? false) === true && trim((string) ($_GET['username'] ?? '')) !== '') {
+    $previewQuery = '?username=' . rawurlencode(trim((string) $_GET['username']));
+}
+$isActive = static fn (array $paths): string => in_array($currentPath, $paths, true) ? 'active' : '';
 ?>
 
-<nav class="subscriber-bottom-nav">
-    <a class="<?= $active('/dashboard') ?>" href="/dashboard<?= htmlspecialchars($previewQuery) ?>">
-        <span>🏠</span>
-        الرئيسية
-    </a>
-
-    <a class="<?= $active('/my/usage') ?>" href="/my/usage<?= htmlspecialchars($previewQuery) ?>">
-        <span>📊</span>
-        الاستهلاك
-    </a>
-
-    <a class="<?= $active('/my/package') ?>" href="/my/package<?= htmlspecialchars($previewQuery) ?>">
-        <span>📦</span>
-        الباقة
-    </a>
-
-    <a class="<?= $active('/my/renew') ?>" href="/my/renew<?= htmlspecialchars($previewQuery) ?>">
-        <span>🔄</span>
-        التجديد
-    </a>
-
-    <a class="<?= $active('/support') ?>" href="/support<?= htmlspecialchars($previewQuery) ?>">
-        <span>☎️</span>
-        الدعم
-    </a>
+<nav class="subscriber-bottom-nav" aria-label="التنقل الرئيسي">
+    <a class="<?= $isActive(['/dashboard']) ?>" href="/dashboard<?= gn_subscriber_h($previewQuery) ?>"><span aria-hidden="true">⌂</span><small>الرئيسية</small></a>
+    <a class="<?= $isActive(['/my/package', '/my/usage']) ?>" href="/my/package<?= gn_subscriber_h($previewQuery) ?>"><span aria-hidden="true">◫</span><small>الباقة</small></a>
+    <a class="<?= $isActive(['/my/renew']) ?>" href="/my/renew<?= gn_subscriber_h($previewQuery) ?>"><span aria-hidden="true">↻</span><small>التجديد</small></a>
+    <a class="<?= $isActive(['/my/notifications']) ?>" href="/my/notifications<?= gn_subscriber_h($previewQuery) ?>"><span aria-hidden="true">●</span><small>الإشعارات</small></a>
+    <a class="<?= $isActive(['/support']) ?>" href="/support<?= gn_subscriber_h($previewQuery) ?>"><span aria-hidden="true">☎</span><small>الدعم</small></a>
+    <a class="<?= $isActive(['/my/account']) ?>" href="/my/account<?= gn_subscriber_h($previewQuery) ?>"><span aria-hidden="true">○</span><small>حسابي</small></a>
 </nav>

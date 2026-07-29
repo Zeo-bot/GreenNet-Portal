@@ -1,154 +1,52 @@
 <?php
-    $usernameForLinks = urlencode((string) ($username ?? ''));
-    $adminPreviewSuffix = !empty($is_admin_preview) ? '?username=' . $usernameForLinks : '';
-
-    $whatsappUrl = 'https://wa.me/' . ($support_whatsapp ?? '963966393915') . '?text=' . rawurlencode($whatsapp_message ?? '');
+require BASE_PATH . '/app/Views/subscriber/_helpers.php';
+$previewQuery = !empty($is_admin_preview) && trim((string) ($username ?? '')) !== ''
+    ? '?username=' . rawurlencode((string) $username)
+    : '';
+$phone = trim((string) ($support_phone ?? ''));
+$whatsapp = preg_replace('/\D+/', '', (string) ($support_whatsapp ?? '')) ?? '';
+$phoneHref = $phone !== '' ? 'tel:' . preg_replace('/[^0-9+]/', '', $phone) : '';
+$whatsappHref = $whatsapp !== ''
+    ? 'https://wa.me/' . $whatsapp . '?text=' . rawurlencode((string) ($whatsapp_message ?? ''))
+    : '';
 ?>
 
-<div class="subscriber-shell">
-    <div class="subscriber-container">
-        <div class="subscriber-card">
+<div class="subscriber-app">
+    <section class="subscriber-hero subscriber-hero-compact">
+        <div class="subscriber-hello">الدعم والمساعدة</div>
+        <h1 class="subscriber-username">كيف يمكننا مساعدتك؟</h1>
+        <p class="subscriber-hero-copy"><?= nl2br(gn_subscriber_h($support_text ?? 'تواصل مع فريق GreenNet للمساعدة في حسابك أو اشتراكك.')) ?></p>
+    </section>
 
-            <div class="subscriber-header">
-                <div class="subscriber-logo <?= !empty($site_logo_path) ? 'has-logo' : '' ?>">
-                    <?php if (!empty($site_logo_path)): ?>
-                        <img src="<?= htmlspecialchars($site_logo_path) ?>" alt="Logo">
-                    <?php else: ?>
-                        💬
-                    <?php endif; ?>
-                </div>
+    <?php if (!empty($is_admin_preview)): ?>
+        <div class="subscriber-notice warning">أنت تشاهد صفحة المشترك في وضع المعاينة.</div>
+    <?php endif; ?>
 
-                <div>
-                    <h1 class="subscriber-title">
-                        الدعم والتجديد
-                    </h1>
-
-                    <p class="subscriber-subtitle">
-                        <?= htmlspecialchars($app_name ?? 'GreenNet') ?>
-                    </p>
-
-                    <div class="subscriber-pill">
-                        <span class="dot"></span>
-                        <?= htmlspecialchars($username ?? '-') ?>
-                    </div>
-                </div>
-            </div>
-
-            <?php if (!empty($is_admin_preview)): ?>
-                <div class="subscriber-alert info">
-                    أنت تشاهد هذه الصفحة كمدير للمعاينة.
-                </div>
-            <?php endif; ?>
-
-            <div class="subscriber-hero">
-                <div class="subscriber-hero-label">تحتاج مساعدة؟</div>
-
-                <div class="subscriber-hero-value">
-                    تواصل معنا عبر واتساب
-                </div>
-
-                <div class="subscriber-hero-note">
-                    <?= nl2br(htmlspecialchars($support_text ?? 'للدعم أو التجديد، تواصل معنا عبر واتساب.')) ?>
-                </div>
-            </div>
-
-            <div class="subscriber-grid">
-                <div class="subscriber-info-card">
-                    <div class="subscriber-info-label">👤 المستخدم</div>
-                    <div class="subscriber-info-value">
-                        <?= htmlspecialchars($username ?? '-') ?>
-                    </div>
-                </div>
-
-                <div class="subscriber-info-card">
-                    <div class="subscriber-info-label">📦 الباقة</div>
-                    <div class="subscriber-info-value">
-                        <?= htmlspecialchars(($package_name ?? '') !== '' ? $package_name : '-') ?>
-                    </div>
-                </div>
-
-                <div class="subscriber-info-card">
-                    <div class="subscriber-info-label">🧾 الاشتراك</div>
-                    <div class="subscriber-info-value">
-                        <?= htmlspecialchars($subscription_label ?? '-') ?>
-                    </div>
-                </div>
-
-                <div class="subscriber-info-card">
-                    <div class="subscriber-info-label">📞 الدعم</div>
-                    <div class="subscriber-info-value">
-                        <?= htmlspecialchars($support_phone ?? '-') ?>
-                    </div>
-                </div>
-            </div>
-
-            <div class="subscriber-section">
-                <h2 class="subscriber-section-title">الرسالة الجاهزة</h2>
-
-                <p class="subscriber-section-note">
-                    سيتم فتح واتساب مع هذه الرسالة لتسريع طلب التجديد أو الدعم.
-                </p>
-
-                <div class="subscriber-info-card">
-                    <div class="subscriber-info-value" style="font-size:13px; white-space:pre-wrap;">
-                        <?= htmlspecialchars($whatsapp_message ?? '') ?>
-                    </div>
-                </div>
-            </div>
-
-            <div class="subscriber-actions">
-                <a class="subscriber-btn primary" href="<?= htmlspecialchars($whatsappUrl) ?>">
-                    فتح واتساب الآن
-                </a>
-
-                <a class="subscriber-btn" href="/dashboard<?= htmlspecialchars($adminPreviewSuffix) ?>">
-                    العودة للوحة المشترك
-                </a>
-
-                <?php if (!empty($is_admin_preview)): ?>
-                    <a class="subscriber-btn" href="/admin/customers/profile?username=<?= urlencode($username ?? '') ?>">
-                        ملف المشترك الإداري
-                    </a>
-                <?php else: ?>
-                    <a class="subscriber-btn danger" href="/logout">
-                        تسجيل الخروج
-                    </a>
-                <?php endif; ?>
-            </div>
-
-            <div class="subscriber-footer">
-                <?= htmlspecialchars($footer_text ?? '') ?>
-            </div>
-
-        </div>
-    </div>
-
-    <nav class="subscriber-bottom-nav">
-        <a href="/dashboard<?= htmlspecialchars($adminPreviewSuffix) ?>">
-            <span class="icon">🏠</span>
-            <span>الرئيسية</span>
-        </a>
-
-        <a href="/my/payments<?= htmlspecialchars($adminPreviewSuffix) ?>">
-            <span class="icon">💳</span>
-            <span>دفعاتي</span>
-        </a>
-
-        <a class="active" href="/support<?= htmlspecialchars($adminPreviewSuffix) ?>">
-            <span class="icon">💬</span>
-            <span>الدعم</span>
-        </a>
-
-        <?php if (!empty($is_admin_preview)): ?>
-            <a href="/admin/customers/profile?username=<?= urlencode($username ?? '') ?>">
-                <span class="icon">⚙️</span>
-                <span>إدارة</span>
-            </a>
-        <?php else: ?>
-            <a href="/logout">
-                <span class="icon">🚪</span>
-                <span>خروج</span>
+    <section class="subscriber-support-grid">
+        <?php if ($whatsappHref !== ''): ?>
+            <a class="subscriber-support-card whatsapp" href="<?= gn_subscriber_h($whatsappHref) ?>" target="_blank" rel="noopener">
+                <span class="subscriber-support-icon">WA</span><strong>واتساب</strong><small>فتح محادثة مع الدعم</small>
             </a>
         <?php endif; ?>
-    </nav>
+        <?php if ($phoneHref !== ''): ?>
+            <a class="subscriber-support-card" href="<?= gn_subscriber_h($phoneHref) ?>">
+                <span class="subscriber-support-icon">☎</span><strong>اتصال هاتفي</strong><small dir="ltr"><?= gn_subscriber_h($phone) ?></small>
+            </a>
+        <?php endif; ?>
+    </section>
+
+    <?php if ($whatsappHref === '' && $phoneHref === ''): ?>
+        <section class="subscriber-card"><div class="subscriber-empty">معلومات التواصل غير متاحة حالياً. حاول مرة أخرى لاحقاً.</div></section>
+    <?php endif; ?>
+
+    <section class="subscriber-card">
+        <h2 class="subscriber-card-title">معلومات تساعد فريق الدعم</h2>
+        <div class="subscriber-list">
+            <div class="subscriber-row"><span class="subscriber-row-label">اسم المستخدم</span><strong class="subscriber-row-value" dir="ltr"><?= gn_subscriber_h($username ?? '') ?></strong></div>
+            <div class="subscriber-row"><span class="subscriber-row-label">الباقة</span><strong class="subscriber-row-value"><?= gn_subscriber_h(trim((string) ($package_name ?? '')) ?: 'غير متاح') ?></strong></div>
+            <div class="subscriber-row"><span class="subscriber-row-label">حالة الاشتراك</span><strong class="subscriber-row-value"><?= gn_subscriber_h(gn_subscriber_status($subscription_label ?? '')[0]) ?></strong></div>
+        </div>
+    </section>
 </div>
+
+<?php require BASE_PATH . '/app/Views/subscriber/_bottom_nav.php'; ?>

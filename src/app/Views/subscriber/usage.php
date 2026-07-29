@@ -1,149 +1,52 @@
-<link rel="stylesheet" href="/css/subscriber-app.css">
-
 <?php
-    $customer = is_array($customer ?? null) ? $customer : [];
-    $package = is_array($package ?? null) ? $package : [];
-    $latestPayment = is_array($latest_payment ?? null) ? $latest_payment : [];
-    $payments = is_array($payments ?? null) ? $payments : [];
-    $connection = is_array($connection ?? null) ? $connection : [];
-    $flash = is_array($flash ?? null) ? $flash : [];
-
-    $username = (string) ($username ?? ($customer['username'] ?? '-'));
+require BASE_PATH . '/app/Views/subscriber/_helpers.php';
+$subscriber = is_array($subscriber ?? null) ? $subscriber : [];
+$packageData = is_array($subscriber['package'] ?? null) ? $subscriber['package'] : [];
+$usage = is_array($subscriber['usage'] ?? null) ? $subscriber['usage'] : [];
+$quota = $packageData['quota_bytes'] ?? null;
+$used = $usage['total_bytes'] ?? null;
+$percent = $quota !== null && (int) $quota > 0 && $used !== null
+    ? min(100, max(0, (int) round(((int) $used / (int) $quota) * 100)))
+    : null;
 ?>
 
 <div class="subscriber-app">
-
-    <?php if (($flash['message'] ?? '') !== ''): ?>
-        <div class="subscriber-notice <?= htmlspecialchars((string) ($flash['type'] ?? 'success')) ?>">
-            <?= htmlspecialchars((string) ($flash['message'] ?? '')) ?>
-        </div>
-    <?php endif; ?>
-
-    <section class="subscriber-hero">
+    <section class="subscriber-hero subscriber-hero-compact">
         <div class="subscriber-hero-top">
-            <div>
-                <div class="subscriber-hello">مرحباً</div>
-                <div class="subscriber-username"><?= htmlspecialchars($username) ?></div>
-            </div>
-
-            <?php if (!empty($connection['online'])): ?>
-                <div class="subscriber-status-pill">متصل الآن</div>
-            <?php else: ?>
-                <div class="subscriber-status-pill">غير متصل</div>
-            <?php endif; ?>
-        </div>
-
-        <div class="subscriber-hero-grid">
-            <div class="subscriber-hero-mini">
-                <span>الاستهلاك الحالي</span>
-                <strong><?= htmlspecialchars((string) ($connection['bytes_total_human'] ?? '0 B')) ?></strong>
-            </div>
-
-            <div class="subscriber-hero-mini">
-                <span>نوع الاتصال</span>
-                <strong><?= htmlspecialchars((string) ($connection['source'] ?? '-')) ?></strong>
-            </div>
+            <div><div class="subscriber-hello">تفاصيل الاستخدام</div><h1 class="subscriber-username"><?= gn_subscriber_h($packageData['name'] ?? 'الباقة الحالية') ?></h1></div>
+            <span class="subscriber-status-pill"><?= !empty($subscriber['online']) ? 'متصل الآن' : 'غير متصل' ?></span>
         </div>
     </section>
 
     <section class="subscriber-card">
-        <h2 class="subscriber-card-title">تفاصيل الاستهلاك</h2>
-
-        <?php if (!empty($connection['error'])): ?>
-            <div class="subscriber-notice warning">
-                تعذر قراءة الاتصال من MikroTik:
-                <?= htmlspecialchars((string) $connection['error']) ?>
-            </div>
-        <?php endif; ?>
-
-        <div class="subscriber-grid">
-            <div class="subscriber-stat">
-                <span>Download</span>
-                <strong><?= htmlspecialchars((string) ($connection['bytes_out_human'] ?? '0 B')) ?></strong>
-            </div>
-
-            <div class="subscriber-stat">
-                <span>Upload</span>
-                <strong><?= htmlspecialchars((string) ($connection['bytes_in_human'] ?? '0 B')) ?></strong>
-            </div>
-
-            <div class="subscriber-stat">
-                <span>IP</span>
-                <strong><?= htmlspecialchars((string) (($connection['ip'] ?? '') !== '' ? $connection['ip'] : '-')) ?></strong>
-            </div>
-
-            <div class="subscriber-stat">
-                <span>Uptime</span>
-                <strong><?= htmlspecialchars((string) (($connection['uptime'] ?? '') !== '' ? $connection['uptime'] : '-')) ?></strong>
-            </div>
+        <div class="subscriber-card-heading">
+            <div><p class="subscriber-eyebrow">المستخدم من الباقة</p><h2 class="subscriber-card-title"><?= $percent !== null ? $percent . '%' : 'غير متاح' ?></h2></div>
+            <strong class="subscriber-quota-total"><?= gn_subscriber_bytes($quota) ?></strong>
         </div>
-    </section>
-
-    <section class="subscriber-card">
-        <h2 class="subscriber-card-title">الاشتراك الحالي</h2>
-
-        <div class="subscriber-list">
-            <div class="subscriber-row">
-                <div class="subscriber-row-label">الباقة</div>
-                <div class="subscriber-row-value">
-                    <?= htmlspecialchars((string) (($package['name'] ?? '') !== '' ? $package['name'] : 'غير محددة')) ?>
-                </div>
-            </div>
-
-            <div class="subscriber-row">
-                <div class="subscriber-row-label">السرعة</div>
-                <div class="subscriber-row-value">
-                    <?= htmlspecialchars((string) (($package['rate_limit'] ?? '') !== '' ? $package['rate_limit'] : '-')) ?>
-                </div>
-            </div>
-
-            <div class="subscriber-row">
-                <div class="subscriber-row-label">تاريخ الانتهاء</div>
-                <div class="subscriber-row-value">
-                    <?= htmlspecialchars((string) (($latestPayment['expires_at'] ?? '') !== '' ? $latestPayment['expires_at'] : '-')) ?>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <section class="subscriber-card">
-        <h2 class="subscriber-card-title">آخر الدفعات</h2>
-
-        <?php if (count($payments) === 0): ?>
-            <div class="subscriber-empty">
-                لا توجد دفعات مسجلة بعد.
-            </div>
+        <?php if ($percent !== null): ?>
+            <div class="subscriber-progress subscriber-progress-large"><span style="width: <?= $percent ?>%"></span></div>
+            <p class="subscriber-muted">متبقي <?= gn_subscriber_bytes($usage['remaining_quota_bytes'] ?? null) ?> من إجمالي الباقة.</p>
         <?php else: ?>
-            <div class="subscriber-list">
-                <?php foreach ($payments as $payment): ?>
-                    <div class="subscriber-row">
-                        <div>
-                            <div class="subscriber-row-label">
-                                <?= htmlspecialchars((string) (($payment['package_name'] ?? '') !== '' ? $payment['package_name'] : 'دفعة')) ?>
-                            </div>
-                            <div class="subscriber-muted">
-                                <?= htmlspecialchars((string) (($payment['created_at'] ?? '') !== '' ? $payment['created_at'] : ($payment['paid_at'] ?? '-'))) ?>
-                            </div>
-                        </div>
-
-                        <div class="subscriber-row-value">
-                            <?= htmlspecialchars((string) ($payment['amount'] ?? '0')) ?>
-                            <?= htmlspecialchars((string) ($payment['currency'] ?? '')) ?>
-                        </div>
-                    </div>
-                <?php endforeach; ?>
-            </div>
+            <div class="subscriber-inline-state">بيانات الاستهلاك غير متاحة حالياً، حاول مرة أخرى لاحقاً.</div>
         <?php endif; ?>
-    </section>
-
-    <section class="subscriber-card">
-        <div class="subscriber-actions">
-            <a class="subscriber-btn primary" href="/my/renew">طلب تجديد</a>
-            <a class="subscriber-btn" href="/my/package">تفاصيل الباقة</a>
-            <a class="subscriber-btn" href="/announcements">الإعلانات</a>
+        <div class="subscriber-grid subscriber-grid-usage">
+            <div class="subscriber-stat"><span>التنزيل</span><strong><?= gn_subscriber_bytes($usage['download_bytes'] ?? null) ?></strong></div>
+            <div class="subscriber-stat"><span>الرفع</span><strong><?= gn_subscriber_bytes($usage['upload_bytes'] ?? null) ?></strong></div>
+            <div class="subscriber-stat subscriber-stat-wide"><span>إجمالي الاستخدام</span><strong><?= gn_subscriber_bytes($used) ?></strong></div>
         </div>
     </section>
 
+    <section class="subscriber-card">
+        <h2 class="subscriber-card-title">معلومات الباقة</h2>
+        <div class="subscriber-list">
+            <div class="subscriber-row"><span class="subscriber-row-label">السرعة</span><strong class="subscriber-row-value"><?= gn_subscriber_h($packageData['speed'] ?? 'غير متاح') ?></strong></div>
+            <div class="subscriber-row"><span class="subscriber-row-label">تاريخ البداية</span><strong class="subscriber-row-value"><?= gn_subscriber_date($subscriber['start_date'] ?? null) ?></strong></div>
+            <div class="subscriber-row"><span class="subscriber-row-label">تاريخ الانتهاء</span><strong class="subscriber-row-value"><?= gn_subscriber_date($subscriber['expiration_date'] ?? null) ?></strong></div>
+            <div class="subscriber-row"><span class="subscriber-row-label">الأيام المتبقية</span><strong class="subscriber-row-value"><?= ($subscriber['remaining_days'] ?? null) !== null ? gn_subscriber_h($subscriber['remaining_days']) . ' يوم' : 'غير متاح' ?></strong></div>
+        </div>
+    </section>
+
+    <div class="subscriber-actions"><a class="subscriber-btn primary" href="/my/renew">طلب تجديد</a><a class="subscriber-btn secondary" href="/my/package">تفاصيل الباقة</a></div>
 </div>
 
 <?php require BASE_PATH . '/app/Views/subscriber/_bottom_nav.php'; ?>

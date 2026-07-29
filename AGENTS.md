@@ -9,6 +9,8 @@
 
 ## Mandatory safety rules
 
+- **Stage 2 standing authorization:** while completing the `codex/unified-subscriber-pwa` stage, Codex is explicitly authorized to edit GreenNet code, migrations, tests, documentation, Docker/test configuration, and the development Portal database after a recoverable local backup; build/start/restart/stop GreenNet development and isolated test containers; install required project dependencies; and perform focused GreenNet test-data reads/writes on the configured disposable Lab Router. Diagnose and retry correctable Docker, PHP, Composer, autoload, database, harness, and RouterOS test-data failures without requesting intermediate approval.
+- This standing authorization is limited to GreenNet and the configured disposable Lab Router. It does not permit printing or committing credentials, affecting unrelated devices/repos/apps, factory reset, firmware upgrade, WAN replacement, or arbitrary firewall/network changes. Use uniquely named GreenNet test artifacts and exact-ID cleanup; never use wildcard deletion.
 - Never connect to MikroTik, RouterOS, User Manager, or any external system without explicit user permission for that specific work.
 - Never run `docker compose up`, `down`, `build`, `restart`, or equivalent lifecycle commands without explicit permission.
 - Never modify the live SQLite database or operational backups without explicit user permission for that exact operation.

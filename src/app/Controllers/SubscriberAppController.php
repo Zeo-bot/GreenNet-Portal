@@ -7,12 +7,17 @@ namespace GreenNet\Controllers;
 use GreenNet\Core\Database;
 use GreenNet\Core\View;
 use GreenNet\Models\AppLog;
-use GreenNet\Services\RouterOS\MikroTikService;
+use GreenNet\Services\SubscriberSecurityService;
+use GreenNet\Services\UnifiedSubscriberService;
 use PDO;
 use Throwable;
 
 class SubscriberAppController
 {
+    public function __construct(private ?UnifiedSubscriberService $subscribers = null)
+    {
+    }
+
     public function home(): string
     {
         Database::migrate();
@@ -26,6 +31,7 @@ class SubscriberAppController
             'package' => $this->customerPackage($username),
             'latest_payment' => $this->latestPayment($username),
             'connection' => $this->connection($username),
+            'subscriber' => $this->subscriber()->summary($username),
             'flash' => $this->consumeFlash(),
         ]);
     }
@@ -44,6 +50,7 @@ class SubscriberAppController
             'latest_payment' => $this->latestPayment($username),
             'payments' => $this->payments($username, 5),
             'connection' => $this->connection($username),
+            'subscriber' => $this->subscriber()->summary($username),
             'flash' => $this->consumeFlash(),
         ]);
     }
@@ -61,7 +68,9 @@ class SubscriberAppController
             'package' => $this->customerPackage($username),
             'latest_payment' => $this->latestPayment($username),
             'connection' => $this->connection($username),
+            'subscriber' => $this->subscriber()->summary($username),
             'flash' => $this->consumeFlash(),
+            'csrf_token' => SubscriberSecurityService::csrfToken(),
         ]);
     }
 
@@ -79,7 +88,9 @@ class SubscriberAppController
             'package' => $this->customerPackage($username),
             'latest_payment' => $this->latestPayment($username),
             'pending_requests' => $this->pendingRenewalRequests($username),
+            'subscriber' => $this->subscriber()->summary($username),
             'flash' => $this->consumeFlash(),
+            'csrf_token' => SubscriberSecurityService::csrfToken(),
         ]);
     }
 
@@ -90,70 +101,22 @@ class SubscriberAppController
 
         $username = $this->requireSubscriberUsername();
 
-        $customer = $this->customer($username);
-        $package = $this->customerPackage($username);
-
-        $phone = trim((string) ($_POST['phone'] ?? ($customer['phone'] ?? '')));
-        $message = trim((string) ($_POST['message'] ?? ''));
-
-        if ($message === '') {
-            $message = 'أريد تجديد اشتراكي.';
+        if (!SubscriberSecurityService::validateCsrf((string) ($_POST['_csrf'] ?? ''))) {
+            http_response_code(419);
+            $_SESSION['subscriber_flash'] = ['type' => 'warning', 'message' => 'تعذر التحقق من الطلب.'];
+            header('Location: /my/renew');
+            exit;
         }
 
-        $stmt = Database::connection()->prepare("
-            INSERT INTO renewal_requests (
-                username,
-                full_name,
-                phone,
-                package_id,
-                package_name,
-                message,
-                status,
-                admin_note,
-                created_at,
-                updated_at
-            )
-            VALUES (
-                :username,
-                :full_name,
-                :phone,
-                :package_id,
-                :package_name,
-                :message,
-                'pending',
-                '',
-                :created_at,
-                :updated_at
-            )
-        ");
-
-        $now = date('Y-m-d H:i:s');
-
-        $stmt->execute([
-            'username' => $username,
-            'full_name' => (string) ($customer['full_name'] ?? $username),
-            'phone' => $phone,
-            'package_id' => (int) ($package['id'] ?? 0),
-            'package_name' => (string) ($package['name'] ?? ''),
-            'message' => $message,
-            'created_at' => $now,
-            'updated_at' => $now,
-        ]);
-
-        AppLog::info('طلب تجديد جديد من المشترك', [
-            'username' => $username,
-            'package' => (string) ($package['name'] ?? ''),
-            'phone' => $phone,
-        ]);
-
-        $_SESSION['subscriber_flash'] = [
-            'type' => 'success',
-            'message' => 'تم إرسال طلب التجديد بنجاح. سنتواصل معك قريباً.',
-        ];
-
-        $query = $this->previewQuery();
-
-        header('Location: /my/renew' . $query);
+        $renewal = $this->subscriber()->createRenewal(
+            $username,
+            trim((string) ($_POST['phone'] ?? '')),
+            trim((string) ($_POST['message'] ?? 'أرغب في تجديد اشتراكي.'))
+        );
+        $_SESSION['subscriber_flash'] = !empty($renewal['duplicate'])
+            ? ['type' => 'warning', 'message' => 'يوجد طلب تجديد قيد المراجعة بالفعل.']
+            : ['type' => 'success', 'message' => 'تم إرسال طلب التجديد بنجاح.'];
+        header('Location: /my/renew');
         exit;
     }
 
@@ -169,6 +132,29 @@ class SubscriberAppController
             'customer' => $this->customer($username),
             'announcements' => $this->announcementsList(),
             'flash' => $this->consumeFlash(),
+        ]);
+    }
+
+    public function notifications(): string
+    {
+        Database::migrate();
+        $username = $this->requireSubscriberUsername();
+        return View::render('subscriber/notifications', [
+            'title' => 'الإشعارات',
+            'username' => $username,
+            'notifications' => $this->subscriber()->notifications($username),
+        ]);
+    }
+
+    public function account(): string
+    {
+        Database::migrate();
+        $username = $this->requireSubscriberUsername();
+        return View::render('subscriber/account', [
+            'title' => 'حسابي',
+            'username' => $username,
+            'subscriber' => $this->subscriber()->summary($username),
+            'csrf_token' => SubscriberSecurityService::csrfToken(),
         ]);
     }
 
@@ -263,46 +249,26 @@ class SubscriberAppController
 
     private function connection(string $username): array
     {
-        $default = [
-            'online' => false,
-            'source' => 'غير متصل',
-            'ip' => '',
-            'uptime' => '',
-            'bytes_in' => 0,
-            'bytes_out' => 0,
-            'bytes_total' => 0,
-            'bytes_in_human' => '0 B',
-            'bytes_out_human' => '0 B',
-            'bytes_total_human' => '0 B',
-            'raw' => [],
+        $summary = $this->subscriber()->summary($username);
+        $usage = is_array($summary['usage'] ?? null) ? $summary['usage'] : [];
+        $session = is_array($summary['active_session'] ?? null) ? $summary['active_session'] : [];
+        $download = isset($usage['download_bytes']) ? (int) $usage['download_bytes'] : null;
+        $upload = isset($usage['upload_bytes']) ? (int) $usage['upload_bytes'] : null;
+        $total = isset($usage['total_bytes']) ? (int) $usage['total_bytes'] : null;
+
+        return [
+            'online' => (bool) ($summary['online'] ?? false),
+            'source' => (string) ($summary['access_type'] ?? 'unknown'),
+            'ip' => (string) ($session['address'] ?? ''),
+            'uptime' => (string) ($session['uptime'] ?? ''),
+            'bytes_in' => $upload,
+            'bytes_out' => $download,
+            'bytes_total' => $total,
+            'bytes_in_human' => $upload !== null ? $this->formatBytes($upload) : 'غير متاح',
+            'bytes_out_human' => $download !== null ? $this->formatBytes($download) : 'غير متاح',
+            'bytes_total_human' => $total !== null ? $this->formatBytes($total) : 'غير متاح',
             'error' => '',
         ];
-
-        try {
-            $service = new MikroTikService();
-
-            foreach ($service->hotspotActiveUsers() as $row) {
-                $user = (string) ($row['user'] ?? $row['name'] ?? '');
-
-                if ($user === $username) {
-                    return $this->connectionFromRow($row, 'Hotspot');
-                }
-            }
-
-            foreach ($service->pppActiveUsers() as $row) {
-                $user = (string) ($row['name'] ?? $row['user'] ?? '');
-
-                if ($user === $username) {
-                    return $this->connectionFromRow($row, 'PPP');
-                }
-            }
-
-            return $default;
-        } catch (Throwable $e) {
-            $default['error'] = $e->getMessage();
-
-            return $default;
-        }
     }
 
     private function connectionFromRow(array $row, string $source): array
@@ -322,7 +288,6 @@ class SubscriberAppController
             'bytes_in_human' => $this->formatBytes($bytesIn),
             'bytes_out_human' => $this->formatBytes($bytesOut),
             'bytes_total_human' => $this->formatBytes($total),
-            'raw' => $row,
             'error' => '',
         ];
     }
@@ -447,6 +412,11 @@ class SubscriberAppController
             'type' => (string) ($flash['type'] ?? ''),
             'message' => (string) ($flash['message'] ?? ''),
         ];
+    }
+
+    private function subscriber(): UnifiedSubscriberService
+    {
+        return $this->subscribers ??= new UnifiedSubscriberService();
     }
 
     private function parseBytes(string $value): int

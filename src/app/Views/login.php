@@ -29,10 +29,12 @@
         <?php endif; ?>
 
         <form method="post" action="/login" class="form-card">
+            <input type="hidden" name="_csrf" value="<?= htmlspecialchars((string) ($csrf_token ?? '')) ?>">
 
             <div class="form-group">
-                <label>اسم المستخدم</label>
+                <label for="subscriber-username">اسم المستخدم</label>
                 <input
+                    id="subscriber-username"
                     type="text"
                     name="username"
                     value="<?= htmlspecialchars($username) ?>"
@@ -44,8 +46,9 @@
             </div>
 
             <div class="form-group">
-                <label>كلمة المرور / PIN</label>
+                <label for="subscriber-password">كلمة المرور</label>
                 <input
+                    id="subscriber-password"
                     type="password"
                     name="password"
                     placeholder="أدخل كلمة المرور"

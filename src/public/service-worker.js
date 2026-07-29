@@ -1,4 +1,4 @@
-const GREENNET_CACHE = 'greennet-static-v2.6.0';
+const GREENNET_CACHE = 'greennet-static-v3.0.0';
 
 const STATIC_ASSETS = [
     '/offline.html',
@@ -44,6 +44,15 @@ self.addEventListener('fetch', (event) => {
     }
 
     if (url.pathname.startsWith('/admin')) {
+        event.respondWith(networkOnly(request));
+        return;
+    }
+
+    if (
+        url.pathname.startsWith('/api/')
+        || url.pathname === '/login'
+        || url.pathname === '/logout'
+    ) {
         event.respondWith(networkOnly(request));
         return;
     }

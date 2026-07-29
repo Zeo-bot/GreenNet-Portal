@@ -33,6 +33,9 @@ $usernameQuery = $username !== '' ? '?username=' . rawurlencode($username) : '';
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="application-name" content="GreenNet">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
     <title><?= gn_sub_h($pageTitle) ?> - <?= gn_sub_h($appName) ?></title>
 
     <meta name="theme-color" content="#11945a">
@@ -465,7 +468,7 @@ $usernameQuery = $username !== '' ? '?username=' . rawurlencode($username) : '';
         </style>
     <?php else: ?>
         <link rel="stylesheet" href="/css/subscriber.css?v=base">
-        <link rel="stylesheet" href="/css/subscriber-app.css?v=base">
+        <link rel="stylesheet" href="/css/subscriber-app.css?v=stage2">
         <link rel="stylesheet" href="/css/subscriber-ui.css?v=ui9pack">
     <?php endif; ?>
 </head>
@@ -507,7 +510,7 @@ $usernameQuery = $username !== '' ? '?username=' . rawurlencode($username) : '';
                 </div>
 
                 <?php if ($username !== ''): ?>
-                    <a class="gn-sub-btn" href="/login?switch=1">خروج</a>
+                    <a class="gn-sub-btn" href="/my/account">حسابي</a>
                 <?php endif; ?>
             </div>
         </header>
@@ -516,36 +519,8 @@ $usernameQuery = $username !== '' ? '?username=' . rawurlencode($username) : '';
             <?= $content ?? '' ?>
         </main>
 
-        <?php if ($username !== ''): ?>
-            <nav class="gn-sub-bottom-nav" aria-label="Subscriber navigation">
-                <a href="/dashboard<?= gn_sub_h($usernameQuery) ?>">
-                    <span>⌂</span>
-                    <span>الرئيسية</span>
-                </a>
-
-                <a href="/my/usage<?= gn_sub_h($usernameQuery) ?>">
-                    <span>▤</span>
-                    <span>الاستهلاك</span>
-                </a>
-
-                <a href="/my/package<?= gn_sub_h($usernameQuery) ?>">
-                    <span>▣</span>
-                    <span>الباقة</span>
-                </a>
-
-                <a href="/my/renew<?= gn_sub_h($usernameQuery) ?>">
-                    <span>↻</span>
-                    <span>تجديد</span>
-                </a>
-
-                <a href="/support<?= gn_sub_h($usernameQuery) ?>">
-                    <span>☎</span>
-                    <span>دعم</span>
-                </a>
-            </nav>
-        <?php endif; ?>
-
         <script src="/js/subscriber-ui.js?v=ui9pack"></script>
+        <script src="/js/pwa.js?v=stage2"></script>
     </body>
 <?php endif; ?>
 </html>

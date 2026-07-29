@@ -6,11 +6,14 @@ namespace GreenNet\Controllers;
 
 use GreenNet\Core\Database;
 use GreenNet\Core\View;
-use GreenNet\Models\Payment;
-use GreenNet\Services\CustomerDashboardService;
+use GreenNet\Services\UnifiedSubscriberService;
 
 class SubscriberPaymentsController
 {
+    public function __construct(private ?UnifiedSubscriberService $subscribers = null)
+    {
+    }
+
     public function index(): string
     {
         Database::migrate();
@@ -22,10 +25,8 @@ class SubscriberPaymentsController
             exit;
         }
 
-        $dashboardService = new CustomerDashboardService();
-        $dashboardData = $dashboardService->getDashboardData($username);
-
-        $payments = Payment::forUser($username);
+        $summary = $this->service()->summary($username);
+        $payments = $this->service()->payments($username);
 
         $totalPaid = 0.0;
 
@@ -40,7 +41,9 @@ class SubscriberPaymentsController
             'payments_count' => count($payments),
             'total_paid' => $totalPaid,
             'is_admin_preview' => $this->isAdminPreview(),
-        ], $dashboardData));
+            'package_name' => (string) ($summary['package']['name'] ?? ''),
+            'subscription_expires_at' => (string) ($summary['expiration_date'] ?? ''),
+        ]));
     }
 
     private function resolveUsername(): string
@@ -61,5 +64,10 @@ class SubscriberPaymentsController
     private function isAdminPreview(): bool
     {
         return ($_SESSION['admin_logged_in'] ?? false) === true;
+    }
+
+    private function service(): UnifiedSubscriberService
+    {
+        return $this->subscribers ??= new UnifiedSubscriberService();
     }
 }

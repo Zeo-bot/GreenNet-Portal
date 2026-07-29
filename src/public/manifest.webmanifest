@@ -1,8 +1,9 @@
 {
+  "id": "/login",
   "name": "GreenNet Portal",
   "short_name": "GreenNet",
   "description": "تطبيق المشتركين الخاص بشبكة GreenNet",
-  "start_url": "/dashboard",
+  "start_url": "/login",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",

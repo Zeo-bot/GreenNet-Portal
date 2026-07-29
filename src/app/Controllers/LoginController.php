@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace GreenNet\Controllers;
 
+use Closure;
 use GreenNet\Core\Database;
 use GreenNet\Core\View;
 use GreenNet\Models\AppLog;
+use GreenNet\Services\SubscriberSecurityService;
 use PDO;
 use Throwable;
 
@@ -14,6 +16,12 @@ class LoginController
 {
     private int $maxAttempts = 5;
     private int $lockMinutes = 10;
+    private ?Closure $headerEmitter;
+
+    public function __construct(?callable $headerEmitter = null)
+    {
+        $this->headerEmitter = $headerEmitter !== null ? Closure::fromCallable($headerEmitter) : null;
+    }
 
     public function show(): string
     {
@@ -33,6 +41,7 @@ class LoginController
             'title' => 'تسجيل دخول المشترك',
             'error' => '',
             'username' => '',
+            'csrf_token' => SubscriberSecurityService::csrfToken(),
         ]);
     }
 
@@ -43,12 +52,14 @@ class LoginController
 
         $username = trim((string) ($_POST['username'] ?? ''));
         $password = (string) ($_POST['password'] ?? '');
+        $csrf = (string) ($_POST['_csrf'] ?? '');
 
-        if ($username === '' || $password === '') {
+        if (!SubscriberSecurityService::validateCsrf($csrf) || $username === '' || $password === '') {
             return View::render('login', [
                 'title' => 'تسجيل دخول المشترك',
-                'error' => 'يرجى إدخال اسم المستخدم وكلمة المرور.',
+                'error' => 'بيانات الدخول غير صحيحة.',
                 'username' => $username,
+                'csrf_token' => SubscriberSecurityService::csrfToken(),
             ]);
         }
 
@@ -64,6 +75,7 @@ class LoginController
                 'title' => 'تسجيل دخول المشترك',
                 'error' => 'بيانات الدخول غير صحيحة.',
                 'username' => $username,
+                'csrf_token' => SubscriberSecurityService::csrfToken(),
             ]);
         }
 
@@ -78,8 +90,9 @@ class LoginController
 
             return View::render('login', [
                 'title' => 'تسجيل دخول المشترك',
-                'error' => 'تم قفل الحساب مؤقتاً بسبب محاولات دخول خاطئة. حاول لاحقاً.',
+                'error' => 'بيانات الدخول غير صحيحة.',
                 'username' => $username,
+                'csrf_token' => SubscriberSecurityService::csrfToken(),
             ]);
         }
 
@@ -93,8 +106,9 @@ class LoginController
 
             return View::render('login', [
                 'title' => 'تسجيل دخول المشترك',
-                'error' => 'لا توجد كلمة مرور مفعلة لهذا الحساب. تواصل مع الإدارة لتفعيل الدخول.',
+                'error' => 'بيانات الدخول غير صحيحة.',
                 'username' => $username,
+                'csrf_token' => SubscriberSecurityService::csrfToken(),
             ]);
         }
 
@@ -110,6 +124,7 @@ class LoginController
                 'title' => 'تسجيل دخول المشترك',
                 'error' => 'بيانات الدخول غير صحيحة.',
                 'username' => $username,
+                'csrf_token' => SubscriberSecurityService::csrfToken(),
             ]);
         }
 
@@ -119,25 +134,31 @@ class LoginController
 
         $this->registerSuccessfulLogin($realUsername);
 
-        $_SESSION['subscriber_logged_in'] = true;
-        $_SESSION['subscriber_username'] = $realUsername;
-        $_SESSION['subscriber_login_at'] = date('Y-m-d H:i:s');
+        SubscriberSecurityService::establish($realUsername);
 
         AppLog::info('تسجيل دخول مشترك ناجح', [
             'username' => $realUsername,
             'ip' => $this->clientIp(),
         ]);
 
-        header('Location: /dashboard');
-        exit;
+        http_response_code(302);
+        $this->emitHeader('Location: /dashboard');
+        return '';
     }
 
-    public function logout(): void
+    public function logout(): string
     {
-        $this->clearSubscriberSession();
+        if ($_SERVER['REQUEST_METHOD'] === 'POST'
+            && !SubscriberSecurityService::validateCsrf((string) ($_POST['_csrf'] ?? ''))) {
+            http_response_code(419);
+            return '';
+        }
 
-        header('Location: /login?switch=1');
-        exit;
+        SubscriberSecurityService::logout();
+
+        http_response_code(302);
+        $this->emitHeader('Location: /login?switch=1');
+        return '';
     }
 
     private function findCustomer(string $username): ?array
@@ -292,5 +313,15 @@ class LoginController
     private function clientIp(): string
     {
         return (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+    }
+
+    private function emitHeader(string $header): void
+    {
+        if ($this->headerEmitter !== null) {
+            ($this->headerEmitter)($header);
+            return;
+        }
+
+        header($header);
     }
 }
