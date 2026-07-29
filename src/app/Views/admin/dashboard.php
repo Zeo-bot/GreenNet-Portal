@@ -163,6 +163,10 @@ $backendLabel = static fn (string $backend): string => match ($backend) {
             ['مزامنة معلّقة', $ops['sync_pending_count'] ?? 0, $customerUrl(['service_status' => 'pending'])],
             ['مزامنة فاشلة أو سجل مفقود', $ops['sync_failed_count'] ?? 0, $customerUrl(['service_status' => 'failed'])],
             ['موجّهات غير متاحة', $ops['router_summary']['unavailable'] ?? 0, '/admin/routers'],
+            ['انتهاء بانتظار التنفيذ', $ops['lifecycle']['expired_pending'] ?? 0, '/admin/lifecycle'],
+            ['الحصة مستهلكة', $ops['lifecycle']['quota_exhausted'] ?? 0, '/admin/lifecycle'],
+            ['تنفيذ فاشل أو متعذر', $ops['lifecycle']['enforcement_failed'] ?? 0, '/admin/lifecycle'],
+            ['تجديد بانتظار مزامنة الموجّه', $ops['lifecycle']['renewal_sync_pending'] ?? 0, '/admin/lifecycle'],
         ];
         ?>
         <?php foreach ($attention as [$label, $count, $url]): ?>

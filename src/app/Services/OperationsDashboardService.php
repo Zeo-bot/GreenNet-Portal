@@ -77,6 +77,7 @@ final class OperationsDashboardService
             'mapping_missing_count' => $mappingMissing,
             'sync_pending_count' => $syncPending,
             'sync_failed_count' => $syncFailed,
+            'lifecycle' => (new SubscriptionLifecycleService())->counts(),
             'renewals' => $this->renewals(),
             'recent_payments' => Payment::latest(6),
             'sessions' => [

@@ -14,6 +14,7 @@ use GreenNet\Services\RouterOS\NativeSubscriberRecordResolver;
 use GreenNet\Services\CustomerDashboardService;
 use PDO;
 use Throwable;
+use GreenNet\Services\SubscriptionLifecycleService;
 
 class AdminCustomerProfileController
 {
@@ -91,6 +92,7 @@ class AdminCustomerProfileController
             'renewal_requests' => $this->renewalRequests($username),
             'assigned_router' => $this->assignedRouter($username),
             'native_record_state' => $this->nativeRecordState($customer, $username),
+            'lifecycle' => (new SubscriptionLifecycleService())->evaluate($username, null, false),
         ]);
     }
 

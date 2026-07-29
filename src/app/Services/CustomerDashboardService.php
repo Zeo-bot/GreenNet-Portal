@@ -150,6 +150,16 @@ class CustomerDashboardService
             $this->applyBaselineUsageToDashboard($data, $baselineUsage);
         }
 
+        $usageKnown = !empty($data['routeros_found']) && array_key_exists('used_bytes', $data);
+        $lifecycle = (new SubscriptionLifecycleService())->evaluate(
+            $username,
+            $usageKnown ? (int) $data['used_bytes'] : null,
+            false
+        );
+        $data['lifecycle'] = $lifecycle;
+        $data['subscription_status'] = (string) ($lifecycle['state'] ?? $data['subscription_status']);
+        $data['subscription_label'] = (string) ($lifecycle['label'] ?? $data['subscription_label']);
+
         return $data;
     }
 

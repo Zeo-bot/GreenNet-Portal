@@ -142,6 +142,17 @@
                 <?php endif; ?>
 
                 <div class="form-group">
+                    <label>الباقة للدورة الجديدة</label>
+                    <select name="package_id" required>
+                        <?php foreach (($packages ?? []) as $candidate): ?>
+                            <option value="<?= (int) ($candidate['id'] ?? 0) ?>" <?= (int) ($candidate['id'] ?? 0) === (int) ($package['id'] ?? 0) ? 'selected' : '' ?>>
+                                <?= htmlspecialchars((string) ($candidate['name'] ?? '-')) ?> — <?= (int) ($candidate['duration_days'] ?? 0) ?> يوم — <?= htmlspecialchars((string) ($candidate['quota_gb'] ?? 0)) ?> GB
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <div class="form-group">
                     <label>المبلغ المدفوع</label>
                     <input
                         type="number"

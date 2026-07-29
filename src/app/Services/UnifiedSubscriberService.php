@@ -46,6 +46,11 @@ final class UnifiedSubscriberService
         $remainingDays = $this->remainingDays($expiresAt);
         $enabled = $router['enabled'];
         $status = $this->accountStatus($enabled, $expiresAt);
+        if (in_array(strtolower((string) ($customer['service_status'] ?? '')), ['suspended', 'disabled'], true)) {
+            $status = 'suspended';
+        } elseif ($quotaBytes !== null && $totalUsage !== null && $totalUsage >= $quotaBytes) {
+            $status = 'quota_exhausted';
+        }
 
         return [
             'portal_customer_id' => isset($customer['id']) ? (int) $customer['id'] : null,

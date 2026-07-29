@@ -16,6 +16,7 @@ use GreenNet\Models\ServicePackage;
 use GreenNet\Services\RouterOS\RouterConnectionResolver;
 use GreenNet\Services\RouterOS\NativeSubscriberRecordResolver;
 use GreenNet\Services\WriteSafetyGuard;
+use GreenNet\Services\SubscriptionLifecycleService;
 use RuntimeException;
 use Throwable;
 
@@ -151,12 +152,18 @@ final class AdminNativeSubscriberController
             }
             if ($action === 'disable' || $action === 'enable') {
                 $this->updateLocalStatus($username, $action === 'disable' ? 'suspended' : 'active');
+                if ($action === 'disable' && Database::hasConnection()) {
+                    (new SubscriptionLifecycleService())->markEnforcement($username, 'enforced', 'Native account disabled and verified.');
+                }
             }
             $fresh['executed'] = true;
             $fresh['execution_ok'] = true;
             $_SESSION['native_subscriber_result'] = $fresh;
             $this->flash('تم تنفيذ العملية والتحقق من النتيجة.');
         } catch (Throwable $e) {
+            if ($action === 'disable' && $username !== '' && Database::hasConnection()) {
+                (new SubscriptionLifecycleService())->markEnforcement($username, 'failed', $e->getMessage());
+            }
             $previous = is_array($_SESSION['native_subscriber_result'] ?? null) ? $_SESSION['native_subscriber_result'] : [];
             $previous['execute_error'] = $e->getMessage();
             $_SESSION['native_subscriber_result'] = $previous;

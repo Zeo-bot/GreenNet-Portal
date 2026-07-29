@@ -11,6 +11,11 @@ class Database
 {
     private static ?PDO $connection = null;
 
+    public static function hasConnection(): bool
+    {
+        return self::$connection !== null;
+    }
+
     public static function connection(): PDO
     {
         if (self::$connection !== null) {

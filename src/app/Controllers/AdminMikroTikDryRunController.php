@@ -14,6 +14,7 @@ use GreenNet\DTO\RouterOS\WriteExecutionRequest;
 use GreenNet\Exceptions\GuardedWriteExecutionException;
 use GreenNet\Models\AppLog;
 use GreenNet\Services\GreenNetUsageBaselineService;
+use GreenNet\Services\SubscriptionLifecycleService;
 use GreenNet\Services\RouterOS\RouterConnectionResolver;
 use GreenNet\Services\WriteSafetyGuard;
 use PDO;
@@ -337,7 +338,14 @@ class AdminMikroTikDryRunController
         );
 
         if (!$success) {
+            if ($desiredDisabled && Database::hasConnection()) {
+                (new SubscriptionLifecycleService())->markEnforcement($username, 'failed', 'User Manager verification did not match the requested state.');
+            }
             throw new RuntimeException('تم إرسال الأمر لكن التحقق بعد التنفيذ لم يطابق الحالة المطلوبة.');
+        }
+
+        if ($desiredDisabled && Database::hasConnection()) {
+            (new SubscriptionLifecycleService())->markEnforcement($username, 'enforced', 'User Manager account disabled and verified.');
         }
 
         $this->flash($desiredDisabled ? 'تم تعطيل المستخدم بنجاح.' : 'تم تفعيل المستخدم بنجاح.', 'success');

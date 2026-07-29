@@ -45,7 +45,7 @@ class CustomerRenewalService
         ];
     }
 
-    public function renew(string $username, int $amount, string $currency, string $note): array
+    public function renew(string $username, int $amount, string $currency, string $note, int $packageId = 0): array
     {
         $preview = $this->preview($username);
 
@@ -62,7 +62,13 @@ class CustomerRenewalService
         }
 
         $customer = $preview['customer'];
-        $package = $preview['package'];
+        $package = $packageId > 0 ? ServicePackage::find($packageId) : $preview['package'];
+        if (!is_array($package)) {
+            return ['ok' => false, 'message' => 'الباقة المحددة غير موجودة.'];
+        }
+        if ((int) ($customer['package_id'] ?? 0) !== (int) $package['id']) {
+            CustomerLocal::updatePackage((string) $customer['username'], (int) $package['id']);
+        }
 
         $timezone = new DateTimeZone((string) Config::get('TZ', 'Asia/Damascus'));
         $startsAt = new DateTimeImmutable('now', $timezone);
@@ -103,8 +109,13 @@ class CustomerRenewalService
         );
 
         CustomerLocal::updatePaymentStatus((string) $customer['username'], 'paid');
+        \GreenNet\Core\Database::connection()->prepare("
+            UPDATE customers_local SET service_status = 'sync_pending', updated_at = CURRENT_TIMESTAMP
+            WHERE username = :username
+        ")->execute(['username' => (string) $customer['username']]);
 
         $baseline = $this->createRenewalBaseline((string) $customer['username']);
+        (new SubscriptionLifecycleService())->resetAfterRenewal((string) $customer['username']);
 
         AppLog::info('تم تجديد اشتراك', [
             'username' => (string) $customer['username'],

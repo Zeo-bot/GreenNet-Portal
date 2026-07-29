@@ -17,6 +17,7 @@ $routerFound = !empty($dashboard['routeros_found']);
 $routerDisabled = (string) ($dashboard['disabled'] ?? $dashboard['routeros_disabled'] ?? '') === 'true';
 $packageFound = $packageId > 0;
 $serviceBackend = (string) ($customer['service_backend'] ?? 'user-manager');
+$lifecycle = is_array($lifecycle ?? null) ? $lifecycle : [];
 $isNativeBackend = in_array($serviceBackend, ['native-hotspot', 'native-pppoe'], true);
 
 $statusLabel = match ($subscriptionStatus) {
@@ -113,6 +114,10 @@ $requestLabels = [
             <a class="admin-action-card" href="/admin/customers/renew?username=<?= htmlspecialchars($u) ?>">
                 <div class="admin-action-icon">↻</div><div class="admin-action-title">تسجيل دفعة وتجديد</div>
                 <div class="admin-action-desc">إنشاء مدة اشتراك جديدة وتاريخ انتهاء وتصفير دورة الاستهلاك المحلية.</div>
+            </a>
+            <a class="admin-action-card" href="/admin/lifecycle">
+                <strong>دورة الاشتراك: <?= htmlspecialchars((string) ($lifecycle['label'] ?? '-')) ?></strong>
+                <span><?= htmlspecialchars((string) ($lifecycle['enforcement_state'] ?? 'not_required')) ?></span>
             </a>
             <?php if ($packageFound): ?>
                 <a class="admin-action-card" href="<?= $isNativeBackend ? '/admin/native-subscriber?username=' . htmlspecialchars($u) . '&amp;action=package' : '/admin/package-assign?username=' . htmlspecialchars($u) . '&amp;package_id=' . $packageId . '&amp;assign_mode=replace' ?>">

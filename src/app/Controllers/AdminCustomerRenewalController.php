@@ -11,6 +11,7 @@ use GreenNet\Services\CustomerRenewalService;
 use GreenNet\Models\AppLog;
 use PDO;
 use Throwable;
+use GreenNet\Models\ServicePackage;
 
 class AdminCustomerRenewalController
 {
@@ -36,6 +37,7 @@ class AdminCustomerRenewalController
             'app_name' => Config::appName(),
             'preview' => $preview,
             'renewal_request' => $this->findRenewalRequest($requestId, $username),
+            'packages' => ServicePackage::all(),
         ]);
     }
 
@@ -50,6 +52,7 @@ class AdminCustomerRenewalController
         $currency = trim((string) ($_POST['currency'] ?? 'SYP'));
         $note = trim((string) ($_POST['note'] ?? ''));
         $requestId = (int) ($_POST['renewal_request_id'] ?? 0);
+        $packageId = (int) ($_POST['package_id'] ?? 0);
 
         if ($username === '') {
             header('Location: /admin/customers');
@@ -57,7 +60,7 @@ class AdminCustomerRenewalController
         }
 
         $service = new CustomerRenewalService();
-        $result = $service->renew($username, $amount, $currency, $note);
+        $result = $service->renew($username, $amount, $currency, $note, $packageId);
 
         if (!empty($result['ok']) && $requestId > 0) {
             $this->completeRenewalRequest($requestId, $username);
