@@ -108,6 +108,7 @@ $router->post('/admin/write-safety', [AdminPreMikroTikController::class, 'saveWr
 $router->get('/admin/mikrotik-dry-run', [AdminMikroTikDryRunController::class, 'index']);
 $router->post('/admin/mikrotik-dry-run/preview', [AdminMikroTikDryRunController::class, 'preview']);
 $router->post('/admin/mikrotik-dry-run/execute', [AdminMikroTikDryRunController::class, 'execute']);
+$router->post('/admin/customers/router-account', [AdminMikroTikDryRunController::class, 'customerAction']);
 
 $router->get('/admin/security', [AdminSecurityController::class, 'index']);
 $router->post('/admin/security/password', [AdminSecurityController::class, 'updatePassword']);
@@ -217,6 +218,7 @@ $router->post('/admin/routers/package-mapping', [AdminRoutersController::class, 
 $router->get('/admin/native-subscriber', [AdminNativeSubscriberController::class, 'index']);
 $router->post('/admin/native-subscriber/preview', [AdminNativeSubscriberController::class, 'preview']);
 $router->post('/admin/native-subscriber/execute', [AdminNativeSubscriberController::class, 'execute']);
+$router->post('/admin/customers/native-operation', [AdminNativeSubscriberController::class, 'customerAction']);
 
 $router->get('/admin/auto-match', [AdminAutoMatchController::class, 'index']);
 $router->post('/admin/auto-match/import-users', [AdminAutoMatchController::class, 'importUsers']);

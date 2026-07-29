@@ -17,15 +17,22 @@ $routerFound = !empty($dashboard['routeros_found']);
 $routerDisabled = (string) ($dashboard['disabled'] ?? $dashboard['routeros_disabled'] ?? '') === 'true';
 $packageFound = $packageId > 0;
 $serviceBackend = (string) ($customer['service_backend'] ?? 'user-manager');
+$serviceStatus = strtolower((string) ($customer['service_status'] ?? 'active'));
 $lifecycle = is_array($lifecycle ?? null) ? $lifecycle : [];
 $isNativeBackend = in_array($serviceBackend, ['native-hotspot', 'native-pppoe'], true);
+$activeSessions = (int) ($dashboard['greennet_baseline_usage']['monitor_active_sessions'] ?? 0);
+$quotaExhausted = (string) ($lifecycle['state'] ?? '') === 'quota_exhausted'
+    || ((int) ($dashboard['used_percent'] ?? 0) >= 100 && (float) ($package['quota_gb'] ?? 0) > 0);
 
-$statusLabel = match ($subscriptionStatus) {
-    'active' => 'اشتراك فعّال',
-    'expired' => 'اشتراك منتهي',
-    default => $packageFound ? 'بانتظار تسجيل التجديد' : 'بانتظار اختيار باقة',
+$statusLabel = match (true) {
+    in_array($serviceStatus, ['suspended', 'disabled'], true) => 'موقوف',
+    $quotaExhausted => 'استهلك الباقة',
+    $subscriptionStatus === 'active' => 'نشط',
+    $subscriptionStatus === 'expired' => 'منتهي',
+    $packageFound => 'بانتظار التجديد',
+    default => 'غير مفعّل',
 };
-$statusClass = $subscriptionStatus === 'active'
+$statusClass = $subscriptionStatus === 'active' && !$quotaExhausted && !in_array($serviceStatus, ['suspended', 'disabled'], true)
     ? 'admin-badge admin-badge-success'
     : ($subscriptionStatus === 'expired' ? 'admin-badge admin-badge-danger' : 'admin-badge admin-badge-warning');
 
@@ -45,7 +52,7 @@ $requestLabels = [
     <div class="admin-header-actions">
         <a class="admin-mini-btn" href="/admin/customers/table">قائمة المشتركين</a>
         <?php if ($username !== ''): ?>
-            <a class="admin-mini-btn" href="/dashboard?username=<?= htmlspecialchars($u) ?>">معاينة حساب المشترك</a>
+            <a class="admin-mini-btn" href="/dashboard?username=<?= htmlspecialchars($u) ?>">معاينة تطبيق المشترك</a>
         <?php endif; ?>
     </div>
 </div>
@@ -63,7 +70,7 @@ $requestLabels = [
                     الراوتر: <?= htmlspecialchars((string) ($assignedRouter['name'] ?? 'الافتراضي')) ?>
                     <?php if (!empty($assignedRouter['legacy_fallback'])): ?> (توافق الإعداد القديم)<?php endif; ?>
                 </div>
-                <div style="color:#4b5563">نظام الحساب: <?= htmlspecialchars($serviceBackend) ?></div>
+                <div style="color:#4b5563">نظام الخدمة: <?= htmlspecialchars(match ($serviceBackend) { 'native-hotspot' => 'Hotspot', 'native-pppoe' => 'PPPoE', default => 'User Manager' }) ?></div>
                 <?php if ($isNativeBackend): ?>
                     <div style="color:#4b5563">سجل RouterOS: <?= htmlspecialchars(match ($nativeRecordState['status'] ?? '') { 'found' => 'موجود', 'missing' => 'مفقود', default => 'الراوتر غير متاح' }) ?></div>
                 <?php endif; ?>
@@ -79,9 +86,9 @@ $requestLabels = [
 
     <div class="admin-stats-grid">
         <div class="admin-stat-card">
-            <div class="admin-stat-label">الباقة المحلية</div>
+            <div class="admin-stat-label">الباقة</div>
             <div class="admin-stat-value" style="font-size:18px"><?= htmlspecialchars((string) ($package['name'] ?? $dashboard['package_name'] ?? 'لم تُحدد')) ?></div>
-            <div class="admin-stat-note"><?= $packageFound ? htmlspecialchars((string) ($package['duration_days'] ?? 0)) . ' يوم' : 'اختر باقة قبل التفعيل' ?></div>
+            <div class="admin-stat-note">السرعة: <?= htmlspecialchars((string) ($dashboard['speed'] ?? $package['rate_limit'] ?? '-')) ?></div>
         </div>
         <div class="admin-stat-card">
             <div class="admin-stat-label">بداية الاشتراك</div>
@@ -95,63 +102,103 @@ $requestLabels = [
         <div class="admin-stat-card">
             <div class="admin-stat-label">حالة الاتصال</div>
             <div class="admin-stat-value" style="font-size:17px"><?= htmlspecialchars((string) ($dashboard['connection_label'] ?? $dashboard['connection_status'] ?? 'غير معروفة')) ?></div>
-            <div class="admin-stat-note">الاستهلاك: <?= htmlspecialchars((string) ($dashboard['used'] ?? '-')) ?></div>
+            <div class="admin-stat-note">الاستهلاك: <?= htmlspecialchars((string) ($dashboard['used'] ?? '-')) ?> · المتبقي: <?= htmlspecialchars((string) ($dashboard['remaining'] ?? '-')) ?></div>
         </div>
     </div>
 
     <section class="admin-section-card">
-        <h2 class="admin-section-title">الخطوات التشغيلية</h2>
-        <p class="admin-section-subtitle">الإجراءات المحلية تُحفظ مباشرة. إجراءات الشبكة تفتح مسار المعاينة والتنفيذ المحمي للمشترك المحدد.</p>
+        <h2 class="admin-section-title">العمليات الأساسية</h2>
+        <p class="admin-section-subtitle">يختار GreenNet الراوتر ونظام الخدمة تلقائياً من ملف المشترك.</p>
         <div class="admin-action-grid">
-            <a class="admin-action-card" href="/admin/customers/edit?username=<?= htmlspecialchars($u) ?>">
-                <div class="admin-action-icon">✎</div><div class="admin-action-title">بيانات المشترك</div>
-                <div class="admin-action-desc">تعديل الاسم والهاتف ونوع الوصول والملاحظات.</div>
+            <a class="admin-action-card" href="/admin/customers/renew?username=<?= htmlspecialchars($u) ?>">
+                <div class="admin-action-icon">↻</div><div class="admin-action-title">تجديد الاشتراك</div>
+                <div class="admin-action-desc">تسجيل الدفعة وبدء دورة الاشتراك الجديدة.</div>
             </a>
             <a class="admin-action-card" href="/admin/customers/package?username=<?= htmlspecialchars($u) ?>">
-                <div class="admin-action-icon">▣</div><div class="admin-action-title">اختيار الباقة محلياً</div>
-                <div class="admin-action-desc">ربط الباقة بسجل المشترك قبل التجديد أو التطبيق على الشبكة.</div>
-            </a>
-            <a class="admin-action-card" href="/admin/customers/renew?username=<?= htmlspecialchars($u) ?>">
-                <div class="admin-action-icon">↻</div><div class="admin-action-title">تسجيل دفعة وتجديد</div>
-                <div class="admin-action-desc">إنشاء مدة اشتراك جديدة وتاريخ انتهاء وتصفير دورة الاستهلاك المحلية.</div>
-            </a>
-            <a class="admin-action-card" href="/admin/lifecycle">
-                <strong>دورة الاشتراك: <?= htmlspecialchars((string) ($lifecycle['label'] ?? '-')) ?></strong>
-                <span><?= htmlspecialchars((string) ($lifecycle['enforcement_state'] ?? 'not_required')) ?></span>
+                <div class="admin-action-icon">▣</div><div class="admin-action-title">تغيير الباقة</div>
+                <div class="admin-action-desc">اختيار باقة GreenNet المناسبة لهذا المشترك.</div>
             </a>
             <?php if ($packageFound): ?>
-                <a class="admin-action-card" href="<?= $isNativeBackend ? '/admin/native-subscriber?username=' . htmlspecialchars($u) . '&amp;action=package' : '/admin/package-assign?username=' . htmlspecialchars($u) . '&amp;package_id=' . $packageId . '&amp;assign_mode=replace' ?>">
-                    <div class="admin-action-icon">⇄</div><div class="admin-action-title">تطبيق الباقة على الشبكة</div>
-                    <div class="admin-action-desc">فتح المعاينة المحمية لتعيين أو استبدال ملف الباقة.</div>
-                </a>
+                <?php if ($isNativeBackend): ?>
+                    <form method="post" action="/admin/customers/native-operation" onsubmit="return confirm('سيتم تطبيق باقة <?= htmlspecialchars((string) ($package['name'] ?? '')) ?> على حساب <?= htmlspecialchars($username) ?> في <?= htmlspecialchars((string) ($assignedRouter['name'] ?? 'الراوتر')) ?>. هل تريد المتابعة؟')">
+                        <input type="hidden" name="username" value="<?= htmlspecialchars($username) ?>"><input type="hidden" name="action" value="package">
+                        <button class="admin-action-card" type="submit"><span class="admin-action-icon">⇄</span><span class="admin-action-title">مزامنة مع الراوتر</span><span class="admin-action-desc">تطبيق الباقة الحالية عبر نظام الخدمة المحدد.</span></button>
+                    </form>
+                <?php else: ?>
+                    <a class="admin-action-card" href="/admin/package-assign?username=<?= htmlspecialchars($u) ?>&amp;package_id=<?= $packageId ?>&amp;assign_mode=replace">
+                        <div class="admin-action-icon">⇄</div><div class="admin-action-title">مزامنة مع الراوتر</div><div class="admin-action-desc">تطبيق الباقة الحالية في User Manager.</div>
+                    </a>
+                <?php endif; ?>
+            <?php endif; ?>
+        </div>
+    </section>
+
+    <section class="admin-section-card">
+        <h2 class="admin-section-title">الحساب والراوتر</h2>
+        <div class="admin-action-grid">
+            <?php if ($packageFound && !$routerFound): ?>
                 <a class="admin-action-card" href="<?= $isNativeBackend ? '/admin/native-subscriber?username=' . htmlspecialchars($u) . '&amp;action=create' : '/admin/user-manager-user-create?username=' . htmlspecialchars($u) . '&amp;package_id=' . $packageId ?>">
                     <div class="admin-action-icon">＋</div><div class="admin-action-title">إنشاء حساب الشبكة</div>
-                    <div class="admin-action-desc">للمشترك الجديد غير الموجود في User Manager.</div>
+                    <div class="admin-action-desc">إنشاء الحساب على الراوتر وربطه بالباقة.</div>
                 </a>
             <?php endif; ?>
-            <a class="admin-action-card" href="<?= $isNativeBackend ? '/admin/native-subscriber?username=' . htmlspecialchars($u) . '&amp;action=disable' : '/admin/mikrotik-dry-run?username=' . htmlspecialchars($u) . '&amp;action=um_disable_user' ?>">
-                <div class="admin-action-icon">Ⅱ</div><div class="admin-action-title">تعليق الخدمة</div>
-                <div class="admin-action-desc">معاينة تعطيل الحساب ثم تنفيذه عبر بوابة الكتابة المحمية.</div>
-            </a>
-            <a class="admin-action-card" href="<?= $isNativeBackend ? '/admin/native-subscriber?username=' . htmlspecialchars($u) . '&amp;action=enable' : '/admin/mikrotik-dry-run?username=' . htmlspecialchars($u) . '&amp;action=um_enable_user' ?>">
-                <div class="admin-action-icon">▶</div><div class="admin-action-title">إعادة التفعيل</div>
-                <div class="admin-action-desc">معاينة إعادة تمكين الحساب بعد التجديد أو التسوية.</div>
-            </a>
-            <a class="admin-action-card" href="/admin/user-disconnect?username=<?= htmlspecialchars($u) ?>">
+            <?php if ($routerFound && $routerDisabled): ?>
+                <form method="post" action="<?= $isNativeBackend ? '/admin/customers/native-operation' : '/admin/customers/router-account' ?>">
+                    <input type="hidden" name="username" value="<?= htmlspecialchars($username) ?>"><input type="hidden" name="action" value="<?= $isNativeBackend ? 'enable' : 'um_enable_user' ?>">
+                    <button class="admin-action-card" type="submit"><span class="admin-action-icon">▶</span><span class="admin-action-title">تفعيل الحساب</span><span class="admin-action-desc">إعادة تمكين الحساب على الراوتر.</span></button>
+                </form>
+            <?php elseif ($routerFound): ?>
+                <form method="post" action="<?= $isNativeBackend ? '/admin/customers/native-operation' : '/admin/customers/router-account' ?>">
+                    <input type="hidden" name="username" value="<?= htmlspecialchars($username) ?>"><input type="hidden" name="action" value="<?= $isNativeBackend ? 'disable' : 'um_disable_user' ?>">
+                    <button class="admin-action-card" type="submit"><span class="admin-action-icon">Ⅱ</span><span class="admin-action-title">إيقاف الحساب</span><span class="admin-action-desc">إيقاف خدمة المشترك على الراوتر.</span></button>
+                </form>
+            <?php endif; ?>
+            <?php if ($activeSessions > 0 || (string) ($dashboard['connection_status'] ?? '') === 'online'): ?>
+                <a class="admin-action-card" href="/admin/user-disconnect?username=<?= htmlspecialchars($u) ?>">
                 <div class="admin-action-icon">⏏</div><div class="admin-action-title">فصل الجلسات</div>
                 <div class="admin-action-desc">فصل الجلسات النشطة فقط باستخدام معرّفاتها الحالية.</div>
-            </a>
-            <a class="admin-action-card" href="<?= $isNativeBackend ? '/admin/native-subscriber?username=' . htmlspecialchars($u) . '&amp;action=delete' : '/admin/user-manager-user-delete?username=' . htmlspecialchars($u) ?>">
-                <div class="admin-action-icon">×</div><div class="admin-action-title">حذف حساب الشبكة</div>
-                <div class="admin-action-desc">معاينة حذف حساب User Manager وارتباطاته قبل التنفيذ.</div>
+                </a>
+            <?php endif; ?>
+        </div>
+    </section>
+
+    <section class="admin-section-card">
+        <h2 class="admin-section-title">بيانات المشترك</h2>
+        <div class="admin-action-grid">
+            <a class="admin-action-card" href="/admin/customers/edit?username=<?= htmlspecialchars($u) ?>">
+                <div class="admin-action-icon">✎</div><div class="admin-action-title">تعديل البيانات</div>
+                <div class="admin-action-desc">الاسم والهاتف والراوتر ونظام الخدمة.</div>
             </a>
             <a class="admin-action-card" href="<?= $isNativeBackend ? '/admin/native-subscriber?username=' . htmlspecialchars($u) . '&amp;action=password' : '/admin/user-manager-password?username=' . htmlspecialchars($u) ?>">
-                <div class="admin-action-icon">●</div><div class="admin-action-title">تغيير كلمة مرور الشبكة</div>
-                <div class="admin-action-desc">تحديث كلمة مرور الحساب المحدد عبر مسار محمي.</div>
+                <div class="admin-action-icon">●</div><div class="admin-action-title">تغيير كلمة المرور</div>
+                <div class="admin-action-desc">تعيين كلمة مرور جديدة بواسطة المدير.</div>
             </a>
+            <a class="admin-action-card" href="/admin/customers/timeline?username=<?= htmlspecialchars($u) ?>">
+                <div class="admin-action-icon">◷</div><div class="admin-action-title">السجل</div>
+                <div class="admin-action-desc">الدفعات والتجديدات والملاحظات التشغيلية.</div>
+            </a>
+        </div>
+    </section>
+
+    <section class="admin-section-card">
+        <h2 class="admin-section-title">إجراءات متقدمة</h2>
+        <p class="admin-section-subtitle">تتطلب إجراءات الحذف تأكيداً واضحاً قبل التنفيذ.</p>
+        <div class="admin-action-grid">
+            <?php if ($routerFound): ?>
+                <?php if ($isNativeBackend): ?>
+                    <form method="post" action="/admin/customers/native-operation" onsubmit="return confirm('سيتم حذف حساب <?= htmlspecialchars($username) ?> من <?= htmlspecialchars((string) ($assignedRouter['name'] ?? 'الراوتر')) ?>. هل تريد المتابعة؟')">
+                        <input type="hidden" name="username" value="<?= htmlspecialchars($username) ?>"><input type="hidden" name="action" value="delete">
+                        <button class="admin-action-card" type="submit"><span class="admin-action-icon">×</span><span class="admin-action-title">حذف الحساب من الراوتر</span><span class="admin-action-desc">حذف الحساب الحالي بعد هذا التأكيد.</span></button>
+                    </form>
+                <?php else: ?>
+                    <a class="admin-action-card" href="/admin/user-manager-user-delete?username=<?= htmlspecialchars($u) ?>">
+                        <div class="admin-action-icon">×</div><div class="admin-action-title">حذف الحساب من الراوتر</div><div class="admin-action-desc">تأكيد حذف حساب User Manager وارتباطاته.</div>
+                    </a>
+                <?php endif; ?>
+            <?php endif; ?>
             <a class="admin-action-card" href="/admin/customers/delete?username=<?= htmlspecialchars($u) ?>">
-                <div class="admin-action-icon">⌫</div><div class="admin-action-title">حذف السجل المحلي</div>
-                <div class="admin-action-desc">خطوة منفصلة بعد تنظيف حساب الشبكة، مع صفحة تأكيد.</div>
+                <div class="admin-action-icon">⌫</div><div class="admin-action-title">حذف المشترك محلياً</div>
+                <div class="admin-action-desc">يحذف سجل GreenNet فقط بعد صفحة تأكيد.</div>
             </a>
         </div>
     </section>

@@ -86,7 +86,7 @@ class AdminUserManagerUserDeleteController
                 'can_execute_later' => !empty($plan['can_execute_later']),
             ]);
 
-            $this->flash('تم إنشاء Dry Run لحذف مستخدم User Manager. لم يتم تنفيذ أي Write.', 'success');
+            $this->flash('تم تحديد الحساب وارتباطاته. راجع تأكيد الحذف.', 'success');
         } catch (Throwable $e) {
             $_SESSION['um_user_delete_result'] = [
                 'ok' => false,
@@ -98,7 +98,7 @@ class AdminUserManagerUserDeleteController
                 'error' => $e->getMessage(),
             ]);
 
-            $this->flash('فشل Dry Run: ' . $e->getMessage(), 'warning');
+            $this->flash('تعذر تجهيز الحذف: ' . $e->getMessage(), 'warning');
         }
 
         header('Location: /admin/user-manager-user-delete');

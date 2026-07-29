@@ -263,7 +263,7 @@ $canExecute = $result !== null && !empty($result['can_execute_later']) && empty(
 </div>
 
 <section class="gn-disc-box">
-    <h3>Create Dry Run</h3>
+    <h3>فصل الاتصال</h3>
     <p>اختر المستخدم، وسيتم البحث عن أي جلسة نشطة له على MikroTik.</p>
 
     <?php if (empty($customers)): ?>
@@ -288,7 +288,7 @@ $canExecute = $result !== null && !empty($result['can_execute_later']) && empty(
                 </div>
 
                 <button class="gn-btn gn-btn-primary gn-btn-lg" type="submit">
-                    Disconnect Dry Run
+                    مراجعة الجلسات
                 </button>
             </div>
         </form>
@@ -297,7 +297,7 @@ $canExecute = $result !== null && !empty($result['can_execute_later']) && empty(
 
 <?php if ($result !== null): ?>
     <section class="gn-disc-box">
-        <h3>Dry Run Result</h3>
+        <h3>الجلسات المستهدفة</h3>
 
         <?php if (!empty($result['error'])): ?>
             <div class="gn-disc-alert"><?= gn_disc_h((string) $result['error']) ?></div>

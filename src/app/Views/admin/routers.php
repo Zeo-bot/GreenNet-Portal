@@ -30,8 +30,18 @@ $statusLabel = static fn (array $router): string => empty($router['enabled'])
                         <div class="admin-payment-user"><?= $h($router['name'] ?? '') ?> <?php if (!empty($router['is_default'])): ?><span class="admin-badge admin-badge-success">افتراضي</span><?php endif; ?></div>
                         <div style="direction:ltr;text-align:right;color:#6b7280;font-size:12px"><?= $h($router['host'] ?? '') ?>:<?= (int) ($router['api_port'] ?? 8728) ?></div>
                         <div style="color:#6b7280;font-size:12px"><?= $h($statusLabel($router)) ?> · <?= (int) ($router['customer_count'] ?? 0) ?> مشترك <?php if (($router['routeros_version'] ?? '') !== ''): ?>· RouterOS <?= $h($router['routeros_version']) ?><?php endif; ?></div>
+                        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:7px">
+                            <?php foreach (($router['selected_roles_list'] ?? []) as $role): ?>
+                                <span class="admin-badge"><?= $h(match ($role) { 'user-manager' => 'User Manager', 'native-hotspot' => 'Hotspot', 'native-pppoe' => 'PPPoE', 'container-host' => 'Container', default => 'إدارة' }) ?></span>
+                            <?php endforeach; ?>
+                            <?php $ready = (string) ($router['readiness']['status'] ?? 'setup_pending') === 'ready'; ?>
+                            <span class="admin-badge <?= $ready ? 'admin-badge-success' : 'admin-badge-warning' ?>"><?= $ready ? 'جاهز' : 'يحتاج تجهيز' ?></span>
+                        </div>
                     </div>
-                    <a class="admin-mini-btn" href="/admin/routers?id=<?= (int) ($router['id'] ?? 0) ?>">إدارة</a>
+                    <div style="display:flex;gap:6px;flex-wrap:wrap">
+                        <a class="admin-mini-btn" href="/admin/routers?id=<?= (int) ($router['id'] ?? 0) ?>">إدارة</a>
+                        <a class="admin-mini-btn" href="/admin/router-onboarding?id=<?= (int) ($router['id'] ?? 0) ?>">تجهيز</a>
+                    </div>
                 </div>
             <?php endforeach; ?>
         </div>

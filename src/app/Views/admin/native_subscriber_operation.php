@@ -16,7 +16,7 @@ $labels = [
 $h = static fn (mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
 ?>
 <div class="admin-page-header">
-    <div><h1 class="admin-page-title"><?= $h($labels[$action] ?? 'Native operation') ?></h1><p class="admin-page-description">معاينة وتنفيذ محمي لحساب RouterOS الأصلي.</p></div>
+    <div><h1 class="admin-page-title"><?= $h($labels[$action] ?? 'عملية الحساب') ?></h1><p class="admin-page-description">تنفيذ العملية على الحساب عبر الراوتر المعيّن للمشترك.</p></div>
     <a class="admin-mini-btn" href="/admin/customers/profile?username=<?= rawurlencode($username) ?>">العودة للمشترك</a>
 </div>
 <?php if (($message ?? '') !== ''): ?><div class="notice" style="<?= ($message_type ?? '') === 'warning' ? 'background:#fee2e2;color:#991b1b' : 'background:#ecfdf5;color:#166534' ?>"><?= $h($message) ?></div><?php endif; ?>
@@ -30,15 +30,15 @@ $h = static fn (mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, '
     <div class="admin-stat-card"><div class="admin-stat-label">الباقة</div><div class="admin-stat-value" style="font-size:17px"><?= $h($package['name'] ?? '-') ?></div></div>
 </div>
 <section class="admin-section-card">
-    <h2 class="admin-section-title">1. إنشاء معاينة</h2>
+    <h2 class="admin-section-title">1. فحص الجاهزية</h2>
     <form method="post" action="/admin/native-subscriber/preview">
         <input type="hidden" name="username" value="<?= $h($username) ?>"><input type="hidden" name="action" value="<?= $h($action) ?>">
-        <button class="gn-btn gn-btn-primary" type="submit">معاينة <?= $h($labels[$action] ?? '') ?></button>
+        <button class="gn-btn gn-btn-primary" type="submit">متابعة <?= $h($labels[$action] ?? '') ?></button>
     </form>
 </section>
 <?php if ($result): ?>
 <section class="admin-section-card">
-    <h2 class="admin-section-title">نتيجة المعاينة</h2>
+    <h2 class="admin-section-title">تفاصيل العملية</h2>
     <?php if (!empty($result['error'])): ?><div class="notice" style="background:#fee2e2;color:#991b1b"><?= $h($result['error']) ?></div><?php else: ?>
         <div class="admin-checklist">
             <div class="admin-check-item"><div><strong>الراوتر:</strong> <?= $h($result['router_name'] ?? '') ?></div></div>

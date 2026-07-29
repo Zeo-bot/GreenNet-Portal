@@ -276,7 +276,7 @@ $confirmWord = $mode === 'replace' ? 'REPLACE' : 'ASSIGN';
 </div>
 
 <section class="gn-assign-box">
-    <h3>Create Dry Run</h3>
+    <h3>تغيير الباقة على الراوتر</h3>
     <p>اختر مشتركاً وباقة. يجب أن تكون الباقة موجودة على MikroTik كـ Profile، يعني اعمل Push لها أولاً إذا كانت محلية فقط.</p>
 
     <?php if (empty($customers)): ?>
@@ -333,11 +333,11 @@ $confirmWord = $mode === 'replace' ? 'REPLACE' : 'ASSIGN';
 
             <div class="gn-assign-actions">
                 <button class="gn-btn gn-btn-primary gn-btn-lg" type="submit" name="assign_mode" value="add">
-                    Add Only Dry Run
+                    فحص الإضافة
                 </button>
 
                 <button class="gn-btn gn-btn-danger gn-btn-lg" type="submit" name="assign_mode" value="replace">
-                    Replace Package Dry Run
+                    فحص الاستبدال
                 </button>
             </div>
         </form>
@@ -346,7 +346,7 @@ $confirmWord = $mode === 'replace' ? 'REPLACE' : 'ASSIGN';
 
 <?php if ($result !== null): ?>
     <section class="gn-assign-box">
-        <h3>Dry Run Result</h3>
+        <h3>جاهزية تغيير الباقة</h3>
 
         <?php if (!empty($result['error'])): ?>
             <div class="gn-assign-alert"><?= gn_assign_h((string) $result['error']) ?></div>

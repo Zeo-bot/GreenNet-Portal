@@ -261,7 +261,7 @@ $canExecute = $result !== null && !empty($result['can_execute_later']) && empty(
 </div>
 
 <section class="gn-del-box">
-    <h3>Create Dry Run</h3>
+    <h3>حذف الحساب من الراوتر</h3>
     <p>اختر مستخدماً من GreenNet، وسيتم البحث عنه داخل MikroTik User Manager قبل تنفيذ الحذف.</p>
 
     <?php if (empty($customers)): ?>
@@ -286,7 +286,7 @@ $canExecute = $result !== null && !empty($result['can_execute_later']) && empty(
                 </div>
 
                 <button class="gn-btn gn-btn-danger gn-btn-lg" type="submit">
-                    Delete Dry Run
+                    مراجعة الحذف
                 </button>
             </div>
         </form>
@@ -295,7 +295,7 @@ $canExecute = $result !== null && !empty($result['can_execute_later']) && empty(
 
 <?php if ($result !== null): ?>
     <section class="gn-del-box">
-        <h3>Dry Run Result</h3>
+        <h3>تأكيد الحذف</h3>
 
         <?php if (!empty($result['error'])): ?>
             <div class="gn-del-alert"><?= gn_um_del_h((string) $result['error']) ?></div>

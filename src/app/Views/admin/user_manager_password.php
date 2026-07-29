@@ -258,7 +258,7 @@ $canExecute = $result !== null && !empty($result['can_execute_later']) && empty(
 </div>
 
 <section class="gn-pass-box">
-    <h3>Create Dry Run</h3>
+    <h3>تغيير كلمة المرور</h3>
     <p>اختر مشتركاً موجوداً داخل MikroTik User Manager. ستُدخل كلمة المرور الجديدة عند التنفيذ فقط.</p>
 
     <?php if (empty($customers)): ?>
@@ -283,7 +283,7 @@ $canExecute = $result !== null && !empty($result['can_execute_later']) && empty(
                 </div>
 
                 <button class="gn-btn gn-btn-primary gn-btn-lg" type="submit">
-                    Create Dry Run
+                    فحص الجاهزية
                 </button>
             </div>
         </form>
@@ -292,7 +292,7 @@ $canExecute = $result !== null && !empty($result['can_execute_later']) && empty(
 
 <?php if ($result !== null): ?>
     <section class="gn-pass-box">
-        <h3>Dry Run Result</h3>
+        <h3>جاهزية العملية</h3>
 
         <?php if (!empty($result['error'])): ?>
             <div class="gn-pass-alert"><?= gn_um_pass_h((string) $result['error']) ?></div>

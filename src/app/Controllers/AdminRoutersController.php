@@ -10,6 +10,7 @@ use GreenNet\Models\Router;
 use GreenNet\Models\RouterPackageProfile;
 use GreenNet\Models\ServicePackage;
 use GreenNet\Services\RouterOS\RouterOSApiClient;
+use GreenNet\Services\RouterOnboardingService;
 use RuntimeException;
 use Throwable;
 
@@ -24,9 +25,17 @@ final class AdminRoutersController
         $messageType = (string) ($_SESSION['routers_message_type'] ?? 'success');
         unset($_SESSION['routers_message'], $_SESSION['routers_message_type']);
 
+        $onboarding = new RouterOnboardingService();
+        $routers = Router::allWithCustomerCounts();
+        foreach ($routers as &$router) {
+            $router['readiness'] = $onboarding->readiness($router);
+            $router['selected_roles_list'] = $onboarding->roles($router);
+        }
+        unset($router);
+
         return View::render('admin/routers', [
             'title' => 'إدارة الراوترات',
-            'routers' => Router::allWithCustomerCounts(),
+            'routers' => $routers,
             'editing' => $id > 0 ? Router::find($id) : null,
             'packages' => ServicePackage::all(),
             'mappings' => $id > 0 ? RouterPackageProfile::forRouter($id) : [],

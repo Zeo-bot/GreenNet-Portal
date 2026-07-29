@@ -103,8 +103,8 @@ class AdminPackageAssignController
 
             $this->flash(
                 $mode === 'replace'
-                    ? 'تم إنشاء Dry Run لاستبدال الباقة. لم يتم تنفيذ أي Write.'
-                    : 'تم إنشاء Dry Run لتعيين الباقة. لم يتم تنفيذ أي Write.',
+                    ? 'تم فحص جاهزية استبدال الباقة. راجع التفاصيل ثم نفّذ.'
+                    : 'تم فحص جاهزية تعيين الباقة. راجع التفاصيل ثم نفّذ.',
                 'success'
             );
         } catch (Throwable $e) {
@@ -118,7 +118,7 @@ class AdminPackageAssignController
                 'error' => $e->getMessage(),
             ]);
 
-            $this->flash('فشل Dry Run: ' . $e->getMessage(), 'warning');
+            $this->flash('تعذر تجهيز تغيير الباقة: ' . $e->getMessage(), 'warning');
         }
 
         header('Location: /admin/package-assign');

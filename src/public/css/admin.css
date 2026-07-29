@@ -334,8 +334,16 @@ body {
     gap: 12px;
 }
 
+.admin-action-grid > form {
+    display: contents;
+}
+
 .admin-action-card {
     display: block;
+    width: 100%;
+    text-align: inherit;
+    font: inherit;
+    cursor: pointer;
     text-decoration: none;
     color: #111827;
     background: #f9fafb;

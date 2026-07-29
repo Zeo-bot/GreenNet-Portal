@@ -84,7 +84,7 @@ class AdminUserDisconnectController
                 'operations_count' => (int) ($plan['operations_count'] ?? 0),
             ]);
 
-            $this->flash('تم إنشاء Dry Run لفصل الجلسات النشطة. لم يتم تنفيذ أي Write.', 'success');
+            $this->flash('تم تحديد الجلسات النشطة. راجعها ثم نفّذ الفصل.', 'success');
         } catch (Throwable $e) {
             $_SESSION['user_disconnect_result'] = [
                 'ok' => false,
@@ -96,7 +96,7 @@ class AdminUserDisconnectController
                 'error' => $e->getMessage(),
             ]);
 
-            $this->flash('فشل Dry Run: ' . $e->getMessage(), 'warning');
+            $this->flash('تعذر تجهيز فصل الاتصال: ' . $e->getMessage(), 'warning');
         }
 
         header('Location: /admin/user-disconnect');

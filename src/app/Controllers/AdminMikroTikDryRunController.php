@@ -23,6 +23,8 @@ use Throwable;
 
 class AdminMikroTikDryRunController
 {
+    private ?string $customerRedirect = null;
+
     public function __construct(
         private ?RouterOSReadGatewayInterface $readGateway = null,
         private ?GuardedRouterOSWriteGatewayInterface $writeGateway = null
@@ -353,6 +355,44 @@ class AdminMikroTikDryRunController
         $this->redirectAfterSetDisabled();
     }
 
+    public function customerAction(): void
+    {
+        Database::migrate();
+        $this->requireLogin();
+
+        $username = trim((string) ($_POST['username'] ?? ''));
+        $action = trim((string) ($_POST['action'] ?? ''));
+        $this->customerRedirect = '/admin/customers/profile?username=' . rawurlencode($username);
+
+        try {
+            if ($username === '' || !in_array($action, ['um_disable_user', 'um_enable_user'], true)) {
+                throw new RuntimeException('عملية المشترك غير صحيحة.');
+            }
+
+            $this->validateUsername($username);
+            $desiredDisabled = $action === 'um_disable_user';
+            $plan = $this->buildSetDisabledPlan($username, $desiredDisabled);
+            $guard = new WriteSafetyGuard();
+            $guard->ensureTables();
+            $guard->assertDryRunAllowed();
+            $plan['audit_id'] = $guard->recordDryRun([
+                'action' => $action,
+                'dataset' => (string) ($plan['dataset'] ?? 'user_manager_user'),
+                'username' => $username,
+                'command' => (string) ($plan['command'] ?? '/user-manager/user/set'),
+                'params' => $plan,
+                'router_response' => $this->auditResponseFromPlan($plan),
+            ]);
+            $_SESSION['mikrotik_dry_run_result'] = $plan;
+            $_POST['confirm_execute'] = $desiredDisabled ? 'DISABLE' : 'ENABLE';
+            $this->executeSetDisabled($username);
+        } catch (Throwable $e) {
+            $this->flash('تعذر تنفيذ العملية: ' . $e->getMessage(), 'warning');
+            header('Location: ' . $this->customerRedirect);
+            exit;
+        }
+    }
+
     private function storeSetDisabledResult(
         array &$afterPlan,
         string $command,
@@ -383,7 +423,7 @@ class AdminMikroTikDryRunController
 
     protected function redirectAfterSetDisabled(): void
     {
-        header('Location: /admin/mikrotik-dry-run');
+        header('Location: ' . ($this->customerRedirect ?? '/admin/mikrotik-dry-run'));
         exit;
     }
 

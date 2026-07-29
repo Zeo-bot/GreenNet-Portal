@@ -262,7 +262,7 @@ $canExecute = $result !== null && !empty($result['can_execute_later']) && empty(
 </div>
 
 <section class="gn-um-create-box">
-    <h3>Create Dry Run</h3>
+    <h3>إنشاء الحساب على الراوتر</h3>
     <p>اختر مشتركاً وباقة. ستُدخل كلمة مرور User Manager عند التنفيذ النهائي فقط.</p>
 
     <?php if (empty($customers)): ?>
@@ -319,7 +319,7 @@ $canExecute = $result !== null && !empty($result['can_execute_later']) && empty(
             </div>
 
             <button class="gn-btn gn-btn-primary gn-btn-lg" type="submit" style="margin-top:14px;">
-                Create Dry Run
+                فحص الجاهزية
             </button>
         </form>
     <?php endif; ?>
@@ -327,7 +327,7 @@ $canExecute = $result !== null && !empty($result['can_execute_later']) && empty(
 
 <?php if ($result !== null): ?>
     <section class="gn-um-create-box">
-        <h3>Dry Run Result</h3>
+        <h3>جاهزية العملية</h3>
 
         <?php if (!empty($result['error'])): ?>
             <div class="gn-um-create-alert"><?= gn_um_create_h((string) $result['error']) ?></div>

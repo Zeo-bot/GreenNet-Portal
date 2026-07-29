@@ -84,7 +84,7 @@ class AdminUserManagerPasswordController
                 'can_execute_later' => !empty($plan['can_execute_later']),
             ]);
 
-            $this->flash('تم إنشاء Dry Run لتغيير كلمة المرور. لم يتم تنفيذ أي Write.', 'success');
+            $this->flash('تم فحص الجاهزية. أدخل كلمة المرور الجديدة للمتابعة.', 'success');
         } catch (Throwable $e) {
             $_SESSION['um_password_result'] = [
                 'ok' => false,
@@ -96,7 +96,7 @@ class AdminUserManagerPasswordController
                 'error' => $e->getMessage(),
             ]);
 
-            $this->flash('فشل Dry Run: ' . $e->getMessage(), 'warning');
+            $this->flash('تعذر تجهيز العملية: ' . $e->getMessage(), 'warning');
         }
 
         header('Location: /admin/user-manager-password');

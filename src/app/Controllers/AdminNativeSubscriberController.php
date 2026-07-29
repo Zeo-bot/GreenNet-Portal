@@ -22,6 +22,8 @@ use Throwable;
 
 final class AdminNativeSubscriberController
 {
+    private ?string $customerRedirect = null;
+
     public function index(): string
     {
         Database::migrate();
@@ -173,6 +175,39 @@ final class AdminNativeSubscriberController
         $this->redirect($username, $action);
     }
 
+    public function customerAction(): void
+    {
+        Database::migrate();
+        $this->requireLogin();
+        $username = trim((string) ($_POST['username'] ?? ''));
+        $action = $this->action((string) ($_POST['action'] ?? ''));
+        $this->customerRedirect = '/admin/customers/profile?username=' . rawurlencode($username);
+
+        try {
+            if (!in_array($action, ['package', 'disable', 'enable', 'delete'], true)) {
+                throw new RuntimeException('هذه العملية تحتاج إدخال بيانات إضافية.');
+            }
+            $plan = $this->buildPlan($username, $action);
+            $guard = new WriteSafetyGuard();
+            $guard->ensureTables();
+            $guard->assertDryRunAllowed();
+            $plan['audit_id'] = $guard->recordDryRun([
+                'action' => 'native_' . $action,
+                'dataset' => (string) $plan['backend'],
+                'username' => $username,
+                'command' => (string) $plan['command'],
+                'params' => $plan,
+                'router_response' => 'Internal production preflight completed.',
+            ]);
+            $_SESSION['native_subscriber_result'] = $plan;
+            $_POST['confirm'] = strtoupper($action);
+            $this->execute();
+        } catch (Throwable $e) {
+            $this->flash('تعذر تنفيذ العملية: ' . $e->getMessage(), 'warning');
+            $this->redirect($username, $action);
+        }
+    }
+
     private function buildPlan(string $username, string $action): array
     {
         $customer = CustomerLocal::findByUsername($username);
@@ -312,7 +347,8 @@ final class AdminNativeSubscriberController
 
     private function redirect(string $username, string $action): never
     {
-        header('Location: /admin/native-subscriber?username=' . rawurlencode($username) . '&action=' . rawurlencode($action));
+        header('Location: ' . ($this->customerRedirect
+            ?? '/admin/native-subscriber?username=' . rawurlencode($username) . '&action=' . rawurlencode($action)));
         exit;
     }
 

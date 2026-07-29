@@ -257,9 +257,17 @@ $stmt = gn_ct_pdo()->prepare("
         p.duration_days AS package_duration_days,
         p.quota_gb AS package_quota_gb,
         p.price AS package_price,
-        p.currency AS package_currency
+        p.currency AS package_currency,
+        r.name AS router_name,
+        (
+            SELECT pay.expires_at FROM payments pay
+            WHERE lower(pay.username) = lower(c.username)
+              AND pay.status = 'paid' AND pay.package_id > 0
+            ORDER BY pay.paid_at DESC, pay.id DESC LIMIT 1
+        ) AS subscription_expires_at
     FROM customers_local c
     LEFT JOIN service_packages p ON p.id = c.package_id
+    LEFT JOIN routers r ON r.id = c.router_id
     WHERE " . implode(' AND ', $where) . "
     ORDER BY {$orderBy}
     LIMIT 500
@@ -740,15 +748,14 @@ $hybrid = (int) gn_ct_pdo()->query("SELECT COUNT(*) FROM customers_local WHERE L
 
         <div class="admin-header-actions">
             <a class="gn-btn gn-btn-primary gn-btn-sm" href="/admin/customers">إضافة مشترك</a>
-            <a class="gn-btn gn-btn-secondary gn-btn-sm" href="/admin/customers/password">كلمات المرور</a>
             <a class="gn-btn gn-btn-secondary gn-btn-sm" href="/admin/packages">الباقات</a>
         </div>
     </div>
 
     <section class="gn-ct-hero">
-        <h1>إدارة المشتركين من مكان واحد</h1>
+        <h1>المشتركون</h1>
         <p>
-            هذه الصفحة تعرض بيانات GreenNet المحلية فقط. أي تغيير حقيقي داخل MikroTik سيأتي لاحقاً عبر Dry Run وطبقة الأمان.
+            نقطة الدخول اليومية لإدارة الاشتراك والحساب والراوتر، مع إبقاء معاينة تطبيق المشترك كإجراء منفصل.
         </p>
 
         <div class="gn-ct-hero-actions">
@@ -884,6 +891,23 @@ $hybrid = (int) gn_ct_pdo()->query("SELECT COUNT(*) FROM customers_local WHERE L
                     $access = (string) ($customer['access_type'] ?? 'hybrid');
                     $packageName = (string) ($customer['package_name'] ?? '');
                     $rateLimit = (string) ($customer['package_rate_limit'] ?? '');
+                    $routerName = (string) ($customer['router_name'] ?? '');
+                    $backend = (string) ($customer['service_backend'] ?? 'user-manager');
+                    $serviceStatus = strtolower((string) ($customer['service_status'] ?? 'active'));
+                    $expiresAt = (string) ($customer['subscription_expires_at'] ?? '');
+                    $expiryTimestamp = $expiresAt !== '' ? strtotime($expiresAt) : false;
+                    $daysRemaining = $expiryTimestamp === false ? null : (int) floor(($expiryTimestamp - time()) / 86400);
+                    $subscriptionLabel = match (true) {
+                        in_array($serviceStatus, ['suspended', 'disabled'], true) => 'موقوف',
+                        $expiryTimestamp !== false && $expiryTimestamp < time() => 'منتهي',
+                        $expiryTimestamp !== false => 'نشط',
+                        default => 'غير مفعّل',
+                    };
+                    $subscriptionClass = match ($subscriptionLabel) {
+                        'نشط' => 'is-success',
+                        'منتهي', 'موقوف' => 'is-danger',
+                        default => 'is-muted',
+                    };
                     $updatedAt = gn_ct_format_date((string) ($customer['updated_at'] ?? ''));
                     $createdAt = gn_ct_format_date((string) ($customer['created_at'] ?? ''));
                     $notes = (string) ($customer['notes'] ?? '');
@@ -904,7 +928,10 @@ $hybrid = (int) gn_ct_pdo()->query("SELECT COUNT(*) FROM customers_local WHERE L
                                 </span>
 
                                 <span class="gn-ct-badge <?= gn_ct_h(gn_ct_access_class($access)) ?>">
-                                    <?= gn_ct_h(gn_ct_access_label($access)) ?>
+                                    <?= gn_ct_h(match ($backend) { 'native-hotspot' => 'Hotspot', 'native-pppoe' => 'PPPoE', default => 'User Manager' }) ?>
+                                </span>
+                                <span class="gn-ct-badge <?= gn_ct_h($subscriptionClass) ?>">
+                                    <?= gn_ct_h($subscriptionLabel) ?>
                                 </span>
                             </div>
                         </div>
@@ -926,18 +953,18 @@ $hybrid = (int) gn_ct_pdo()->query("SELECT COUNT(*) FROM customers_local WHERE L
                             </div>
 
                             <div class="gn-ct-info">
-                                <span class="gn-ct-info-label">آخر تحديث</span>
-                                <span class="gn-ct-info-value gn-ct-code"><?= gn_ct_h($updatedAt) ?></span>
+                                <span class="gn-ct-info-label">الراوتر</span>
+                                <span class="gn-ct-info-value"><?= gn_ct_h($routerName !== '' ? $routerName : 'غير معيّن') ?></span>
                             </div>
 
                             <div class="gn-ct-info">
-                                <span class="gn-ct-info-label">تاريخ الإضافة</span>
-                                <span class="gn-ct-info-value gn-ct-code"><?= gn_ct_h($createdAt) ?></span>
+                                <span class="gn-ct-info-label">انتهاء الاشتراك</span>
+                                <span class="gn-ct-info-value gn-ct-code"><?= gn_ct_h($expiresAt !== '' ? gn_ct_format_date($expiresAt) : '-') ?></span>
                             </div>
 
                             <div class="gn-ct-info">
-                                <span class="gn-ct-info-label">الحالة المحلية</span>
-                                <span class="gn-ct-info-value">CRM Local</span>
+                                <span class="gn-ct-info-label">المتبقي</span>
+                                <span class="gn-ct-info-value"><?= $daysRemaining === null ? '-' : gn_ct_h($daysRemaining >= 0 ? $daysRemaining . ' يوم' : 'منتهي') ?></span>
                             </div>
                         </div>
 
@@ -950,25 +977,8 @@ $hybrid = (int) gn_ct_pdo()->query("SELECT COUNT(*) FROM customers_local WHERE L
 
                     <aside class="gn-ct-side">
                         <div class="gn-ct-actions">
-                            <a class="gn-btn gn-btn-secondary gn-btn-sm" href="/admin/customers?edit=<?= rawurlencode($username) ?>#customer-form">تعديل</a>
-                            <a class="gn-btn gn-btn-secondary gn-btn-sm" href="/admin/customers/timeline?username=<?= rawurlencode($username) ?>">Timeline</a>
-                            <a class="gn-btn gn-btn-secondary gn-btn-sm" href="/admin/customers/password?username=<?= rawurlencode($username) ?>">كلمة مرور</a>
-                            <a class="gn-btn gn-btn-secondary gn-btn-sm" href="/admin/global-search?q=<?= rawurlencode($username) ?>">بحث</a>
-                            <a class="gn-btn gn-btn-secondary gn-btn-sm" href="/my/package?username=<?= rawurlencode($username) ?>" target="_blank">معاينة</a>
-
-                            <form
-                                class="gn-ct-inline-form"
-                                method="post"
-                                action="/admin/customers"
-                                data-gn-form-wrapped="1"
-                                data-gn-form-enhanced="1"
-                                data-gn-fields-grouped="1"
-                                onsubmit="return confirm('هل تريد حذف هذا المشترك محلياً؟');"
-                            >
-                                <input type="hidden" name="gn_customer_action" value="delete">
-                                <input type="hidden" name="username" value="<?= gn_ct_h($username) ?>">
-                                <button class="gn-btn gn-btn-danger gn-btn-sm gn-ct-danger-action" type="submit">حذف محلي</button>
-                            </form>
+                            <a class="gn-btn gn-btn-primary gn-btn-sm" href="/admin/customers/profile?username=<?= rawurlencode($username) ?>">إدارة المشترك</a>
+                            <a class="gn-btn gn-btn-secondary gn-btn-sm" href="/dashboard?username=<?= rawurlencode($username) ?>" target="_blank">معاينة التطبيق</a>
                         </div>
                     </aside>
                 </article>

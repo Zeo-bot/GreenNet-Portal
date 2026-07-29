@@ -333,8 +333,9 @@ if ($activeFilter === 'active') {
 }
 
 $stmt = gn_pkg_pdo()->prepare("
-    SELECT *
-    FROM service_packages
+    SELECT sp.*,
+           (SELECT COUNT(*) FROM customers_local c WHERE c.package_id = sp.id) AS subscriber_count
+    FROM service_packages sp
     WHERE " . implode(' AND ', $where) . "
     ORDER BY COALESCE(is_active, 0) DESC, id DESC
 ");
@@ -1034,6 +1035,7 @@ $formData = [
                             $currency = (string) ($package['currency'] ?? 'SYP');
                             $isActive = gn_pkg_bool($package['is_active'] ?? 0);
                             $notes = (string) ($package['notes'] ?? '');
+                            $subscriberCount = (int) ($package['subscriber_count'] ?? 0);
                             $itemClass = $isActive ? '' : 'is-inactive';
                         ?>
 
@@ -1077,6 +1079,9 @@ $formData = [
                                     <span class="gn-pkg-badge is-success">
                                         <?= gn_pkg_h(gn_pkg_money($price, $currency)) ?>
                                     </span>
+                                    <span class="gn-pkg-badge is-muted">
+                                        <?= $subscriberCount ?> مشترك
+                                    </span>
                                 </div>
 
                                 <div class="gn-pkg-item-actions">
@@ -1099,8 +1104,8 @@ $formData = [
                                         </button>
                                     </form>
 
-                                    <a class="gn-btn gn-btn-secondary gn-btn-sm" href="/admin/global-search?q=<?= rawurlencode($name) ?>">
-                                        بحث عن مستخدمي الباقة
+                                    <a class="gn-btn gn-btn-secondary gn-btn-sm" href="/admin/routers">
+                                        تجهيز على الراوترات
                                     </a>
 
                                     <form

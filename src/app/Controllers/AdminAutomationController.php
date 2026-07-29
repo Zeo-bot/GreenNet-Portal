@@ -16,11 +16,16 @@ final class AdminAutomationController
         Database::migrate();
         $this->requireLogin();
         $engine = new AutomationEngine();
+        $health = $engine->health();
+        $health['pending_retries'] = (int) Database::connection()
+            ->query("SELECT COUNT(*) FROM automation_retries WHERE next_retry_at IS NOT NULL")
+            ->fetchColumn();
         return View::render('admin/automation', [
-            'title' => 'Scheduled Operations',
+            'title' => 'الأتمتة',
             'registry' => $engine->registry(),
             'history' => $engine->history(),
             'enabled' => $engine->enabled(),
+            'health' => $health,
             'message' => $this->consume(),
         ]);
     }
