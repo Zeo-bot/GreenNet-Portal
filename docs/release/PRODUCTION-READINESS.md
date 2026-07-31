@@ -31,7 +31,7 @@ The pre-audit Traditional package mixed device-generic defaults (`disk1/greennet
 The package now includes `SHA256SUMS.txt`. This correction changes deployment artifacts only; it does not change application or RouterOS behavior and was not applied to hardware.
 
 - Traditional ZIP SHA-256: `060f1651a169b87d4e9b9d410d0c1cb16e7fc37154a58de10244527f7646f680`
-- Apps ZIP SHA-256: `12b418764d7232a79338f6ffba0032b7450575b9bbf4b46c7d9e602ecb075e1f`
+- Apps ZIP SHA-256: `f0fb2b173932794cdea1eab1c0dcb15b24bb44980690fc84e6014b30ff5023b5`
 - ARM64 TAR SHA-256: `e79e12e6a88c9213d7f480a14cb0fec063faf0ff643aa8b61093822a1c05cff3`
 - Local image: `linux/arm64`, ID `sha256:a15090ac93562a8ff21adbe733c67e3a5a2b3e4a4e1b546cd0693c22212a2e44`, size 40,835,727 bytes
 
