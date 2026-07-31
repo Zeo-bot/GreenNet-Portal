@@ -1,7 +1,7 @@
-# GreenNet v1.0.0 RC1 — hAP ax3 Field Deployment Runbook
+# GreenNet v1.0.0 RC2 — hAP ax3 Field Deployment Runbook
 
 Target: dedicated laboratory MikroTik hAP ax3, RouterOS 7.23.1, arm64.
-Release image: `ghcr.io/zeo-bot/greennet-portal-mikrotik:1.0.0-rc1` or the matching traditional ARM64 TAR.
+Release image: `ghcr.io/zeo-bot/greennet-portal-mikrotik:1.0.0-rc2` or the matching traditional ARM64 TAR.
 
 This runbook defines the expected operator order. It does not authorize automation against the router. Choose exactly one installation method.
 
@@ -32,7 +32,7 @@ This runbook defines the expected operator order. It does not authorize automati
 
 ### Traditional Container path
 
-1. Upload the ARM64 TAR to `usb1/greennet/greennet-v1.0.0-rc1-arm64.tar`.
+1. Upload the ARM64 TAR to `usb1/greennet/greennet-v1.0.0-rc2-arm64.tar`.
 2. Upload the reviewed `bootstrap.rsc`.
 3. Import `bootstrap.rsc` exactly once.
 4. Verify the dedicated bridge, `172.31.255.1/30` gateway address, veth `172.31.255.2/30`, mount/env lists, and container record.

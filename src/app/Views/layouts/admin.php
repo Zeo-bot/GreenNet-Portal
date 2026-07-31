@@ -206,7 +206,7 @@ $navGroups = [
     <link rel="stylesheet" href="/css/admin-dry-run.css?v=ui7pack">
     <link rel="stylesheet" href="/css/admin-pages.css?v=ui8pack">
     <link rel="stylesheet" href="/css/admin-theme-final.css?v=themefinal1">
-    <link rel="stylesheet" href="/css/product-experience.css?v=rc1">
+    <link rel="stylesheet" href="/css/product-experience.css?v=rc2">
 </head>
 
 <body class="gn-admin-body <?= gn_admin_h($bodyDirClass) ?>" data-admin-lang="<?= gn_admin_h($lang) ?>" data-admin-theme="greennet-light">
@@ -281,7 +281,7 @@ $navGroups = [
     </div>
 
     <script src="/js/admin-theme.js?v=themefinal1"></script>
-    <script src="/js/product-language.js?v=rc1"></script>
+    <script src="/js/product-language.js?v=rc2"></script>
     <script src="/js/admin-buttons.js?v=ui3"></script>
     <script src="/js/admin-layout.js?v=ui4"></script>
     <script src="/js/admin-tables.js?v=ui5pack"></script>

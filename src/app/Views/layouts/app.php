@@ -43,7 +43,7 @@ $usernameQuery = $username !== '' ? '?username=' . rawurlencode($username) : '';
 
     <meta name="theme-color" content="#11945a">
     <link rel="manifest" href="/manifest.webmanifest">
-    <link rel="stylesheet" href="/css/product-experience.css?v=rc1">
+    <link rel="stylesheet" href="/css/product-experience.css?v=rc2">
 
     <?php if ($isAdminLogin): ?>
         <style>
@@ -499,7 +499,7 @@ $usernameQuery = $username !== '' ? '?username=' . rawurlencode($username) : '';
                 <?= $content ?? '' ?>
             </main>
         </div>
-        <script src="/js/product-language.js?v=rc1"></script>
+        <script src="/js/product-language.js?v=rc2"></script>
     </body>
 <?php else: ?>
     <body class="gn-subscriber-body">
@@ -526,7 +526,7 @@ $usernameQuery = $username !== '' ? '?username=' . rawurlencode($username) : '';
         </main>
 
         <script src="/js/subscriber-ui.js?v=ui9pack"></script>
-        <script src="/js/product-language.js?v=rc1"></script>
+        <script src="/js/product-language.js?v=rc2"></script>
         <script src="/js/pwa.js?v=stage2"></script>
     </body>
 <?php endif; ?>

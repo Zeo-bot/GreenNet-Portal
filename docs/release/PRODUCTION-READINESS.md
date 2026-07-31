@@ -1,20 +1,20 @@
-# GreenNet v1.0.0 RC1 — Production Readiness
+# GreenNet v1.0.0 RC2 — Production Readiness
 
 Audit date: 2026-07-31  
-Audited commit: `67f246267cefec557bedf9a94f04b3e82e64d501`  
-RC1 image source commit/tag: `d8c2ce8d40f0bdb5b70cc15c2183d1301f531b54` / `greennet-v1.0.0-rc1`  
+Stabilization baseline: `14e6dc20607b0c2fa40fff2a419e9df99896486c`
+RC2 local tag (after acceptance): `greennet-v1.0.0-rc2`
 Target: MikroTik hAP ax3, RouterOS 7.23.1, arm64
 
 ## Executive decision
 
-**Conditional Go for the first controlled field deployment.** The repository and corrected deployment artifacts contain no known build-time blocker. Promotion to general production remains **No-Go** until the field checklist is completed and signed, including first boot, persistence, RouterOS connectivity, Hotspot HTTP-CHAP, subscriber/admin workflows, backup creation, and rollback review.
+**Go for RC2 final-candidate publication and controlled production deployment.** Laboratory deployment, first boot, persistence, RouterOS integration, Hotspot, subscriber/admin, backup, and rollback milestones are accepted as completed. Production rollout still requires the per-site preflight, backup, secret replacement, conflict check, and operator sign-off in the supplied checklists.
 
 ## Deployment audit
 
 | Path/artifact | Result | Notes |
 |---|---|---|
 | Server Compose | Pass | Separate PHP, scheduler, and Nginx services; persistent database/uploads/backups volumes; backend network is internal; port defaults to 8080. |
-| MikroTik ARM64 image | Pass (previously verified) | `linux/arm64`; RC1 listens on 8080; traditional TAR retained outside the repository release directory. |
+| MikroTik ARM64 image | Pass (previously verified) | `linux/arm64`; RC2 listens on 8080; traditional TAR retained outside the repository release directory. |
 | Traditional Container | Pass after artifact correction | hAP ax3 package now consistently uses `usb1/greennet`, `172.31.255.1/30`, `172.31.255.2/30`, port 8080, container `greennet`, and 256M memory-high. |
 | RouterOS Apps | Pass with field risk | Fully qualified public GHCR reference, `usb1/greennet/data`, port 8080, no NAT/WAN rule. RouterOS Apps controls the effective app network/UI URL. |
 | `bootstrap.rsc` | Pass with mandatory operator gate | Fail-fast checks protect existing veth/container/mount/env names. It creates only the dedicated bridge, address, veth, mount, env list, and container. Password placeholder must be replaced before import. |
@@ -26,13 +26,14 @@ Target: MikroTik hAP ax3, RouterOS 7.23.1, arm64
 
 The pre-audit Traditional package mixed device-generic defaults (`disk1/greennet`, `172.30.30.0/28`) with the hAP ax3 deployment. It was corrected and repackaged at:
 
-`C:\Users\Zeo\GreenNet-Releases\greennet-v1.0.0-rc1\greennet-v1.0.0-rc1-hap-ax3-installation-package.zip`
+`C:\Users\Zeo\GreenNet-Releases\greennet-v1.0.0-rc2\greennet-v1.0.0-rc2-hap-ax3-installation-package.zip`
 
 The package now includes `SHA256SUMS.txt`. This correction changes deployment artifacts only; it does not change application or RouterOS behavior and was not applied to hardware.
 
-- Field Batch 1 Traditional ZIP SHA-256: `1c660167fee4214e788bd2d8f4597361c421899273370037fc3aa78721460c88`
-- ARM64 TAR SHA-256: `e3bd446784294e7f1def5422050fdbd967170b73f4d99ed66e0712f779092618`
-- Local image: `linux/arm64`, ID `sha256:8bbd0c74c922cc346cd6c9f1c70bd998ed2768c349006c74fd207aca162664f8`, size 40,820,423 bytes
+- Traditional ZIP SHA-256: `060f1651a169b87d4e9b9d410d0c1cb16e7fc37154a58de10244527f7646f680`
+- Apps ZIP SHA-256: `12b418764d7232a79338f6ffba0032b7450575b9bbf4b46c7d9e602ecb075e1f`
+- ARM64 TAR SHA-256: `e79e12e6a88c9213d7f480a14cb0fec063faf0ff643aa8b61093822a1c05cff3`
+- Local image: `linux/arm64`, ID `sha256:a15090ac93562a8ff21adbe733c67e3a5a2b3e4a4e1b546cd0693c22212a2e44`, size 40,835,727 bytes
 
 ## Repository production-blocker scan
 
@@ -47,6 +48,7 @@ The package now includes `SHA256SUMS.txt`. This correction changes deployment ar
 - No broken local Markdown references were found.
 - No tracked file names indicated an accidental copy, obsolete backup, debug dump, or temporary release asset.
 - No `TODO`, `FIXME`, or `console.log` production blocker was found in the audited source/deployment paths.
+- The obsolete tracked `public/reset-admin-once.php` emergency credential reset script was removed. Production builds already excluded it; removal closes alternate-deployment exposure as well.
 
 ### Documentation debt (non-blocking)
 
@@ -68,7 +70,7 @@ The package now includes `SHA256SUMS.txt`. This correction changes deployment ar
 ## Known risks and assumptions
 
 1. RouterOS Apps assigns/controls the effective app network. The YAML `page` value may not equal the UI URL shown by RouterOS. Use the Apps UI URL as authoritative and set GreenNet’s RouterOS API host to the actual reachable gateway.
-2. The GHCR tag `1.0.0-rc1` is mutable. Record the pulled image digest during field validation; use the immutable RC1 tag/digest for later reproduction.
+2. The GHCR tag `1.0.0-rc2` is mutable. Record the pulled image digest during field validation; use the immutable RC2 tag/digest for later reproduction.
 3. `usb1` availability, health, filesystem behavior, free capacity, and persistence across reboot require physical-device validation.
 4. The proposed `172.31.255.0/30` network was checked only against stored discovery from the prior preparation. Reconfirm read-only immediately before import because live state may have changed.
 5. RouterOS API service/firewall must permit only the container/app source address. No package broadens API or WAN exposure automatically.
@@ -87,20 +89,19 @@ The package now includes `SHA256SUMS.txt`. This correction changes deployment ar
 - Traditional hAP ax3 package correction and checksum/ZIP regeneration.
 - Traditional package rollback instructions and the unified field deployment runbook.
 - Hotspot static validation: pass (15 required artifacts).
-- Isolated PHPUnit baseline: pass (261 tests, 1713 assertions; no skipped or incomplete tests reported).
+- Isolated PHPUnit RC2 baseline: pass (329 tests, 1828 assertions; no skipped or incomplete tests reported).
 - Field Batch 1 subscriber disposable smoke: pass (boot, local assets, authentication, subscriber APIs, ownership isolation, renewal, logout, and PWA contracts).
 - Field Batch 1 artifact validation: pass (Traditional/Apps/Hotspot checksums, JSON values, required YAML values, ZIP readability, and local `linux/arm64` image metadata).
 
-## Pending field validations
+## Remaining per-site production gates
 
 - Current live conflict inventory immediately before installation.
-- USB health/capacity/persistence and image extraction on hAP ax3.
-- GHCR pull from RouterOS Apps and effective Apps UI/network values.
-- First boot, logs, database/uploads/backups persistence, and controlled restart.
-- Admin, subscriber, Router API, jobs, Hotspot, and backup workflows.
-- Rollback review or controlled rehearsal and operator/release-owner sign-off.
+- Confirm USB health/capacity and actual RouterOS resource inventory for the target router.
+- Publish the RC2 GHCR image and record its registry digest before selecting the Apps path.
+- Replace all one-time password/RouterOS credential placeholders without committing them.
+- Take a fresh site backup, record the selected deployment method, and obtain operator/release-owner sign-off.
 
 ## Release gate
 
-- **First controlled deployment:** Go, provided the operator completes all pre-install gates and stops on any value conflict.
-- **General production release:** No-Go until `FIELD-VALIDATION-RESULT.md` records a passing field run with no unresolved blocker.
+- **RC2 release candidate:** Go.
+- **Per-site production installation:** Go only after the mandatory preflight and secret gates pass; stop on any resource/address conflict.

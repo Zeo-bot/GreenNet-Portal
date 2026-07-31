@@ -1,4 +1,4 @@
-const GREENNET_CACHE = 'greennet-static-v1-rc1';
+const GREENNET_CACHE = 'greennet-static-v1-rc2';
 
 const STATIC_ASSETS = [
     '/offline.html',

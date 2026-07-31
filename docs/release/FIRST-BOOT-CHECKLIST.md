@@ -1,4 +1,4 @@
-# GreenNet v1.0.0 RC1 — First Boot Checklist
+# GreenNet v1.0.0 RC2 — First Boot Checklist
 
 Record evidence in `FIELD-VALIDATION-RESULT.md`. Do not enable WAN exposure or change existing RouterOS services during these checks.
 

@@ -1,4 +1,4 @@
-# قائمة التحقق الميداني لإصدار GreenNet v1.0.0 RC1
+# قائمة التحقق الميداني لإصدار GreenNet v1.0.0 RC2
 
 > النطاق: MikroTik hAP ax3، RouterOS 7.23.1، معمارية arm64.  
 > لا تنفّذ أي خطوة قبل أخذ نسخة احتياطية من الراوتر ومراجعة القيم الفعلية. نفّذ مسار تثبيت واحدًا فقط: **Traditional Container** أو **RouterOS Apps**.
@@ -26,8 +26,8 @@
 - [ ] SHA-256 للصورة المحلية مطابق للقيمة المعتمدة.
 - [ ] الصورة `linux/arm64`.
 - [ ] الاستماع الداخلي للتطبيق على المنفذ `8080`.
-- [ ] مسار Traditional: نُسخت الصورة إلى `usb1/greennet/greennet-v1.0.0-rc1-arm64.tar`.
-- [ ] مسار Apps: المرجع هو `ghcr.io/zeo-bot/greennet-portal-mikrotik:1.0.0-rc1` والحزمة Public.
+- [ ] مسار Traditional: نُسخت الصورة إلى `usb1/greennet/greennet-v1.0.0-rc2-arm64.tar`.
+- [ ] مسار Apps: المرجع هو `ghcr.io/zeo-bot/greennet-portal-mikrotik:1.0.0-rc2` والحزمة Public.
 - [ ] تم اختيار شبكة داخلية للتطبيق في RouterOS Apps، ولم تتم إضافة WAN/NAT تلقائيًا.
 
 ## 4. نشر الصورة

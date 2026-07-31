@@ -1,4 +1,4 @@
-# GreenNet v1.0.0 RC1 — Field Validation Result
+# GreenNet v1.0.0 RC2 — Field Validation Result
 
 ## Validation identity
 
@@ -9,7 +9,7 @@
 - Router model:
 - RouterOS version:
 - Architecture:
-- RC1 commit:
+- RC2 commit:
 - Image reference/digest:
 - Deployment method:
 
