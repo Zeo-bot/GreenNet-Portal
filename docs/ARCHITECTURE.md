@@ -22,19 +22,15 @@ The portal database is not RouterOS and is not a replica with guaranteed parity.
 
 RouterOS is an external operational system. Reading it can still disclose data or load a production router; writing it can change customer access. No route, controller, diagnostic, or test that reaches this boundary may be invoked without explicit permission.
 
-Phase 1C-B introduces contracts without migrating production call sites. `RouterOSClientInterface` exposes only the existing low-level `comm(string $command, array $params = []): array` operation. `RouterOSReadGatewayInterface` exposes only `read()`; its real implementation requires an explicitly supplied client and applies a fail-closed allowlist before delegating. It does not create a client, connection, factory, or default dependency.
+`RouterOSClientInterface` is the low-level transport contract. Production reads use `RouterOSReadGatewayInterface`, whose real implementation applies a fail-closed command allowlist. Production writes use `GuardedRouterOSWriteGateway`, which combines `WriteSafetyGuard`, an exact command policy, centralized redaction, and one scoped `execute(request, operation)` boundary.
 
-The null read gateway always fails explicitly, while test fakes live under `tests/` and are available only through Composer's development autoloader. Existing controllers and services still use their original `RouterOSApiClient` paths. No production write gateway exists in 1C-B.
-
-Phase 1C-C1 migrates `AdminUserManagerPackagesController` as the first production read path. Its optional constructor dependency accepts `RouterOSReadGatewayInterface` for tests. With no injected gateway, the narrow `RouterOSReadGatewayFactory` creates a real gateway and client only when package discovery begins; socket connection remains lazy until the first allowed read. All other direct production `comm()` calls remain legacy migration targets. There is still no production write gateway.
-
-Phase 1D-B adds `GuardedRouterOSWriteGateway` as a tested boundary, but no controller uses it yet and there is no production write factory. The boundary receives the low-level client, `WriteSafetyGuard`, exact command policy, and redactor explicitly. Its public API exposes one scoped `execute(request, operation)` method; only the callback receives a short-lived authorized writer after the guard succeeds. The writer is invalidated when the callback ends, nested execution is denied, and no constructor opens a connection.
+`RouterOSGatewayBundleFactory` is the narrow production factory for a shared lazy client plus the read and guarded-write gateways. Construction does not open a socket; only an authorized operation can trigger the lazy connection. The null read gateway fails explicitly, while network-free fakes remain under `tests/` and are available only through Composer's development autoloader.
 
 Phase 1D-C1 migrates the User Manager disable/enable flow in `AdminMikroTikDryRunController` as the first production write consumer. The controller accepts explicit read and guarded-write gateways for tests and lazily resolves a small `RouterOSGatewayBundle` for no-argument production construction. The bundle shares one lazy `RouterOSApiClient` between `RealRouterOSReadGateway` and `GuardedRouterOSWriteGateway`; constructing the controller or bundle does not open a socket. No general service container or environment-selectable fake was added.
 
-For this migrated flow, current-state lookup, the single `/user-manager/user/set` command, and post-write lookup execute in that order inside the guard-authorized callback. The existing `create_greennet_baseline` Portal operation remains outside the write gateway and unchanged in responsibility. Other production write controllers remain legacy paths.
+For this migrated flow, current-state lookup, the single `/user-manager/user/set` command, and post-write lookup execute in that order inside the guard-authorized callback. The existing `create_greennet_baseline` Portal operation remains outside the write gateway and unchanged in responsibility.
 
-The boundary records one redacted real-attempt audit for each guard-authorized operation, including zero-command callbacks, command failures, callback failures, and partial failures. Audit failure is reported separately and does not turn a successful RouterOS result into an operation failure. No rollback is claimed. Existing controller write paths remain legacy and unchanged; disable/enable is the intended first migration.
+The boundary records one redacted real-attempt audit for each guard-authorized operation, including zero-command callbacks, command failures, callback failures, and partial failures. Audit failure is reported separately and does not turn a successful RouterOS result into an operation failure. No rollback is claimed.
 
 ## Write Safety boundary
 
@@ -54,20 +50,20 @@ Controllers remain responsible for correct command planning, target validation, 
 Read flow:
 
 1. A route selects a controller.
-2. The controller reads portal data and, for RouterOS pages, may instantiate a RouterOS service/client.
+2. The controller reads portal data and uses the read gateway for migrated RouterOS reads.
 3. Results are normalized and rendered through a PHP view.
 
 Guarded write flow:
 
 1. The operator requests a preview/dry-run.
 2. The controller validates inputs and records the planned action.
-3. A later execute request revalidates the plan and calls `WriteSafetyGuard`.
-4. If all guards pass, the controller sends RouterOS commands.
-5. The attempt and outcome are recorded in the portal audit log.
+3. A later execute request revalidates the plan and calls the guarded write gateway.
+4. The gateway enforces `WriteSafetyGuard`; only its scoped callback can issue allowed commands.
+5. The gateway records the redacted attempt and outcome in the portal audit log.
 
 There is no distributed transaction between the portal database and RouterOS. Recovery and reconciliation must account for partial success.
 
-The current write flow remains controller-owned and guarded as documented above. A future write boundary must encode authorization and guard sequencing; it must not be implemented as an unrestricted `write()` wrapper that delegates directly to `comm()`.
+The current write flow is controller-planned and gateway-authorized as documented above. New write paths must not introduce an unrestricted `write()` or `comm()` shortcut.
 
 ## Phase 1D-D1 password-write migration
 

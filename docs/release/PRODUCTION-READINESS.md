@@ -30,7 +30,7 @@ The pre-audit Traditional package mixed device-generic defaults (`disk1/greennet
 
 The package now includes `SHA256SUMS.txt`. This correction changes deployment artifacts only; it does not change application or RouterOS behavior and was not applied to hardware.
 
-- Corrected Traditional ZIP SHA-256: `b81466bf69bf1a8465a2c7ea9404f7c04b5d4d97dc36811b53ca9ccc03fadc48`
+- Field Batch 1 Traditional ZIP SHA-256: `1c660167fee4214e788bd2d8f4597361c421899273370037fc3aa78721460c88`
 - ARM64 TAR SHA-256: `e3bd446784294e7f1def5422050fdbd967170b73f4d99ed66e0712f779092618`
 - Local image: `linux/arm64`, ID `sha256:8bbd0c74c922cc346cd6c9f1c70bd998ed2768c349006c74fd207aca162664f8`, size 40,820,423 bytes
 
@@ -85,8 +85,11 @@ The package now includes `SHA256SUMS.txt`. This correction changes deployment ar
 - Hotspot RouterOS-variable, HTTP-CHAP, trial, redirect, translation, local-dependency, and checksum review.
 - Duplicate tracked-file hash review and local Markdown reference check.
 - Traditional hAP ax3 package correction and checksum/ZIP regeneration.
+- Traditional package rollback instructions and the unified field deployment runbook.
 - Hotspot static validation: pass (15 required artifacts).
 - Isolated PHPUnit baseline: pass (261 tests, 1713 assertions; no skipped or incomplete tests reported).
+- Field Batch 1 subscriber disposable smoke: pass (boot, local assets, authentication, subscriber APIs, ownership isolation, renewal, logout, and PWA contracts).
+- Field Batch 1 artifact validation: pass (Traditional/Apps/Hotspot checksums, JSON values, required YAML values, ZIP readability, and local `linux/arm64` image metadata).
 
 ## Pending field validations
 

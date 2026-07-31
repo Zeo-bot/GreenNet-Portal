@@ -2,7 +2,7 @@
 
 ## Current state
 
-Phase 1A provides Composer, PHPUnit 11, disposable SQLite support, initial unit tests, and a dedicated test-only Docker runtime. There is still no CI workflow, production database provisioning mechanism, or RouterOS fake suitable for controller tests.
+The current baseline uses Composer, PHPUnit 11, disposable SQLite support, network-free RouterOS fakes under `tests/`, and a dedicated test-only Docker runtime with `network_mode: none`. The suite covers the unified subscriber platform, production backup, onboarding, read and guarded-write gateways, command policies, redaction, migrated operational controllers, and application isolation. There is no checked-in CI workflow; release validation is run through the documented isolated Docker command.
 
 ## Absolute isolation requirements
 
@@ -20,7 +20,7 @@ Future tests must not:
 - Create a unique temporary directory per test run.
 - Create a new SQLite database there from an explicit test schema or migrations.
 - Seed only synthetic administrators, customers, packages, and audit rows.
-- Do not instantiate the RouterOS client. A fake/null client remains future work because production controllers are not yet dependency-injected.
+- Use only the network-free fake/read-gateway support under `tests/`; never instantiate a real RouterOS client.
 - Provide test-only configuration with writes disabled and safe mode enabled by default.
 - Delete temporary state after the run while retaining failure output that contains no secrets.
 
@@ -36,7 +36,7 @@ Phase 1B exercises `WriteSafetyGuard` through optional constructor dependencies 
 
 Phase 1C-B tests a read-only RouterOS boundary. A fake low-level client proves exact command, parameter, response, and exception forwarding without opening a socket. The real read gateway is tested against the complete current read-command allowlist, current write actions, and an unknown command. The null gateway must fail explicitly without disclosing an address. Test fakes are located only in `tests/Support`; an architectural assertion rejects test-fake references and write-gateway types under `src/`.
 
-Production routes, controllers, `MikroTikService`, and other consumers have not yet migrated to this boundary. Existing controller-guarded writes remain unchanged. Testing a future write boundary is deferred until its contract enforces safety rather than forwarding arbitrary writes to `comm()`.
+The read boundary and migrated operational controllers are covered by architectural and behavior tests. Remaining legacy infrastructure paths are explicitly identified in the architecture documentation and must not be used as a shortcut for new code.
 
 Phase 1D-B tests the guarded write boundary without migrating controllers or contacting RouterOS. Coverage includes every allowed command and its current parameter shape, fail-closed validation, all Write Safety denial branches, zero-command success, ordered response chaining, first-call and partial failure, callback failure, writer expiry, re-entrant execution, one audit attempt, audit-storage failure, and end-to-end password/secret/token redaction from callback results, command calls, safe exceptions, and SQLite audit rows. Architectural tests verify that the writer implementation is anonymous and gateway-scoped, no named production writer or write factory exists, and the guarded gateway exposes no raw `comm()` or `write()` method. The suite uses `FakeRouterOSClient` only under `tests/Support`, disposable SQLite, a fixed clock, and temporary synthetic backup files.
 
