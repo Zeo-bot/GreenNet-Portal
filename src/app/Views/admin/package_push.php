@@ -267,12 +267,12 @@ $canExecute = $result !== null && !empty($result['can_execute_later']) && empty(
 </section>
 
 <div class="gn-push-info">
-    هذه العملية تحتاج Dry Run أولاً. التنفيذ الحقيقي سيكتب على MikroTik:
+    تبدأ العملية بمعاينة محمية، ثم تنفّذ كتابة فعلية على MikroTik بعد التأكيد:
     <span dir="ltr">profile policy</span>
 </div>
 
 <section class="gn-push-box">
-    <h3>Create Dry Run</h3>
+    <h3>معاينة التجهيز</h3>
     <p>اختر باقة من GreenNet وشاهد ما الذي سيتم إنشاؤه أو تحديثه على MikroTik.</p>
 
     <?php if (empty($packages)): ?>
@@ -337,7 +337,7 @@ $canExecute = $result !== null && !empty($result['can_execute_later']) && empty(
                 </div>
 
                 <button class="gn-btn gn-btn-primary gn-btn-lg" type="submit">
-                    Create Dry Run
+                    إنشاء المعاينة
                 </button>
             </div>
         </form>
@@ -346,7 +346,7 @@ $canExecute = $result !== null && !empty($result['can_execute_later']) && empty(
 
 <?php if ($result !== null): ?>
     <section class="gn-push-box">
-        <h3>Dry Run Result</h3>
+        <h3>نتيجة المعاينة</h3>
 
         <?php if (!empty($result['error'])): ?>
             <div class="gn-push-alert"><?= gn_push_h((string) $result['error']) ?></div>
@@ -425,7 +425,7 @@ $canExecute = $result !== null && !empty($result['can_execute_later']) && empty(
         <?php if ($canExecute): ?>
             <div class="gn-push-box">
                 <h3>Execute Real Push</h3>
-                <p>هذا سيكتب فعلياً على MikroTik. نفّذه أولاً على باقة تجريبية.</p>
+                <p>سيكتب هذا الإجراء فعلياً على MikroTik عبر بوابة الكتابة المحمية.</p>
 
                 <div class="gn-push-danger">
                     للتنفيذ اكتب:

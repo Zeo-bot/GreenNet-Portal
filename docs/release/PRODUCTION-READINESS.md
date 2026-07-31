@@ -16,7 +16,7 @@ Target: MikroTik hAP ax3, RouterOS 7.23.1, arm64
 | Server Compose | Pass | Separate PHP, scheduler, and Nginx services; persistent database/uploads/backups volumes; backend network is internal; port defaults to 8080. |
 | MikroTik ARM64 image | Pass (previously verified) | `linux/arm64`; RC2 listens on 8080; traditional TAR retained outside the repository release directory. |
 | Traditional Container | Pass after artifact correction | hAP ax3 package now consistently uses `usb1/greennet`, `172.31.255.1/30`, `172.31.255.2/30`, port 8080, container `greennet`, and 256M memory-high. |
-| RouterOS Apps | Pass with field risk | Fully qualified public GHCR reference, `usb1/greennet/data`, port 8080, no NAT/WAN rule. RouterOS Apps controls the effective app network/UI URL. |
+| RouterOS Apps | Pass after field fix | Fully qualified GHCR reference, `usb1/greennet/data`, port 8080, runtime gateway discovery, and no fixed Apps subnet. Validated field values are router `172.18.0.1` and container `172.18.0.2`. |
 | `bootstrap.rsc` | Pass with mandatory operator gate | Fail-fast checks protect existing veth/container/mount/env names. It creates only the dedicated bridge, address, veth, mount, env list, and container. Password placeholder must be replaced before import. |
 | Backup strategy | Pass | Existing portable backup includes manifest, integrity result, and checksums; a fresh backup is mandatory after first boot. Restore is not part of initial installation. |
 | Rollback | Pass as documentation | Apps package has rollback instructions; Traditional rollback requires exact resource IDs/names and data preservation. It must be rehearsed/reviewed in the field. |
@@ -31,9 +31,9 @@ The pre-audit Traditional package mixed device-generic defaults (`disk1/greennet
 The package now includes `SHA256SUMS.txt`. This correction changes deployment artifacts only; it does not change application or RouterOS behavior and was not applied to hardware.
 
 - Traditional ZIP SHA-256: `060f1651a169b87d4e9b9d410d0c1cb16e7fc37154a58de10244527f7646f680`
-- Apps ZIP SHA-256: `f0fb2b173932794cdea1eab1c0dcb15b24bb44980690fc84e6014b30ff5023b5`
-- ARM64 TAR SHA-256: `e79e12e6a88c9213d7f480a14cb0fec063faf0ff643aa8b61093822a1c05cff3`
-- Local image: `linux/arm64`, ID `sha256:a15090ac93562a8ff21adbe733c67e3a5a2b3e4a4e1b546cd0693c22212a2e44`, size 40,835,727 bytes
+- Apps ZIP SHA-256: `8d669b338354028754eb831c42f870b508793a0a42ec3702d60e49fd4c352b24`
+- ARM64 TAR SHA-256: `4f5e6b85e0cadde5e5243d629bae5f9834344d27845b9e2ea8d2e12ae83b26d6`
+- Local image: `linux/arm64`, ID `sha256:64f129a9ae854c7d5bd59c3c91010835c66624831b4bf82a6a6c21f0193a71a9`, archive size 40,863,744 bytes
 
 ## Repository production-blocker scan
 
@@ -69,11 +69,11 @@ The package now includes `SHA256SUMS.txt`. This correction changes deployment ar
 
 ## Known risks and assumptions
 
-1. RouterOS Apps assigns/controls the effective app network. The YAML `page` value may not equal the UI URL shown by RouterOS. Use the Apps UI URL as authoritative and set GreenNet’s RouterOS API host to the actual reachable gateway.
+1. RouterOS Apps assigns/controls the effective app network. Use the Apps UI URL as authoritative; `MIKROTIK_HOST=auto` resolves the assigned default gateway at runtime.
 2. The GHCR tag `1.0.0-rc2` is mutable. Record the pulled image digest during field validation; use the immutable RC2 tag/digest for later reproduction.
 3. `usb1` availability, health, filesystem behavior, free capacity, and persistence across reboot require physical-device validation.
 4. The proposed `172.31.255.0/30` network was checked only against stored discovery from the prior preparation. Reconfirm read-only immediately before import because live state may have changed.
-5. RouterOS API service/firewall must permit only the container/app source address. No package broadens API or WAN exposure automatically.
+5. RouterOS API service/firewall must permit only `172.18.0.2/32` for the validated Apps network (or the actual Apps container `/32` if it differs). No package broadens API or WAN exposure automatically.
 6. The one-time administrator password exists in the reviewed bootstrap/YAML copy during installation. Protect and delete that artifact after use.
 7. Hotspot PAP is inherently plaintext at the application layer unless the client transport is protected. Prefer HTTP-CHAP and validate the active Hotspot profile.
 8. No live restore has been executed as part of readiness. Backup integrity is necessary but does not replace a separately controlled restoration rehearsal.

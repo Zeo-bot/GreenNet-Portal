@@ -114,7 +114,10 @@ final class RouterOnboardingServiceTest extends TestCase
         self::assertStringContainsString('8080:8080:tcp', $artifacts['greennet-app.yml']);
         self::assertStringContainsString('disk1/greennet/data:/greennet-data', $artifacts['greennet-app.yml']);
         self::assertStringContainsString('DB_DATABASE=/greennet-data/database/database.sqlite', $artifacts['greennet-app.yml']);
-        self::assertStringContainsString('MIKROTIK_HOST=172.30.30.1', $artifacts['greennet-app.yml']);
+        self::assertStringContainsString('MIKROTIK_HOST=auto', $artifacts['greennet-app.yml']);
+        self::assertStringContainsString('MIKROTIK_TIMEOUT=3', $artifacts['greennet-app.yml']);
+        self::assertStringContainsString('page: /admin/login', $artifacts['greennet-app.yml']);
+        self::assertStringNotContainsString('172.30.30.', $artifacts['greennet-app.yml']);
         self::assertStringNotContainsString('/var/www/database', $artifacts['greennet-app.yml']);
     }
 

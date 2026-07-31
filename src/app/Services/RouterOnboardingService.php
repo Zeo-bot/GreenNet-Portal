@@ -435,7 +435,7 @@ final class RouterOnboardingService
         $yaml = fn (string $value): string => '"' . str_replace(['\\', '"'], ['\\\\', '\\"'], $value) . '"';
         return "name: " . $d['app_name'] . "\n"
             . "descr: GreenNet Portal\n"
-            . "page: http://" . $d['container_ip'] . ':' . $d['http_port'] . "/admin/login\n"
+            . "page: /admin/login\n"
             . "category: network\n"
             . "default-credentials: none\n"
             . "services:\n"
@@ -453,7 +453,8 @@ final class RouterOnboardingService
             . "      - BACKUP_STORAGE_PATH=/greennet-data/backups\n"
             . "      - ADMIN_USERNAME=" . $yaml($d['admin_username']) . "\n"
             . "      - ADMIN_PASSWORD=" . $yaml($adminPassword) . "\n"
-            . "      - MIKROTIK_HOST=" . $d['gateway_ip'] . "\n"
+            . "      - MIKROTIK_HOST=auto\n"
+            . "      - MIKROTIK_TIMEOUT=3\n"
             . "      - AUTOMATION_ENABLED=true\n"
             . "      - AUTOMATION_INTERVAL_SECONDS=" . $d['automation_interval'] . "\n";
     }
@@ -462,7 +463,7 @@ final class RouterOnboardingService
     {
         return "APP_ENV=production\nDB_DATABASE=/greennet-data/database/database.sqlite\n"
             . "UPLOADS_STORAGE_PATH=/greennet-data/uploads\nBACKUP_STORAGE_PATH=/greennet-data/backups\n"
-            . "MIKROTIK_HOST=" . $d['gateway_ip'] . "\nMIKROTIK_API_PORT=8728\n"
+            . "MIKROTIK_HOST=" . ($d['method'] === 'apps' ? 'auto' : $d['gateway_ip']) . "\nMIKROTIK_API_PORT=8728\nMIKROTIK_TIMEOUT=3\n"
             . "ADMIN_USERNAME=" . $d['admin_username'] . "\nADMIN_PASSWORD=<ENTER-ONLY-WHEN-GENERATING>\n"
             . "MIKROTIK_USERNAME=<ROUTEROS-API-USER>\nMIKROTIK_PASSWORD=<SET-SECURELY-AFTER-INSTALL>\n";
     }
@@ -473,9 +474,11 @@ final class RouterOnboardingService
         return "GreenNet installation: {$method}\n\n"
             . "1. Keep a RouterOS backup/export and review the generated sensitive artifact.\n"
             . ($d['method'] === 'apps'
-                ? "2. Make the architecture-compatible image available from an operator-controlled registry.\n3. Upload the YAML, run /app add yaml=[/file get <FILE> contents], then enable the app.\n"
+                ? "2. Make the architecture-compatible image available from an operator-controlled registry.\n3. Upload the YAML, run /app add yaml=[/file get <FILE> contents], select the RouterOS-managed internal network, then enable the app. MIKROTIK_HOST=auto resolves the actual Apps gateway at container startup.\n"
                 : "2. Copy {$d['image_reference']} to {$d['storage_path']}.\n3. Import/run bootstrap.rsc manually, wait for extraction, then start {$d['app_name']}.\n")
-            . "4. Open http://{$d['container_ip']}:{$d['http_port']}/admin/login and use \"فحص GreenNet\" in onboarding.\n"
+            . ($d['method'] === 'apps'
+                ? "4. Open the UI-URL reported by /app print and use the GreenNet check in onboarding.\n"
+                : "4. Open http://{$d['container_ip']}:{$d['http_port']}/admin/login and use the GreenNet check in onboarding.\n")
             . "5. Delete the sensitive artifact after installation.\n\nNo artifact has been applied automatically.\n";
     }
 }

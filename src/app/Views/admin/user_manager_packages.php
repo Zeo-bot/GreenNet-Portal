@@ -260,7 +260,7 @@ $statusLabel = static function (string $status): string {
 
     <div class="admin-header-actions">
         <a class="gn-btn gn-btn-secondary gn-btn-sm" href="/admin/packages">GreenNet Packages</a>
-        <a class="gn-btn gn-btn-secondary gn-btn-sm" href="/admin/mikrotik-dry-run">MikroTik Dry Run</a>
+        <a class="gn-btn gn-btn-secondary gn-btn-sm" href="/admin/package-push">Provision Packages</a>
         <a class="gn-btn gn-btn-primary gn-btn-sm" href="/admin/api/diagnostics">API Diagnostics</a>
     </div>
 </div>

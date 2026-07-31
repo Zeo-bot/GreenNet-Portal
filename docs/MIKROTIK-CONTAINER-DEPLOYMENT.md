@@ -93,6 +93,8 @@ Add support and RouterOS credentials only when needed. Do not save a filled comm
 
 The host RouterOS API is not `localhost` from inside the container. Register the host router using its explicit reachable address—normally `<CONTAINER_GATEWAY>`—and register other routers with their management addresses. Existing RouterOS API service restrictions and firewall policy must explicitly permit the GreenNet container IP; do not broaden them globally.
 
+For RouterOS Apps, set `MIKROTIK_HOST=auto`; the GreenNet runtime resolves the default gateway assigned by Apps (for the validated RC2 field network, router `172.18.0.1` and container `172.18.0.2`). Keep `MIKROTIK_TIMEOUT=3`. Restrict `/ip service api` to `172.18.0.2/32` where that service restriction is dedicated to GreenNet, and place an input accept rule for `src-address=172.18.0.2 protocol=tcp dst-port=8728` immediately before the site input-drop rule. Do not add a WAN-facing API allowance.
+
 ## E. Import and start
 
 Use a RouterOS storage path for `tmpdir` and import the local archive:

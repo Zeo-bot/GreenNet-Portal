@@ -9,6 +9,8 @@ use GreenNet\Core\Config;
 use GreenNet\Core\Database;
 use GreenNet\Models\ServicePackage;
 use GreenNet\Services\PackageSyncService;
+use GreenNet\Services\RouterOS\RouterOSErrorNormalizer;
+use Throwable;
 
 class AdminPackagesController
 {
@@ -39,8 +41,17 @@ class AdminPackagesController
 
         $this->requireLogin();
 
-        $service = new PackageSyncService();
-        $result = $service->syncFromRouterOSProfiles();
+        try {
+            $service = new PackageSyncService();
+            $result = ['ok' => true] + $service->syncFromRouterOSProfiles();
+        } catch (Throwable $error) {
+            $normalized = (new RouterOSErrorNormalizer())->normalize($error);
+            $result = [
+                'ok' => false,
+                'code' => $normalized['code'],
+                'message' => $normalized['message'],
+            ];
+        }
 
         $_SESSION['packages_sync_result'] = $result;
 

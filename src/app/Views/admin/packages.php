@@ -163,6 +163,7 @@ gn_pkg_ensure();
 
 $error = '';
 $success = (string) ($_GET['success'] ?? '');
+$syncResult = is_array($sync_result ?? null) ? $sync_result : null;
 
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && isset($_POST['gn_package_action'])) {
     $action = (string) ($_POST['gn_package_action'] ?? '');
@@ -807,7 +808,7 @@ $formData = [
         <div>
             <h1 class="admin-page-title">إدارة الباقات</h1>
             <p class="admin-page-description">
-                إنشاء وتعديل باقات Hotspot / PPPoE / Hybrid بشكل واضح قبل ربطها الكامل مع MikroTik.
+                باقات GreenNet هي مصدر العمل التجاري، مع استيراد وتشغيل فعلي عبر User Manager وHotspot وPPPoE على الراوتر المعيّن.
             </p>
         </div>
 
@@ -830,11 +831,21 @@ $formData = [
         </div>
     <?php endif; ?>
 
+    <?php if ($syncResult !== null): ?>
+        <div class="gn-pkg-alert <?= !empty($syncResult['ok']) ? 'is-success' : 'is-danger' ?>">
+            <?php if (!empty($syncResult['ok'])): ?>
+                تم الاستيراد الحقيقي من RouterOS. جديد: <?= gn_pkg_h($syncResult['created'] ?? 0) ?>، تحديث: <?= gn_pkg_h($syncResult['updated'] ?? 0) ?>، متروك: <?= gn_pkg_h($syncResult['skipped'] ?? 0) ?>.
+            <?php else: ?>
+                <?= gn_pkg_h($syncResult['code'] ?? 'ROUTEROS_OPERATION_FAILED') ?> — <?= gn_pkg_h($syncResult['message'] ?? 'تعذر الاتصال بـ RouterOS.') ?>
+            <?php endif; ?>
+        </div>
+        <?php unset($_SESSION['packages_sync_result']); ?>
+    <?php endif; ?>
+
     <section class="gn-pkg-hero">
         <h1>باقات الخدمة</h1>
         <p>
-            هذه الصفحة أصبحت مخصصة لإدارة الباقات محلياً بشكل مرتب.
-            استيراد بروفايلات MikroTik نؤجله لمرحلة الربط والكتابة الحقيقية حتى لا يسبب أي Timeout أو تداخل.
+            أدر الباقات محلياً كمصدر الحقيقة، واستورد بروفايلات RouterOS الحية، ثم جهّزها على الراوتر عبر مسار الكتابة المحمي.
         </p>
 
         <div class="gn-pkg-hero-actions">
@@ -842,9 +853,10 @@ $formData = [
                 <?= $editing ? 'تعديل الباقة المحددة' : 'إضافة باقة جديدة' ?>
             </a>
 
-            <button class="gn-btn gn-btn-secondary" type="button" disabled>
-                استيراد MikroTik لاحقاً
-            </button>
+            <form method="post" action="/admin/packages/sync-routeros">
+                <button class="gn-btn gn-btn-secondary" type="submit">استيراد فعلي من MikroTik</button>
+            </form>
+            <a class="gn-btn gn-btn-secondary" href="/admin/package-push">تجهيز الباقات على الراوتر</a>
         </div>
     </section>
 

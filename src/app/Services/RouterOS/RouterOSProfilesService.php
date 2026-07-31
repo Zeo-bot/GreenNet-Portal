@@ -4,15 +4,20 @@ declare(strict_types=1);
 
 namespace GreenNet\Services\RouterOS;
 
+use GreenNet\Contracts\RouterOSReadGatewayInterface;
+
 class RouterOSProfilesService
 {
+    public function __construct(private ?RouterOSReadGatewayInterface $readGateway = null)
+    {
+    }
+
     public function getSummary(): array
     {
-        $mikrotik = new MikroTikService();
-
-        $hotspot = $this->normalizeHotspotProfiles($mikrotik->readHotspotProfiles());
-        $ppp = $this->normalizePppProfiles($mikrotik->readPppProfiles());
-        $userManager = $this->normalizeUserManagerProfiles($mikrotik->readUserManagerProfiles());
+        $gateway = $this->readGateway ??= RouterOSReadGatewayFactory::create(['timeout' => 3]);
+        $hotspot = $this->normalizeHotspotProfiles(['ok' => true, 'rows' => $gateway->read('/ip/hotspot/user/profile/print')]);
+        $ppp = $this->normalizePppProfiles(['ok' => true, 'rows' => $gateway->read('/ppp/profile/print')]);
+        $userManager = $this->normalizeUserManagerProfiles(['ok' => true, 'rows' => $gateway->read('/user-manager/profile/print')]);
 
         $allProfiles = array_merge(
             $hotspot['profiles'],
