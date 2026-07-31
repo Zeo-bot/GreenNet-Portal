@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#11945a">
+    <title>تم تسجيل الخروج | GreenNet</title>
+    <link rel="stylesheet" href="css/greennet-hotspot.css">
+</head>
+<body data-page="logout">
+<main class="portal-shell">
+    <section class="portal-card" aria-labelledby="page-title">
+        <header class="brand brand-compact">
+            <img src="img/greennet-logo.jpg" alt="GreenNet" width="72" height="72">
+            <div>
+                <p class="eyebrow">GreenNet</p>
+                <h1 id="page-title">تم تسجيل الخروج بنجاح</h1>
+                <p>شكرًا لاستخدامك الخدمة. يمكنك تسجيل الدخول مجددًا في أي وقت.</p>
+            </div>
+        </header>
+
+        <dl class="stats-grid">
+            <div><dt>اسم المستخدم</dt><dd data-hotspot-value>$(username)</dd></div>
+            <div><dt>عنوان IP</dt><dd dir="ltr" data-hotspot-value>$(ip)</dd></div>
+            <div><dt>مدة الجلسة</dt><dd dir="ltr" data-hotspot-value>$(uptime)</dd></div>
+            <div><dt>البيانات المرسلة</dt><dd dir="ltr" data-hotspot-value>$(bytes-in-nice)</dd></div>
+            <div><dt>البيانات المستقبلة</dt><dd dir="ltr" data-hotspot-value>$(bytes-out-nice)</dd></div>
+        </dl>
+
+        <div class="actions">
+            <a class="button button-primary" href="$(link-login)">إعادة تسجيل الدخول</a>
+            <a class="button button-secondary" data-subscriber-portal hidden>بوابة المشترك</a>
+        </div>
+    </section>
+</main>
+<script src="js/config.js"></script>
+<script src="js/portal.js"></script>
+</body>
+</html>

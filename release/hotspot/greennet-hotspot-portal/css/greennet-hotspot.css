@@ -1,0 +1,201 @@
+:root {
+    color-scheme: light;
+    --green: #11945a;
+    --green-dark: #0f7f4d;
+    --green-bright: #14b86e;
+    --green-soft: #e2f7ea;
+    --ink: #102018;
+    --muted: #607369;
+    --line: #dbe7df;
+    --surface: #ffffff;
+    --background: #f3fbf6;
+    --danger: #b42318;
+    --danger-soft: #fff0ee;
+    --shadow: 0 24px 70px rgba(15, 85, 51, .14);
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { min-width: 320px; background: var(--background); }
+body {
+    margin: 0;
+    min-height: 100vh;
+    min-height: 100svh;
+    color: var(--ink);
+    font-family: Tahoma, Arial, sans-serif;
+    background:
+        radial-gradient(circle at 100% 0, rgba(20, 184, 110, .22), transparent 30rem),
+        radial-gradient(circle at 0 100%, rgba(17, 148, 90, .12), transparent 26rem),
+        linear-gradient(145deg, #f4fcf7, #eaf7ef);
+}
+button, input { font: inherit; }
+a, button { -webkit-tap-highlight-color: transparent; }
+
+.portal-shell {
+    min-height: 100vh;
+    min-height: 100svh;
+    display: grid;
+    place-items: center;
+    padding: max(18px, env(safe-area-inset-top)) 14px max(18px, env(safe-area-inset-bottom));
+}
+.portal-card {
+    width: min(100%, 620px);
+    padding: clamp(22px, 5vw, 38px);
+    border: 1px solid rgba(17, 148, 90, .14);
+    border-radius: 30px;
+    background: rgba(255, 255, 255, .96);
+    box-shadow: var(--shadow);
+}
+.portal-card-login { max-width: 500px; }
+.portal-center { text-align: center; }
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    margin-bottom: 28px;
+}
+.brand img {
+    flex: 0 0 auto;
+    width: 92px;
+    height: 92px;
+    object-fit: cover;
+    border-radius: 26px;
+    border: 1px solid var(--line);
+    box-shadow: 0 14px 32px rgba(17, 148, 90, .16);
+}
+.brand-compact img { width: 72px; height: 72px; border-radius: 22px; }
+.brand h1, .portal-center h1 {
+    margin: 2px 0 7px;
+    font-size: clamp(25px, 6vw, 34px);
+    line-height: 1.25;
+    letter-spacing: -.04em;
+}
+.brand p, .portal-center p { margin: 0; color: var(--muted); line-height: 1.8; }
+.eyebrow {
+    color: var(--green) !important;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: .08em;
+}
+
+label { display: block; margin: 15px 2px 8px; font-size: 14px; font-weight: 800; }
+input {
+    width: 100%;
+    min-height: 52px;
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: #fbfefc;
+    color: var(--ink);
+    font-size: 16px;
+    outline: none;
+}
+input:focus { border-color: var(--green); box-shadow: 0 0 0 4px rgba(17, 148, 90, .13); }
+.password-field { position: relative; }
+.password-field input { padding-inline-end: 76px; }
+.password-toggle {
+    position: absolute;
+    inset-inline-end: 7px;
+    top: 7px;
+    min-width: 62px;
+    min-height: 38px;
+    border: 0;
+    border-radius: 12px;
+    color: var(--green-dark);
+    background: var(--green-soft);
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.button {
+    width: 100%;
+    min-height: 52px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 14px;
+    padding: 12px 18px;
+    border: 1px solid transparent;
+    border-radius: 16px;
+    text-decoration: none;
+    font-weight: 900;
+    cursor: pointer;
+}
+.button-primary {
+    color: #fff;
+    background: linear-gradient(135deg, var(--green-bright), var(--green), var(--green-dark));
+    box-shadow: 0 14px 30px rgba(17, 148, 90, .22);
+}
+.button-secondary { color: var(--green-dark); background: var(--green-soft); border-color: #c7ead5; }
+.button-danger { color: var(--danger); background: var(--danger-soft); border-color: #ffd1cc; }
+.button:disabled { opacity: .68; cursor: wait; }
+.portal-link { display: block; margin: 18px auto 0; color: var(--green-dark); text-align: center; font-weight: 800; }
+.help-text, .refresh-note { margin: 20px 0 0; color: var(--muted); text-align: center; font-size: 13px; line-height: 1.8; }
+
+.notice { padding: 14px 16px; border-radius: 16px; line-height: 1.7; }
+.notice-error { color: var(--danger); background: var(--danger-soft); border: 1px solid #ffd1cc; }
+details { margin-top: 8px; font-size: 12px; color: #7a3c35; overflow-wrap: anywhere; }
+summary { cursor: pointer; }
+
+.status-banner {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin-bottom: 18px;
+    padding: 13px 15px;
+    border-radius: 16px;
+    color: #11603d;
+    background: var(--green-soft);
+    font-weight: 800;
+}
+.status-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--green-bright); box-shadow: 0 0 0 5px rgba(20, 184, 110, .14); }
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin: 0;
+}
+.stats-grid div { min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: 17px; background: #fbfefc; }
+.stats-grid dt { margin-bottom: 7px; color: var(--muted); font-size: 12px; }
+.stats-grid dd { margin: 0; font-weight: 900; overflow-wrap: anywhere; }
+.stats-grid .is-unavailable { color: var(--muted); font-weight: 700; }
+.actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.success-mark {
+    width: 76px;
+    height: 76px;
+    display: grid;
+    place-items: center;
+    margin: 0 auto 18px;
+    border-radius: 50%;
+    color: #fff;
+    background: var(--green);
+    font-size: 38px;
+    font-weight: 900;
+}
+.spinner {
+    width: 54px;
+    height: 54px;
+    margin: 0 auto 20px;
+    border: 5px solid var(--green-soft);
+    border-top-color: var(--green);
+    border-radius: 50%;
+    animation: spin .9s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 520px) {
+    .portal-card { border-radius: 24px; }
+    .brand { align-items: flex-start; gap: 13px; }
+    .brand img { width: 72px; height: 72px; border-radius: 21px; }
+    .brand h1 { font-size: 24px; }
+    .stats-grid, .actions { grid-template-columns: 1fr; }
+}
+@media (max-width: 350px) {
+    .portal-shell { padding-inline: 9px; }
+    .portal-card { padding: 19px 15px; }
+    .brand img { width: 62px; height: 62px; }
+}
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; }
+}

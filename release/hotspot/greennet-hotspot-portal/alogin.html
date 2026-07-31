@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="refresh" content="1; url=$(link-redirect)">
+    <title>تم تسجيل الدخول | GreenNet</title>
+    <link rel="stylesheet" href="css/greennet-hotspot.css">
+</head>
+<body>
+<main class="portal-shell">
+    <section class="portal-card portal-center">
+        <div class="success-mark" aria-hidden="true">✓</div>
+        <h1>تم تسجيل الدخول</h1>
+        <p>جارٍ فتح الصفحة المطلوبة.</p>
+        <a class="button button-primary" href="$(link-redirect)">متابعة</a>
+    </section>
+</main>
+$(if popup == 'true')
+<script>
+    window.open('$(link-status)', 'greennet_status', 'toolbar=0,location=0,status=0,menubars=0,resizable=1,width=420,height=620');
+</script>
+$(endif)
+</body>
+</html>
