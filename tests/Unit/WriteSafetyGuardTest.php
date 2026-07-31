@@ -67,6 +67,47 @@ final class WriteSafetyGuardTest extends TestCase
         ], $this->guard->settings());
     }
 
+    public function testOperationalAuditStoresStructuredMetadataAndCorrelationWithoutSecrets(): void
+    {
+        $_SESSION['admin_username'] = 'synthetic-admin';
+        $_SERVER['REMOTE_ADDR'] = '192.0.2.44';
+
+        $id = $this->guard->recordRealAttempt([
+            'action' => 'reset_counters',
+            'dataset' => 'native-hotspot',
+            'username' => 'synthetic-user',
+            'command' => '/ip/hotspot/user/reset-counters',
+            'params' => [
+                'router_id' => 7,
+                'router_identity' => 'synthetic-router',
+                'backend' => 'native-hotspot',
+                'target_type' => 'hotspot-user',
+                'local_record_id' => 19,
+                'routeros_id' => '*A',
+                'before' => ['bytes-in' => '10', 'password' => 'never-store-this'],
+            ],
+            'after_state' => ['bytes-in' => '0'],
+            'executed' => 1,
+            'success' => 1,
+            'reconciliation_status' => 'verified',
+        ]);
+
+        $stmt = $this->database->connection()->prepare('SELECT * FROM api_audit_logs WHERE id = :id');
+        $stmt->execute(['id' => $id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        self::assertIsArray($row);
+        self::assertMatchesRegularExpression('/^[a-f0-9]{24}$/', (string) $row['correlation_id']);
+        self::assertSame('7', (string) $row['router_id']);
+        self::assertSame('synthetic-router', $row['router_identity']);
+        self::assertSame('native-hotspot', $row['backend']);
+        self::assertSame('hotspot-user', $row['target_type']);
+        self::assertSame('19', (string) $row['local_record_id']);
+        self::assertSame('*A', $row['routeros_record_id']);
+        self::assertSame('verified', $row['reconciliation_status']);
+        self::assertStringNotContainsString('never-store-this', serialize($row));
+    }
+
     public function testDryRunRequirementCanAllowOrDenyWithStableMessage(): void
     {
         $this->setSetting('dry_run_required', 'false');

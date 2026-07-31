@@ -12,6 +12,7 @@ $labels = [
     'disable' => 'تعليق الخدمة',
     'enable' => 'إعادة التفعيل',
     'delete' => 'حذف حساب RouterOS',
+    'reset' => 'تصفير عدادات الاستخدام',
 ];
 $h = static fn (mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
 ?>

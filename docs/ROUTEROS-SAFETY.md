@@ -139,6 +139,8 @@ Disconnect preview retains only exact `.id` projections for User Manager session
 
 The authorized Lab Router run passed create, ASSIGN, REPLACE, package push, delete, and exact cleanup with one real audit per executed logical operation and zero generated-secret persistence. No natural active test session existed, so the live disconnect path ended safely without a write; isolated tests cover all three remove command schemas and failure behavior.
 
+The full-integration field validator additionally proved exact-ID profile, limitation, and profile-limitation cleanup. A RouterOS trap during the first run exposed that the API socket could retain unread protocol words; `RouterOSApiClient` now disconnects after every command/read exception so no later operation can reuse a desynchronized connection.
+
 ## Prohibited shortcuts
 
 - Calling an execute route to test reachability.

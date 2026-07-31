@@ -62,6 +62,8 @@ Phase 1E adds architectural and behavior checks for the completed operational Co
 
 The integrated Lab Router run on identity `hAP` passed migrated creation, profile A assignment, replacement with profile B, unique limitation/profile/mapping push, migrated deletion, exact cleanup, and zero generated-secret occurrences in temporary persistence. Each executed logical operation produced exactly one real-attempt audit. No natural test session was available, so disconnect produced the expected no-session result and no disconnect audit; unit coverage remains the acceptance evidence for the three exact remove commands.
 
+The full-integration field run on RouterOS 7.23.1 is documented in `ROUTEROS-FULL-INTEGRATION.md`. It repeats User Manager limitation/profile/link/user creation, assignment replacement, password change, disable/enable, and exact-ID cleanup through one reusable CLI. Before/after counts matched, prefix scans found no residue, and generated secrets had zero occurrences in audits, raw SQLite bytes, and session serialization. Native Hotspot and PPPoE were reported `NOT_CONFIGURED` because their server objects were absent.
+
 ## Running the isolated suite
 
 Builds may use the public package network to download pinned Composer dependencies. Test runtime has no network:

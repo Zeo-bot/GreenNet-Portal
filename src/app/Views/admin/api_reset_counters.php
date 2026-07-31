@@ -28,10 +28,10 @@
 
 <div class="admin-page-header">
     <div>
-        <h1 class="admin-page-title">Reset Counters Dry Run</h1>
+        <h1 class="admin-page-title">تصفير عدادات RouterOS</h1>
 
         <p class="admin-page-description">
-            معاينة أمر تصفير العدادات قبل التنفيذ الحقيقي. هذه الصفحة لا ترسل أي أمر كتابة إلى MikroTik.
+            تنفيذ حقيقي ومحمي لتصفير عدادات السجل باستخدام RouterOS exact ID.
         </p>
     </div>
 
@@ -91,10 +91,10 @@
         <div class="admin-stat-card">
             <div class="admin-stat-label">Mode</div>
             <div class="admin-stat-value" style="font-size:18px;">
-                Dry Run
+                تنفيذ محمي
             </div>
             <div class="admin-stat-note">
-                لا يوجد تنفيذ فعلي
+                يتطلب تأكيدًا صريحًا
             </div>
         </div>
 
@@ -163,37 +163,36 @@
         </section>
 
         <section class="admin-section-card">
-            <h2 class="admin-section-title">Command Preview</h2>
+            <h2 class="admin-section-title">تفاصيل الأمر</h2>
 
             <?php if (!empty($resetPreview['supported'])): ?>
 
                 <div class="notice" style="background:#eff6ff;color:#1d4ed8;">
-                    الأمر التالي مجرد معاينة فقط. لن يتم إرساله إلى MikroTik في هذه المرحلة.
+                    سيُنفذ الأمر التالي فعليًا بعد التأكيد، ثم يعاد قراءة السجل بالمعرّف الدقيق.
                 </div>
 
                 <div class="admin-json-box">
 <?= htmlspecialchars(json_encode([
-    'mode' => 'dry_run',
-    'will_execute_later' => true,
-    'executed_now' => false,
+    'mode' => 'guarded_write',
+    'requires_confirmation' => true,
     'command' => $command,
     'parameters' => $parameters,
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>
                 </div>
 
-                <form method="post" action="/admin/api/reset-counters/dry-run" style="margin-top:16px;">
+                <form method="post" action="/admin/api/reset-counters/execute" style="margin-top:16px;" onsubmit="return confirm('سيتم تصفير العدادات فعليًا على الراوتر. متابعة؟');">
 
                     <input type="hidden" name="dataset" value="<?= htmlspecialchars($datasetKey) ?>">
                     <input type="hidden" name="id" value="<?= htmlspecialchars($recordId) ?>">
                     <input type="hidden" name="username" value="<?= htmlspecialchars($username) ?>">
 
                     <div class="form-group">
-                        <label>اكتب RESET_CONFIRM لتسجيل Dry Run</label>
+                        <label>اكتب RESET_CONFIRM لتنفيذ التصفير</label>
                         <input type="text" name="confirmation" placeholder="RESET_CONFIRM" required>
                     </div>
 
                     <button class="btn btn-danger" type="submit">
-                        تسجيل Dry Run لتصفير العدادات
+                        تنفيذ تصفير العدادات
                     </button>
 
                 </form>
@@ -213,43 +212,43 @@
     </div>
 
     <section class="admin-section-card">
-        <h2 class="admin-section-title">ما الذي سيحدث الآن؟</h2>
+        <h2 class="admin-section-title">ضمانات التنفيذ</h2>
 
         <div class="admin-checklist">
 
             <div class="admin-check-item">
                 <div class="admin-check-icon">✓</div>
                 <div>
-                    <strong>لن يتم تعديل MikroTik</strong>
+                    <strong>Exact-ID فقط</strong>
                     <br>
-                    العملية الحالية تسجل Dry Run فقط داخل Logs.
+                    لا يُسمح باسم مستخدم أو wildcard كهدف للحذف أو التصفير.
                 </div>
             </div>
 
             <div class="admin-check-item">
                 <div class="admin-check-icon">🧾</div>
                 <div>
-                    <strong>سيتم تسجيل العملية</strong>
+                    <strong>Audit كامل ومنقّح</strong>
                     <br>
-                    يظهر السجل في صفحة Logs مع الأمر المتوقع والهدف.
+                    يُسجل الأمر والهدف والنتيجة دون كلمات مرور أو أسرار.
                 </div>
             </div>
 
             <div class="admin-check-item">
                 <div class="admin-check-icon warning">!</div>
                 <div>
-                    <strong>التنفيذ الحقيقي لاحقاً</strong>
+                    <strong>تحقق بعد التنفيذ</strong>
                     <br>
-                    لن نفعّل التنفيذ إلا بعد Write Safety و CSRF و Backup Warning.
+                    يعاد قراءة السجل نفسه بعد نجاح أمر RouterOS.
                 </div>
             </div>
 
             <div class="admin-check-item">
                 <div class="admin-check-icon future">🔒</div>
                 <div>
-                    <strong>المرحلة القادمة</strong>
+                    <strong>Write Safety</strong>
                     <br>
-                    Readiness Check ثم طبقة الأمان قبل أوامر MikroTik Write.
+                    يظل التنفيذ خاضعًا للتفعيل والنسخة الحديثة والتأكيد.
                 </div>
             </div>
 

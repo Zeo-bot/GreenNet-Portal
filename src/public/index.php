@@ -36,6 +36,9 @@ session_set_cookie_params([
     'samesite' => (string) Config::get('SESSION_COOKIE_SAMESITE', 'Lax'),
 ]);
 session_start();
+if (!isset($_SESSION['admin_csrf_token']) || !is_string($_SESSION['admin_csrf_token'])) {
+    $_SESSION['admin_csrf_token'] = bin2hex(random_bytes(32));
+}
 
 $router = new Router();
 

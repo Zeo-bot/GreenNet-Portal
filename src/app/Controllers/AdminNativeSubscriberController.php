@@ -15,6 +15,7 @@ use GreenNet\Models\RouterPackageProfile;
 use GreenNet\Models\ServicePackage;
 use GreenNet\Services\RouterOS\RouterConnectionResolver;
 use GreenNet\Services\RouterOS\NativeSubscriberRecordResolver;
+use GreenNet\Services\RouterOS\RouterOSErrorNormalizer;
 use GreenNet\Services\WriteSafetyGuard;
 use GreenNet\Services\SubscriptionLifecycleService;
 use RuntimeException;
@@ -108,6 +109,9 @@ final class AdminNativeSubscriberController
             if (preg_match('/[\r\n\t]/', $password)) {
                 throw new RuntimeException('Password contains unsupported control characters.');
             }
+            if ($action === 'reset' && (string) $fresh['backend'] !== 'native-hotspot') {
+                throw new RuntimeException('Counter reset is not supported for native PPPoE secrets.');
+            }
 
             $params = $this->writeParams($fresh, $password);
             $bundle = RouterConnectionResolver::gatewayBundleForCustomer($username, ['timeout' => 6]);
@@ -163,11 +167,14 @@ final class AdminNativeSubscriberController
             $_SESSION['native_subscriber_result'] = $fresh;
             $this->flash('تم تنفيذ العملية والتحقق من النتيجة.');
         } catch (Throwable $e) {
+            $normalized = (new RouterOSErrorNormalizer())->normalize($e);
             if ($action === 'disable' && $username !== '' && Database::hasConnection()) {
-                (new SubscriptionLifecycleService())->markEnforcement($username, 'failed', $e->getMessage());
+                (new SubscriptionLifecycleService())->markEnforcement($username, 'failed', $normalized['message']);
             }
             $previous = is_array($_SESSION['native_subscriber_result'] ?? null) ? $_SESSION['native_subscriber_result'] : [];
-            $previous['execute_error'] = $e->getMessage();
+            $previous['execute_error'] = $normalized['message'];
+            $previous['error_code'] = $normalized['code'];
+            $previous['reconciliation_required'] = $normalized['reconciliation_required'];
             $_SESSION['native_subscriber_result'] = $previous;
             $this->flash($e->getMessage(), 'warning');
         }
@@ -248,6 +255,7 @@ final class AdminNativeSubscriberController
         $command = $commandBase . match ($action) {
             'create' => '/add',
             'delete' => '/remove',
+            'reset' => '/reset-counters',
             default => '/set',
         };
 
@@ -289,6 +297,9 @@ final class AdminNativeSubscriberController
         if ($action === 'delete') {
             return ['numbers' => (string) $plan['record_id']];
         }
+        if ($action === 'reset') {
+            return ['numbers' => (string) $plan['record_id']];
+        }
         $params = ['numbers' => (string) $plan['record_id']];
         $params[match ($action) {
             'package' => 'profile',
@@ -321,7 +332,7 @@ final class AdminNativeSubscriberController
 
     private function action(string $action): string
     {
-        return in_array($action, ['create', 'package', 'password', 'disable', 'enable', 'delete'], true)
+        return in_array($action, ['create', 'package', 'password', 'disable', 'enable', 'delete', 'reset'], true)
             ? $action
             : 'package';
     }

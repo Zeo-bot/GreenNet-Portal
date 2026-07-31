@@ -32,6 +32,16 @@ class Router
     {
         $path = parse_url($uri, PHP_URL_PATH) ?: '/';
 
+        if ($method === 'POST' && str_starts_with($path, '/admin/') && $path !== '/admin/login') {
+            $expected = (string) ($_SESSION['admin_csrf_token'] ?? '');
+            $provided = (string) ($_POST['_csrf'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
+            if ($expected === '' || $provided === '' || !hash_equals($expected, $provided)) {
+                http_response_code(419);
+                echo 'Admin session validation failed. Refresh the page and try again.';
+                return;
+            }
+        }
+
         if (!isset($this->routes[$method][$path])) {
             http_response_code(404);
             echo View::render('errors/404', [

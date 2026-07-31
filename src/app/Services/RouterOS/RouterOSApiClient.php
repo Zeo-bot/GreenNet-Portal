@@ -123,11 +123,17 @@ class RouterOSApiClient implements RouterOSClientInterface
 
     public function comm(string $command, array $params = []): array
     {
-        $this->connect();
+        try {
+            $this->connect();
+            $this->writeSentence($command, $params);
 
-        $this->writeSentence($command, $params);
-
-        return $this->readResponse();
+            return $this->readResponse();
+        } catch (Throwable $error) {
+            // A trap/fatal/read failure can leave unread sentence words on the socket.
+            // Never reuse a potentially desynchronized RouterOS API connection.
+            $this->disconnect();
+            throw $error;
+        }
     }
 
     public function run(string $command, array $params = []): array

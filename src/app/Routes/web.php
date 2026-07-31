@@ -241,7 +241,7 @@ $router->get('/admin/api/diagnostics', [AdminApiDiagnosticsController::class, 'i
 $router->get('/admin/api/browser', [AdminApiBrowserController::class, 'index']);
 $router->get('/admin/api/record', [AdminApiRecordController::class, 'show']);
 $router->get('/admin/api/reset-counters', [AdminApiResetCountersController::class, 'confirm']);
-$router->post('/admin/api/reset-counters/dry-run', [AdminApiResetCountersController::class, 'dryRun']);
+$router->post('/admin/api/reset-counters/execute', [AdminApiResetCountersController::class, 'execute']);
 
 $router->get('/admin/readiness', [AdminReadinessController::class, 'index']);
 

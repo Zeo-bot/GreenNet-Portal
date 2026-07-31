@@ -213,6 +213,9 @@ final class GuardedRouterOSWriteGateway implements GuardedRouterOSWriteGatewayIn
                     'executed' => $attemptedCallCount > 0 ? 1 : 0,
                     'success' => $operationOk ? 1 : 0,
                     'router_response' => $this->redactor->json($auditPayload),
+                    'after_state' => $safeValue,
+                    'error_details' => $safeError,
+                    'reconciliation_status' => $partialFailure ? 'required' : ($operationOk ? 'verified' : 'not_required'),
                 ]);
                 $auditRecorded = true;
             } catch (Throwable) {

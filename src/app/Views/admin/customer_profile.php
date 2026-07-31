@@ -167,6 +167,12 @@ $requestLabels = [
                 <div class="admin-action-desc">فصل الجلسات النشطة فقط باستخدام معرّفاتها الحالية.</div>
                 </a>
             <?php endif; ?>
+            <?php if ($routerFound && $serviceBackend === 'native-hotspot'): ?>
+                <a class="admin-action-card" href="/admin/native-subscriber?username=<?= htmlspecialchars($u) ?>&amp;action=reset">
+                    <div class="admin-action-icon">0</div><div class="admin-action-title">تصفير العدادات</div>
+                    <div class="admin-action-desc">تنفيذ تصفير حقيقي والتحقق من سجل Hotspot بالمعرّف الدقيق.</div>
+                </a>
+            <?php endif; ?>
         </div>
     </section>
 

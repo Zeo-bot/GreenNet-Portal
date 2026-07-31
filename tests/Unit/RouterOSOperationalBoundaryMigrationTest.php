@@ -117,7 +117,7 @@ final class RouterOSOperationalBoundaryMigrationTest extends TestCase
         $policy = new WriteCommandPolicy();
         foreach ([
             new RouterOSWriteCommand('/user-manager/user-profile/remove', ['numbers' => '*r1', 'user' => 'x']),
-            new RouterOSWriteCommand('/user-manager/profile/remove', ['numbers' => '*p1']),
+            new RouterOSWriteCommand('/user-manager/profile/remove', ['numbers' => '*p1', 'name' => 'x']),
         ] as $command) {
             try {
                 $policy->assertAllowed($command);

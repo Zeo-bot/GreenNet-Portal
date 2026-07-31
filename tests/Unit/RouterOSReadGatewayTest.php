@@ -13,6 +13,7 @@ use GreenNet\Tests\Support\FakeRouterOSReadGateway;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
+use ReflectionProperty;
 use RuntimeException;
 
 final class RouterOSReadGatewayTest extends TestCase
@@ -23,6 +24,30 @@ final class RouterOSReadGatewayTest extends TestCase
 
         self::assertInstanceOf(RouterOSClientInterface::class, $client);
         self::assertFalse($client->isConnected());
+    }
+
+    public function testApiClientDisconnectsAfterTrapToPreventProtocolDesynchronization(): void
+    {
+        $pair = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
+        self::assertIsArray($pair);
+        [$clientSocket, $routerSocket] = $pair;
+        $messageWord = '=message=synthetic trap value';
+        fwrite($routerSocket, chr(5) . '!trap' . chr(strlen($messageWord)) . $messageWord . chr(0));
+
+        $client = (new ReflectionClass(RouterOSApiClient::class))->newInstanceWithoutConstructor();
+        $this->setPrivate($client, 'socket', $clientSocket);
+        $this->setPrivate($client, 'connected', true);
+        $this->setPrivate($client, 'timeout', 1);
+
+        try {
+            $client->comm('/user-manager/user/reset-counters', ['numbers' => '*1']);
+            self::fail('Expected synthetic RouterOS trap.');
+        } catch (RuntimeException $exception) {
+            self::assertStringContainsString('synthetic trap value', $exception->getMessage());
+            self::assertFalse($client->isConnected());
+        } finally {
+            fclose($routerSocket);
+        }
     }
 
     public function testRealGatewayPreservesCommandParamsAndResponse(): void
@@ -71,6 +96,19 @@ final class RouterOSReadGatewayTest extends TestCase
             '/system/identity/print',
             '/system/resource/print',
             '/system/routerboard/print',
+            '/system/device-mode/print',
+            '/container/config/print',
+            '/container/print',
+            '/app/print',
+            '/interface/print',
+            '/interface/ethernet/print',
+            '/ip/address/print',
+            '/ip/route/print',
+            '/ip/dns/print',
+            '/ip/firewall/filter/print',
+            '/ip/firewall/nat/print',
+            '/ip/hotspot/print',
+            '/interface/pppoe-server/server/print',
             '/ip/hotspot/active/print',
             '/ip/hotspot/user/print',
             '/ip/hotspot/user/profile/print',
@@ -115,7 +153,7 @@ final class RouterOSReadGatewayTest extends TestCase
             'add' => ['/user-manager/user/add'],
             'set' => ['/user-manager/user/set'],
             'remove' => ['/user-manager/user/remove'],
-            'reset-counters' => ['/ip/hotspot/user/reset-counters'],
+            'reset-counters' => ['/ppp/secret/reset-counters'],
         ];
     }
 
@@ -197,5 +235,11 @@ final class RouterOSReadGatewayTest extends TestCase
         }
 
         self::assertSame([], $references);
+    }
+
+    private function setPrivate(object $target, string $property, mixed $value): void
+    {
+        $reflection = new ReflectionProperty($target, $property);
+        $reflection->setValue($target, $value);
     }
 }

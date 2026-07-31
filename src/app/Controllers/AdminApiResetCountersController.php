@@ -6,9 +6,15 @@ namespace GreenNet\Controllers;
 
 use GreenNet\Core\Database;
 use GreenNet\Core\View;
+use GreenNet\Contracts\AuthorizedRouterOSWriterInterface;
+use GreenNet\DTO\RouterOS\RouterOSWriteCommand;
+use GreenNet\DTO\RouterOS\WriteExecutionRequest;
 use GreenNet\Models\AppLog;
 use GreenNet\Models\CustomerLocal;
-use GreenNet\Services\RouterOS\MikroTikService;
+use GreenNet\Models\Router;
+use GreenNet\Services\RouterOS\RouterConnectionResolver;
+use GreenNet\Services\RouterOS\RouterOSErrorNormalizer;
+use RuntimeException;
 use Throwable;
 
 class AdminApiResetCountersController
@@ -20,19 +26,19 @@ class AdminApiResetCountersController
 
         $data = $this->loadRecordData();
 
-        AppLog::info('تم فتح صفحة Reset Counters Dry Run', [
+        AppLog::info('تم فتح صفحة تصفير العدادات', [
             'dataset' => $data['dataset_key'] ?? '',
             'username' => $data['username'] ?? '',
             'id' => $data['record_id'] ?? '',
         ]);
 
         return View::render('admin/api_reset_counters', array_merge($data, [
-            'title' => 'Reset Counters Dry Run',
+            'title' => 'تصفير العدادات',
             'result' => null,
         ]));
     }
 
-    public function dryRun(): string
+    public function execute(): string
     {
         Database::migrate();
         $this->requireLogin();
@@ -46,27 +52,86 @@ class AdminApiResetCountersController
                 'title' => 'Reset Counters Dry Run',
                 'result' => [
                     'ok' => false,
-                    'message' => 'لم يتم تأكيد العملية. يجب كتابة RESET_CONFIRM.',
+                    'message' => 'لم يتم تأكيد التنفيذ. يجب كتابة RESET_CONFIRM.',
                 ],
             ]));
         }
 
-        AppLog::warning('Reset Counters Dry Run فقط — لم يتم تنفيذ أي أمر على MikroTik', [
-            'dataset' => $data['dataset_key'] ?? '',
-            'username' => $data['username'] ?? '',
-            'id' => $data['record_id'] ?? '',
-            'command' => $data['reset_preview']['command'] ?? '',
-            'parameters' => $data['reset_preview']['parameters'] ?? [],
-            'dry_run' => true,
-        ]);
+        try {
+            if (empty($data['reset_preview']['supported'])) {
+                throw new RuntimeException('تصفير العدادات غير مدعوم لهذا النوع.');
+            }
+            $recordId = trim((string) ($data['record_id'] ?? ''));
+            if ($recordId === '') {
+                throw new RuntimeException('RouterOS exact ID is required.');
+            }
+            $command = (string) ($data['reset_preview']['command'] ?? '');
+            $routerId = (int) ($data['router_id'] ?? 0);
+            $bundle = RouterConnectionResolver::gatewayBundleForRouter($routerId, ['timeout' => 6]);
+            $result = $bundle->write->execute(
+                new WriteExecutionRequest(
+                    'reset_counters',
+                    (string) ($data['dataset_key'] ?? ''),
+                    (string) ($data['username'] ?? ''),
+                    $command,
+                    [
+                        'router_id' => $routerId,
+                        'target_type' => (string) ($data['dataset']['source'] ?? ''),
+                        'routeros_id' => $recordId,
+                        'before' => $data['usage'] ?? [],
+                    ],
+                    0,
+                    true
+                ),
+                function (AuthorizedRouterOSWriterInterface $writer) use ($command, $recordId, $bundle, $data): array {
+                    $writer->execute(new RouterOSWriteCommand($command, ['numbers' => $recordId]));
+                    $rows = $bundle->read->read((string) $data['dataset']['command'], ['?.id' => $recordId]);
+                    $matches = array_values(array_filter(
+                        $rows,
+                        static fn (mixed $row): bool => is_array($row)
+                            && (string) ($row['.id'] ?? '') === $recordId
+                    ));
+                    if (count($matches) !== 1) {
+                        throw new RuntimeException('Counter reset target could not be verified by exact ID.');
+                    }
+                    return [
+                        'verified' => true,
+                        'routeros_id' => $recordId,
+                        'after' => $this->usageCounters($matches[0]),
+                    ];
+                }
+            );
+            if (!$result->ok) {
+                throw new RuntimeException($result->safeError ?: 'RouterOS counter reset failed.');
+            }
 
-        return View::render('admin/api_reset_counters', array_merge($data, [
-            'title' => 'Reset Counters Dry Run',
-            'result' => [
-                'ok' => true,
-                'message' => 'تم تسجيل Dry Run بنجاح. لم يتم تنفيذ أي أمر فعلي على MikroTik.',
-            ],
-        ]));
+            return View::render('admin/api_reset_counters', array_merge($this->loadRecordData(), [
+                'title' => 'تصفير العدادات',
+                'result' => [
+                    'ok' => true,
+                    'message' => 'تم تصفير العدادات فعليًا والتحقق من السجل بالمعرّف الدقيق.',
+                    'details' => $result->toArray(),
+                ],
+            ]));
+        } catch (Throwable $e) {
+            $normalized = (new RouterOSErrorNormalizer())->normalize($e);
+            AppLog::error('فشل تصفير عدادات RouterOS', [
+                'dataset' => $data['dataset_key'] ?? '',
+                'username' => $data['username'] ?? '',
+                'id' => $data['record_id'] ?? '',
+                'error_code' => $normalized['code'],
+                'error' => $normalized['detail'],
+            ]);
+            return View::render('admin/api_reset_counters', array_merge($data, [
+                'title' => 'تصفير العدادات',
+                'result' => [
+                    'ok' => false,
+                    'message' => $normalized['message'],
+                    'error_code' => $normalized['code'],
+                    'reconciliation_required' => $normalized['reconciliation_required'],
+                ],
+            ]));
+        }
     }
 
     private function loadRecordData(): array
@@ -94,14 +159,13 @@ class AdminApiResetCountersController
         $dataset = $datasets[$datasetKey];
 
         try {
-            $service = new MikroTikService();
-            $method = (string) ($dataset['method'] ?? '');
-
-            if ($method === '' || !method_exists($service, $method)) {
-                throw new \RuntimeException('Method not found: ' . $method);
+            $crmCustomer = $username !== '' ? (CustomerLocal::findByUsername($username) ?? []) : [];
+            $routerId = (int) ($crmCustomer['router_id'] ?? 0);
+            if ($routerId <= 0) {
+                $routerId = (int) ((Router::default()['id'] ?? 0));
             }
-
-            $raw = $service->{$method}();
+            $bundle = RouterConnectionResolver::gatewayBundleForRouter($routerId, ['timeout' => 6]);
+            $raw = $bundle->read->read((string) $dataset['command']);
             $rows = $this->normalizeRows($raw);
             $rows = $this->sanitizeRows($rows);
 
@@ -114,9 +178,7 @@ class AdminApiResetCountersController
             $recordUsername = $this->extractUsername($record);
             $recordId = (string) ($record['.id'] ?? $record['id'] ?? '');
 
-            $crmCustomer = [];
-
-            if ($recordUsername !== '') {
+            if ($crmCustomer === [] && $recordUsername !== '') {
                 $foundCustomer = CustomerLocal::findByUsername($recordUsername);
 
                 if (is_array($foundCustomer)) {
@@ -131,6 +193,7 @@ class AdminApiResetCountersController
                 'record' => $record,
                 'username' => $recordUsername,
                 'record_id' => $recordId,
+                'router_id' => $routerId,
                 'crm_customer' => $crmCustomer,
                 'usage' => $this->usageCounters($record),
                 'reset_preview' => $this->resetPreview($datasetKey, $dataset, $record),
@@ -162,7 +225,7 @@ class AdminApiResetCountersController
         return [
             'hotspot_active' => [
                 'title' => 'Hotspot Active',
-                'method' => 'hotspotActiveUsers',
+                'command' => '/ip/hotspot/active/print',
                 'source' => 'hotspot_active',
                 'reset_supported' => false,
                 'reset_note' => 'Hotspot Active يمثل جلسة نشطة. لا نفعل تصفير العدادات عليه الآن.',
@@ -170,7 +233,7 @@ class AdminApiResetCountersController
 
             'hotspot_users' => [
                 'title' => 'Hotspot Users',
-                'method' => 'readHotspotUsers',
+                'command' => '/ip/hotspot/user/print',
                 'source' => 'hotspot_user',
                 'reset_supported' => true,
                 'reset_command' => '/ip/hotspot/user/reset-counters',
@@ -179,7 +242,7 @@ class AdminApiResetCountersController
 
             'ppp_active' => [
                 'title' => 'PPP Active',
-                'method' => 'pppActiveUsers',
+                'command' => '/ppp/active/print',
                 'source' => 'ppp_active',
                 'reset_supported' => false,
                 'reset_note' => 'PPP Active يعرض عدادات جلسة حالية. التصفير الحقيقي يحتاج منطق مختلف لاحقاً.',
@@ -187,7 +250,7 @@ class AdminApiResetCountersController
 
             'ppp_secrets' => [
                 'title' => 'PPP Secrets',
-                'method' => 'readPppSecrets',
+                'command' => '/ppp/secret/print',
                 'source' => 'ppp_secret',
                 'reset_supported' => false,
                 'reset_note' => 'PPP Secrets لا نفعّل لها reset counters الآن حتى نحدد الأمر المناسب بدقة.',
@@ -195,10 +258,10 @@ class AdminApiResetCountersController
 
             'user_manager_users' => [
                 'title' => 'User Manager Users',
-                'method' => 'readUserManagerUsers',
+                'command' => '/user-manager/user/print',
                 'source' => 'user_manager_user',
                 'reset_supported' => false,
-                'reset_note' => 'User Manager يحتاج أمر منفصل بعد دراسة sessions/counters الخاصة به.',
+                'reset_note' => 'RouterOS 7.23.1 لا يوفّر أمر تصفير فوري لمستخدم User Manager؛ الإحصاءات مرتبطة بالجلسات وجدولة limitation.',
             ],
         ];
     }
@@ -357,7 +420,7 @@ class AdminApiResetCountersController
             'parameters' => $parameters,
             'username' => $username,
             'id' => $id,
-            'dry_run' => true,
+            'dry_run' => false,
             'message' => (string) ($dataset['reset_note'] ?? ''),
         ];
     }

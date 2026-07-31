@@ -80,6 +80,21 @@ class WriteSafetyGuard
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
             )
         ");
+        foreach ([
+            'correlation_id' => "TEXT DEFAULT ''",
+            'router_id' => 'INTEGER DEFAULT 0',
+            'router_identity' => "TEXT DEFAULT ''",
+            'backend' => "TEXT DEFAULT ''",
+            'target_type' => "TEXT DEFAULT ''",
+            'local_record_id' => 'INTEGER DEFAULT 0',
+            'routeros_record_id' => "TEXT DEFAULT ''",
+            'before_state' => "TEXT DEFAULT '{}'",
+            'after_state' => "TEXT DEFAULT '{}'",
+            'error_details' => "TEXT DEFAULT ''",
+            'reconciliation_status' => "TEXT DEFAULT ''",
+        ] as $column => $definition) {
+            $this->ensureAuditColumn($column, $definition);
+        }
 
         foreach ($this->defaults() as $key => $value) {
             if ($this->get($key, null) === null) {
@@ -218,7 +233,7 @@ class WriteSafetyGuard
         $this->ensureTables();
         $data = $this->redactor->redact($data);
 
-        return $this->recordAudit([
+        return $this->recordAudit(array_merge($this->auditMetadata($data), [
             'admin_username' => (string) ($_SESSION['admin_username'] ?? 'admin'),
             'action' => (string) ($data['action'] ?? ''),
             'dataset' => (string) ($data['dataset'] ?? 'mikrotik'),
@@ -230,7 +245,7 @@ class WriteSafetyGuard
             'success' => 1,
             'router_response' => (string) ($data['router_response'] ?? 'Dry run only. No command executed.'),
             'ip_address' => (string) ($_SERVER['REMOTE_ADDR'] ?? ''),
-        ]);
+        ]));
     }
 
     public function recordRealAttempt(array $data): int
@@ -238,7 +253,7 @@ class WriteSafetyGuard
         $this->ensureTables();
         $data = $this->redactor->redact($data);
 
-        return $this->recordAudit([
+        return $this->recordAudit(array_merge($this->auditMetadata($data), [
             'admin_username' => (string) ($_SESSION['admin_username'] ?? 'admin'),
             'action' => (string) ($data['action'] ?? ''),
             'dataset' => (string) ($data['dataset'] ?? 'mikrotik'),
@@ -250,7 +265,7 @@ class WriteSafetyGuard
             'success' => (int) ($data['success'] ?? 0),
             'router_response' => (string) ($data['router_response'] ?? ''),
             'ip_address' => (string) ($_SERVER['REMOTE_ADDR'] ?? ''),
-        ]);
+        ]));
     }
 
     public function queue(array $data): int
@@ -332,7 +347,9 @@ class WriteSafetyGuard
                 executed,
                 success,
                 router_response,
-                ip_address,
+                ip_address, correlation_id, router_id, router_identity, backend,
+                target_type, local_record_id, routeros_record_id, before_state,
+                after_state, error_details, reconciliation_status,
                 created_at
             )
             VALUES (
@@ -346,7 +363,9 @@ class WriteSafetyGuard
                 :executed,
                 :success,
                 :router_response,
-                :ip_address,
+                :ip_address, :correlation_id, :router_id, :router_identity, :backend,
+                :target_type, :local_record_id, :routeros_record_id, :before_state,
+                :after_state, :error_details, :reconciliation_status,
                 :created_at
             )
         ");
@@ -363,6 +382,17 @@ class WriteSafetyGuard
             'success' => (int) ($row['success'] ?? 0),
             'router_response' => (string) ($row['router_response'] ?? ''),
             'ip_address' => (string) ($row['ip_address'] ?? ''),
+            'correlation_id' => (string) ($row['correlation_id'] ?? ''),
+            'router_id' => (int) ($row['router_id'] ?? 0),
+            'router_identity' => (string) ($row['router_identity'] ?? ''),
+            'backend' => (string) ($row['backend'] ?? $row['dataset'] ?? ''),
+            'target_type' => (string) ($row['target_type'] ?? ''),
+            'local_record_id' => (int) ($row['local_record_id'] ?? 0),
+            'routeros_record_id' => (string) ($row['routeros_record_id'] ?? ''),
+            'before_state' => $this->json($row['before_state'] ?? []),
+            'after_state' => $this->json($row['after_state'] ?? []),
+            'error_details' => (string) ($row['error_details'] ?? ''),
+            'reconciliation_status' => (string) ($row['reconciliation_status'] ?? ''),
             'created_at' => date('Y-m-d H:i:s', $this->now()),
         ]);
 
@@ -436,6 +466,36 @@ class WriteSafetyGuard
     private function json(mixed $value): string
     {
         return $this->redactor->json($value);
+    }
+
+    private function auditMetadata(array $data): array
+    {
+        $params = is_array($data['params'] ?? null) ? $data['params'] : [];
+
+        return [
+            'correlation_id' => (string) ($data['correlation_id'] ?? $params['correlation_id'] ?? bin2hex(random_bytes(12))),
+            'router_id' => (int) ($data['router_id'] ?? $params['router_id'] ?? 0),
+            'router_identity' => (string) ($data['router_identity'] ?? $params['router_identity'] ?? ''),
+            'backend' => (string) ($data['backend'] ?? $params['backend'] ?? $data['dataset'] ?? ''),
+            'target_type' => (string) ($data['target_type'] ?? $params['target_type'] ?? ''),
+            'local_record_id' => (int) ($data['local_record_id'] ?? $params['local_record_id'] ?? 0),
+            'routeros_record_id' => (string) ($data['routeros_record_id'] ?? $params['routeros_id'] ?? ''),
+            'before_state' => $data['before_state'] ?? $params['before'] ?? [],
+            'after_state' => $data['after_state'] ?? $params['after'] ?? [],
+            'error_details' => (string) ($data['error_details'] ?? ''),
+            'reconciliation_status' => (string) ($data['reconciliation_status'] ?? $params['reconciliation_status'] ?? ''),
+        ];
+    }
+
+    private function ensureAuditColumn(string $column, string $definition): void
+    {
+        $rows = $this->database()->query("PRAGMA table_info({$this->auditTable})")->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($rows as $row) {
+            if ((string) ($row['name'] ?? '') === $column) {
+                return;
+            }
+        }
+        $this->database()->exec("ALTER TABLE {$this->auditTable} ADD COLUMN {$column} {$definition}");
     }
 
     private function database(): PDO

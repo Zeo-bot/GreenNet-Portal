@@ -286,5 +286,20 @@ $navGroups = [
     <script src="/js/admin-layout.js?v=ui4"></script>
     <script src="/js/admin-tables.js?v=ui5pack"></script>
     <script src="/js/admin-pages.js?v=ui8pack"></script>
+    <script>
+    (() => {
+        const token = <?= json_encode((string) ($_SESSION['admin_csrf_token'] ?? ''), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+        const attach = (form) => {
+            if (!token || String(form.method).toLowerCase() !== 'post' || form.querySelector('input[name="_csrf"]')) return;
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = '_csrf';
+            input.value = token;
+            form.appendChild(input);
+        };
+        document.querySelectorAll('form').forEach(attach);
+        document.addEventListener('submit', (event) => attach(event.target), true);
+    })();
+    </script>
 </body>
 </html>
